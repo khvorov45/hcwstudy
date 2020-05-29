@@ -1,3 +1,4 @@
 *.pdf
 token
 *.csv
+.Rproj.user
