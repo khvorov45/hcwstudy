@@ -49,9 +49,11 @@ all_dat <- down_trans_redcap(readLines("token"))
 surveys <- all_dat$symptom %>% select(record_id, survey_week_index)
 subjects <- all_dat$participant %>%
   select(record_id, pid, email, mobile_number, site_name, date_screening)
+withdrawals <- all_dat$withdrawal
 
 all_subject_surveys <- left_join(subjects, surveys, "record_id") %>%
-  filter(!is.na(pid)) # Proxy for consent/enrollment
+  # PID presence is proxy for consent/enrollment
+  filter(!is.na(pid), !record_id %in% withdrawals$record_id)
 
 weekly_survey_reference <- tibble(
   week_index = 1:30,
