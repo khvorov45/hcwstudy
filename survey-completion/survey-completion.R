@@ -77,7 +77,7 @@ current_week <- weekly_survey_reference %>%
   pull(week_index) %>%
   max()
 
-atleast1_completed %>%
+survey_comp_table <- atleast1_completed %>%
   mutate(date_monday = find_monday(date_symptom_survey)) %>%
   left_join(weekly_survey_reference, "date_monday") %>%
   rename(survey_week = week_index) %>%
@@ -94,10 +94,12 @@ atleast1_completed %>%
       should_complete, completed_weeks, ~ .x[!.x %in% .y]
     )
   ) %>%
-  pull(should_complete)
   mutate(
     completed_weeks_read = listcol_to_readable(completed_weeks),
     should_complete_read = listcol_to_readable(should_complete),
     missing_surveys_read = listcol_to_readable(missing_surveys)
-  ) %>%
-  select(record_id, contains("_read"))
+  )
+write_csv(
+  select_if(survey_comp_table, ~ !is.list(.)),
+  file.path(survey_completion_dir, "survey-completion-table.csv")
+)
