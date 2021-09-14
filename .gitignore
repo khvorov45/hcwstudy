@@ -2,3 +2,4 @@
 *.pdf
 *.accdb
 *.json
+.~lock*
