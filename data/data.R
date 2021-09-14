@@ -284,3 +284,34 @@ unique(vaccination_history_with_instrument$status)
 setdiff(vaccination_history_with_instrument$pid, participants_fix_pid$pid)
 
 write_csv(vaccination_history_with_instrument, "data/vaccinations.csv")
+
+# SECTION Bleed dates
+
+redcap_bleed_dates_request <- function(year) {
+  redcap_request(
+    year, "baseline_arm_1",
+    "record_id,date_baseline_blood,date_7d_blood,date_14d_blood,date_end_season_blood"
+  ) %>%
+    mutate(across(
+      c(date_baseline_blood, date_7d_blood, date_14d_blood, date_end_season_blood),
+      as.character
+    ))
+}
+
+bleed_dates_raw <- redcap_bleed_dates_request(2020) %>%
+  bind_rows(redcap_bleed_dates_request(2021)) %>%
+  inner_join(
+    yearly_changes_fix_pids %>%
+      select(record_id, pid, redcap_project_year),
+    c("record_id", "redcap_project_year")
+  ) %>%
+  select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance, -record_id) %>%
+  rename(year = redcap_project_year)
+
+bleed_dates_long <- bleed_dates_raw %>%
+  pivot_longer(contains("date"), names_to = "timepoint", values_to = "date") %>%
+  mutate(timepoint = str_replace(timepoint, "date_", "") %>% str_replace("_blood", ""))
+
+setdiff(bleed_dates_long$pid, participants_fix_pid$pid)
+
+write_csv(bleed_dates_long, "data/bleed-dates.csv")
