@@ -233,6 +233,14 @@ vaccination_instrument_raw %>%
   filter(n() > 1) %>%
   arrange(pid, year)
 
+# TODO(sen) Remove this once the conflict has been resolved.
+# Contacted melbourne site on 2021-08-26 (through study email)
+vaccination_instrument_raw_fixed <- vaccination_instrument_raw %>%
+  mutate(vaccinated = if_else(pid == "ALF-018" & year == 2020, 1, vaccinated))
+
+# NOTE(sen) Should see one change due to the above
+all.equal(vaccination_instrument_raw_fixed, vaccination_instrument_raw)
+
 # NOTE(sen) Shouldn't be any conflicting information
 vaccination_history_no_duplicates %>%
   inner_join(vaccination_instrument_raw_fixed, c("pid", "year")) %>%
@@ -243,7 +251,7 @@ vaccination_history_no_duplicates %>%
 
 vaccination_history_with_instrument <- vaccination_history_no_duplicates %>%
   bind_rows(
-    vaccination_instrument_raw %>%
+    vaccination_instrument_raw_fixed %>%
       filter(
         !paste0(pid, year) %in%
           with(vaccination_history_no_duplicates, paste0(pid, year))
