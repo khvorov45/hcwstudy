@@ -111,7 +111,7 @@ redcap_participants_request <- function(project_year) {
   redcap_request(
     project_year,
     "baseline_arm_1",
-    "record_id,pid,a1_gender,a2_dob",
+    "record_id,pid,date_screening,a1_gender,a2_dob",
     exportDataAccessGroups = "true",
     rawOrLabel = "label"
   ) %>%
@@ -130,7 +130,8 @@ participants <- bind_rows(
   filter(pid != "WCH-025") %>%
   select(
     pid,
-    site = redcap_data_access_group, gender = a1_gender, dob = a2_dob
+    site = redcap_data_access_group, gender = a1_gender, dob = a2_dob,
+    date_screening
   ) %>%
   mutate(
     recruitment_year = if_else(pid %in% participants2020$pid, 2020, 2021)
@@ -139,15 +140,18 @@ participants <- bind_rows(
 # NOTE(sen) Some are missing baseline data
 participants %>% filter(!complete.cases(.))
 participants %>%
-  select(pid, site, recruitment_year) %>%
+  select(pid, site, recruitment_year, date_screening) %>%
   filter(!complete.cases(.))
+
+participants_with_age <- participants %>%
+  mutate(age_screening = (date_screening - dob) / lubridate::dyears(1))
 
 fun_fix_pids <- function(pid) {
   str_replace(pid, "([[:alpha:]]{3})(\\d{3})", "\\1-\\2") %>%
     recode("QCH 070" = "QCH-070")
 }
 
-participants_fix_pid <- participants %>%
+participants_fix_pid <- participants_with_age %>%
   mutate(pid = fun_fix_pids(pid))
 
 # NOTE(sen) Shouldn't be any duplicates
