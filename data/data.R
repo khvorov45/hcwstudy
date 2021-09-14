@@ -22,8 +22,8 @@ serology_all_tables_2020 <- list.files("data-raw", pattern = "HI_", full.names =
         pid = PID, year, day, virus = Target,
         titre = Titer, path
       ) %>%
-      # NOTE(sen) The whole point is to have a titre measurement, no titre - don't
-      # insert into the table at all
+      # NOTE(sen) The whole point is to have a titre measurement, no titre -
+      # don't insert into the table at all
       filter(!is.na(titre))
   })
 
@@ -111,9 +111,11 @@ redcap_participants_request <- function(project_year) {
   redcap_request(
     project_year,
     "baseline_arm_1",
-    "record_id,pid",
-    exportDataAccessGroups = "true"
-  )
+    "record_id,pid,a1_gender,a2_dob",
+    exportDataAccessGroups = "true",
+    rawOrLabel = "label"
+  ) %>%
+    mutate(across(c(redcap_data_access_group, a1_gender), tolower))
 }
 
 participants2020 <- redcap_participants_request(2020)
@@ -126,10 +128,19 @@ participants <- bind_rows(
   filter(!is.na(pid)) %>%
   # NOTE(sen) WCH-025 became WCH-818
   filter(pid != "WCH-025") %>%
-  select(pid, site = redcap_data_access_group) %>%
+  select(
+    pid,
+    site = redcap_data_access_group, gender = a1_gender, dob = a2_dob
+  ) %>%
   mutate(
     recruitment_year = if_else(pid %in% participants2020$pid, 2020, 2021)
   )
+
+# NOTE(sen) Some are missing baseline data
+participants %>% filter(!complete.cases(.))
+participants %>%
+  select(pid, site, recruitment_year) %>%
+  filter(!complete.cases(.))
 
 fun_fix_pids <- function(pid) {
   str_replace(pid, "([[:alpha:]]{3})(\\d{3})", "\\1-\\2") %>%
