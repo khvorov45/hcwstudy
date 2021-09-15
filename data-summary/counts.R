@@ -9,6 +9,8 @@ bleed_dates <- read_csv("data/bleed-dates.csv", col_types = cols())
 
 vaccinations <- read_csv("data/vaccinations.csv", col_types = cols())
 
+swabs <- read_csv("data/swabs.csv", col_types = cols())
+
 # SECTION Currently enrolled
 
 at_least_one_bleed_in_2021 <- bleed_dates %>%
@@ -111,4 +113,25 @@ prior_vaccinations_nested_only_counts <- prior_vaccinations_nested_only %>%
   ) %>%
   pivot_wider(names_from = "site", values_from = "count")
 
-write_csv(prior_vaccinations_nested_only_counts, "data-summary/prior-vaccinations-nested-only.csv")
+write_csv(prior_vaccinations_nested_only_counts, "data-summary/counts-prior-vaccinations-nested-only.csv")
+
+# SECTION Swab counts
+
+swabs_with_participant_info <- inner_join(swabs, participants %>% select(pid, site), "pid")
+
+swabs_collected_only <- swabs_with_participant_info %>%
+  filter(swab_collection == 1)
+
+swab_collected_counts <- swabs_collected_only %>%
+  group_by(site) %>%
+  summarise(total_swabs = n(), unique_participants = length(unique(pid))) %>%
+  bind_rows(
+    swabs_collected_only %>%
+      summarise(
+        site = "overall",
+        total_swabs = n(),
+        unique_participants = length(unique(pid))
+      )
+  )
+
+write_csv(swab_collected_counts, "data-summary/counts-swabs-collected.csv")
