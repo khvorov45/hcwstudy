@@ -334,3 +334,25 @@ write_csv(bleed_dates_long, "data/bleed-dates.csv")
 # SECTION Consent
 
 # TODO(sen) Pull consent and consent conflicts
+
+# SECTION Swabs
+
+redcap_swabs_request <- function(year) {
+  survey_events <- paste0("weekly_survey_", 1:52, "_arm_1", collapse = ",")
+  all_events <- paste0("infection_arm_1,", survey_events)
+  redcap_request(year, all_events, "record_id,swab_collection")
+}
+
+swabs <- redcap_swabs_request(2020) %>%
+  bind_rows(redcap_swabs_request(2021)) %>%
+  inner_join(
+    yearly_changes_fix_pids %>%
+      select(record_id, pid, redcap_project_year),
+    c("record_id", "redcap_project_year")
+  ) %>%
+  select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance, -record_id) %>%
+  rename(year = redcap_project_year)
+
+swabs_no_missing <- swabs %>% filter(!is.na(swab_collection))
+
+write_csv(swabs_no_missing, "data/swabs.csv")
