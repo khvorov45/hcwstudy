@@ -34,6 +34,8 @@ at_least_one_bleed_in_2021 <- bleed_dates %>%
 participants_currently_enrolled <- participants_with_extra %>%
   filter(pid %in% at_least_one_bleed_in_2021)
 
+write_csv(participants_currently_enrolled, "data-summary/participants-currently-enrolled.csv")
+
 calc_counts <- function(data) {
   data <- data %>% mutate(n_prior_vaccinations = as.character(n_prior_vaccinations))
   data %>%
