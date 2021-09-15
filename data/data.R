@@ -143,15 +143,26 @@ participants %>%
   select(pid, site, recruitment_year, date_screening) %>%
   filter(!complete.cases(.))
 
-participants_with_age <- participants %>%
-  mutate(age_screening = (date_screening - dob) / lubridate::dyears(1))
+extract_first_pid_digit <- function(string) {
+  str_replace(string, ".*(\\d)\\d{2}.*", "\\1")
+}
+
+unique(extract_first_pid_digit(participants$pid))
+
+participants_with_extras <- participants %>%
+  mutate(
+    age_screening = (date_screening - dob) / lubridate::dyears(1),
+    # TODO(sen) This seems to be the most reliable way of doing it right now
+    # but consent forms would be better if they didn't conflict
+    arm = if_else(extract_first_pid_digit(pid) == "8", "nested", "main")
+  )
 
 fun_fix_pids <- function(pid) {
   str_replace(pid, "([[:alpha:]]{3})(\\d{3})", "\\1-\\2") %>%
     recode("QCH 070" = "QCH-070")
 }
 
-participants_fix_pid <- participants_with_age %>%
+participants_fix_pid <- participants_with_extras %>%
   mutate(pid = fun_fix_pids(pid))
 
 # NOTE(sen) Shouldn't be any duplicates
@@ -319,3 +330,7 @@ bleed_dates_long <- bleed_dates_raw %>%
 setdiff(bleed_dates_long$pid, participants_fix_pid$pid)
 
 write_csv(bleed_dates_long, "data/bleed-dates.csv")
+
+# SECTION Consent
+
+# TODO(sen) Pull consent and consent conflicts
