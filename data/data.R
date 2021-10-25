@@ -8,7 +8,8 @@ system("data-raw/pull-NIHHCWserol.sh")
 system("data-raw/export-NIHHCWserol.sh")
 
 viruses <- read_csv("data-raw/NIH Viruses.csv", col_types = cols()) %>%
-  select(name = Virus_Name, short_name = Short_Name, clade = Clade)
+  select(name = Virus_Name, short_name = Short_Name, clade = Clade) %>%
+  mutate(egg = str_ends(name, "e") | str_ends(name, "\\(IVR-190\\)"))
 
 serology_all_tables_2020 <- list.files("data-raw", pattern = "HI_", full.names = TRUE) %>%
   map_dfr(function(path) {

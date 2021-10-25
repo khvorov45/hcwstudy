@@ -111,6 +111,62 @@ ggsave(
   unit = "cm", width = 35, height = 40
 )
 
+serology2 <- serology %>%
+  filter(prior_vacs %in% c(0, 1, 5), virus_egg) %>%
+  mutate(
+    y_position = rnorm(n(), log(titre), 0.1) %>% exp(),
+    x_position = as.integer(timepoint) + 0.1 * (as.integer(as.factor(prior_vacs)) - 2)
+  )
+
+titre_summary2 <- serology2 %>%
+  group_by(virus_label, prior_vacs, timepoint, x_position) %>%
+  summarise(.groups = "drop", summarise_logmean(titre))
+
+colors2 <- c("#D39547", "#3F4393", "#319364")
+
+titre_plot2 <- serology2 %>%
+  ggplot(aes(
+    x_position, y_position,
+    col = as.factor(prior_vacs)
+  )) +
+  theme_bw() +
+  theme(
+    legend.position = "bottom",
+    legend.box.spacing = unit(0, "null"),
+    panel.spacing = unit(0, "null"),
+    strip.background = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(angle = 30, hjust = 1)
+  ) +
+  scale_y_log10("Titre", breaks = 5 * 2^(0:15)) +
+  scale_x_continuous("Timepoint", breaks = 1:4, labels = levels(serology2$timepoint)) +
+  scale_color_manual("Prior vaccinations", values = colors2) +
+  facet_wrap(~virus_label, nrow = 2) +
+  guides(color = guide_legend(override.aes = list(alpha = 1), nrow = 1)) +
+  geom_point(alpha = 0.3, shape = 18) +
+  geom_line(
+    data = titre_summary2,
+    aes(y = mean),
+    size = 1
+  ) +
+  geom_errorbar(
+    data = titre_summary2,
+    aes(y = mean, ymin = low, ymax = high),
+    size = 1.2,
+    width = 0.1
+  ) +
+  geom_point(
+    data = titre_summary2,
+    aes(y = mean),
+    size = 3
+  )
+
+ggsave(
+  "data-summary/titre-plot2.pdf",
+  titre_plot2,
+  unit = "cm", width = 20, height = 20
+)
+
 prevax_ratios <- serology %>%
   group_by(pid, virus) %>%
   filter("Pre-vax" %in% timepoint) %>%
