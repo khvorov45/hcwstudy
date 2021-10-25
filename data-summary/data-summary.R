@@ -62,7 +62,6 @@ summarise_logmean <- function(vec, round_to = 0) {
 }
 
 titre_summary <- serology %>%
-  filter(site == "perth") %>%
   group_by(virus_label, prior_vacs, timepoint) %>%
   summarise(.groups = "drop", summarise_logmean(titre))
 
@@ -73,7 +72,6 @@ titre_summary_wide <- titre_summary %>%
 write_csv(titre_summary_wide, "data-summary/titre-summary.csv")
 
 titre_plot <- serology %>%
-  filter(site == "perth") %>%
   mutate(y_position = rnorm(n(), log(titre), 0.1) %>% exp()) %>%
   ggplot(aes(
     timepoint, y_position,
@@ -121,7 +119,6 @@ prevax_ratios <- serology %>%
   filter(timepoint != "Pre-vax")
 
 ratio_summary <- prevax_ratios %>%
-  filter(site == "perth") %>%
   group_by(virus_label, prior_vacs, timepoint) %>%
   summarise(.groups = "drop", summarise_logmean(ratio_to_pre, 2))
 
@@ -132,7 +129,6 @@ ratio_summary_wide <- ratio_summary %>%
 write_csv(ratio_summary_wide, "data-summary/ratio-summary.csv")
 
 ratio_plot <- prevax_ratios %>%
-  filter(site == "perth") %>%
   mutate(y_position = rnorm(n(), log(ratio_to_pre), 0.1) %>% exp()) %>%
   ggplot(aes(
     timepoint, y_position,
