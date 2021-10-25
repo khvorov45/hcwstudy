@@ -321,7 +321,12 @@ bleed_dates_raw <- redcap_bleed_dates_request(2020) %>%
 
 bleed_dates_long <- bleed_dates_raw %>%
   pivot_longer(contains("date"), names_to = "timepoint", values_to = "date") %>%
-  mutate(timepoint = str_replace(timepoint, "date_", "") %>% str_replace("_blood", ""))
+  mutate(
+    day = str_replace(timepoint, "date_", "") %>% str_replace("_blood", "") %>%
+      recode("baseline" = "0", "7d" = "7", "14d" = "14", "end_season" = "220"),
+    date = if_else(date == "NI", NA_character_, date)
+  ) %>%
+  select(-timepoint)
 
 setdiff(bleed_dates_long$pid, participants_fix_pid$pid)
 

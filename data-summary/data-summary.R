@@ -21,10 +21,21 @@ prior_vaccination_counts <- vaccinations %>%
 
 viruses <- read_csv("data/viruses.csv", col_types = cols())
 
+bleed_dates <- read_csv("data/bleed-dates.csv", col_types = cols())
+
+bleed_dates %>% filter(pid == "ALF-035")
+
+bleed_offsets <- bleed_dates %>%
+  group_by(year, pid) %>%
+  mutate(days_from_baseline = (date - date[day == 0]) / lubridate::ddays(1)) %>%
+  ungroup() %>%
+  rename(bleed_date = date)
+
 serology <- read_csv("data/serology.csv", col_types = cols()) %>%
   inner_join(participants, "pid") %>%
   inner_join(prior_vaccination_counts, "pid") %>%
   inner_join(viruses, c("virus" = "virus_name")) %>%
+  inner_join(bleed_offsets, c("pid", "year", "day")) %>%
   mutate(
     timepoint = recode(
       day,
@@ -45,6 +56,10 @@ serology <- read_csv("data/serology.csv", col_types = cols()) %>%
     virus_label_short = paste0(virus_short_name, " (", virus_clade, ")") %>%
       fct_reorder(as.integer(virus_label_fct)),
   )
+
+bleed_offsets_av <- bleed_offsets %>%
+  group_by(day) %>%
+  summarise(days_from_baseline_med = median(days_from_baseline, na.rm = TRUE))
 
 summarise_logmean <- function(vec, round_to = 0) {
   vec <- na.omit(vec)
@@ -114,14 +129,15 @@ ggsave(
 )
 
 serology2 <- serology %>%
-  filter(prior_vacs %in% c(0, 1, 5), virus_egg) %>%
+  inner_join(bleed_offsets_av, "day") %>%
+  filter(prior_vacs %in% c(0, 1, 5), virus_egg, timepoint != "Post-vax (7 days)") %>%
   mutate(
     y_position = rnorm(n(), log(titre), 0.1) %>% exp(),
-    x_position = as.integer(timepoint) + 0.1 * (as.integer(as.factor(prior_vacs)) - 2)
+    x_position = days_from_baseline_med + 4 * (as.integer(as.factor(prior_vacs)) - 2)
   )
 
 titre_summary2 <- serology2 %>%
-  group_by(virus_label, prior_vacs, timepoint, x_position) %>%
+  group_by(virus_label, prior_vacs, timepoint, x_position, days_from_baseline_med) %>%
   summarise(.groups = "drop", summarise_logmean(titre))
 
 colors2 <- c("#D39547", "#3F4393", "#319364")
@@ -141,10 +157,15 @@ titre_plot2 <- serology2 %>%
     axis.text.x = element_text(angle = 30, hjust = 1)
   ) +
   scale_y_log10("Titre", breaks = 5 * 2^(0:15)) +
-  scale_x_continuous("Timepoint", breaks = 1:4, labels = levels(serology2$timepoint)) +
+  scale_x_continuous(
+    "Timepoint",
+    breaks = bleed_offsets_av %>% filter(day != 7) %>% pull(days_from_baseline_med),
+    labels = levels(fct_drop(serology2$timepoint))
+  ) +
   scale_color_manual("Prior vaccinations", values = colors2) +
   facet_wrap(~virus_label, nrow = 2) +
   guides(color = guide_legend(override.aes = list(alpha = 1), nrow = 1)) +
+  geom_hline(yintercept = 40, lty = "11", alpha = 0.5) +
   geom_point(alpha = 0.3, shape = 18) +
   geom_line(
     data = titre_summary2,
@@ -166,7 +187,7 @@ titre_plot2 <- serology2 %>%
 ggsave(
   "data-summary/titre-plot2.pdf",
   titre_plot2,
-  unit = "cm", width = 20, height = 20
+  unit = "cm", width = 25, height = 20
 )
 
 prevax_ratios <- serology %>%
