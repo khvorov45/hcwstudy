@@ -259,11 +259,6 @@ vaccination_instrument_raw %>%
   filter(n() > 1) %>%
   arrange(pid, year)
 
-# TODO(sen) Remove this once the conflict has been resolved.
-# Contacted melbourne site on 2021-08-26 (through study email)
-vaccination_instrument_raw_fixed <- vaccination_instrument_raw %>%
-  mutate(vaccinated = if_else(pid == "ALF-018" & year == 2020, 1, vaccinated))
-
 # NOTE(sen) Should see one change due to the above
 all.equal(vaccination_instrument_raw_fixed, vaccination_instrument_raw)
 
