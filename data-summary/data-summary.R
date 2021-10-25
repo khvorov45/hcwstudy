@@ -34,13 +34,14 @@ serology <- read_csv("data/serology.csv", col_types = cols()) %>%
       "220" = "Post-season"
     ) %>%
       fct_reorder(day),
-    virus_label = factor(virus, levels = c(
+    virus_label_fct = factor(virus, levels = c(
       "A/Brisbane/02/2018", "A/Brisbane/02/2018 (IVR-190)",
       "A/South Australia/34/2019p", "A/South Australia/34/2019e",
       "B/Washington/02/2019", "B/Washington/02/2019e",
       "B/Phuket/3073/2013", "B/Phuket/3073/2013e"
-    )) %>%
-      paste0(" (", virus_clade, ")"),
+    )),
+    virus_label = paste0(virus_label_fct, " (", virus_clade, ")") %>%
+      fct_reorder(as.integer(virus_label_fct)),
   )
 
 summarise_logmean <- function(vec, round_to = 0) {
