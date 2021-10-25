@@ -42,6 +42,8 @@ serology <- read_csv("data/serology.csv", col_types = cols()) %>%
     )),
     virus_label = paste0(virus_label_fct, " (", virus_clade, ")") %>%
       fct_reorder(as.integer(virus_label_fct)),
+    virus_label_short = paste0(virus_short_name, " (", virus_clade, ")") %>%
+      fct_reorder(as.integer(virus_label_fct)),
   )
 
 summarise_logmean <- function(vec, round_to = 0) {
@@ -224,3 +226,47 @@ ggsave(
   ratio_plot,
   unit = "cm", width = 35, height = 40
 )
+
+
+summarise_prop <- function(success, total) {
+  ci <- PropCIs::exactci(success, total, 0.95)
+  prop <- success / total
+  low <- ci$conf.int[[1]]
+  high <- ci$conf.int[[2]]
+  f <- function(x) round(x * 100)
+  tibble(
+    prop, low, high,
+    comb = glue::glue("{f(prop)}% ({f(low)}%, {f(high)}%)")
+  )
+}
+
+seroconv_summary <- serology %>%
+  select(-day) %>%
+  filter(timepoint %in% c("Pre-vax", "Post-vax (14 days)")) %>%
+  pivot_wider(names_from = timepoint, values_from = "titre") %>%
+  mutate(seroconv = `Post-vax (14 days)` / `Pre-vax` >= 4) %>%
+  filter(!is.na(seroconv)) %>%
+  group_by(prior_vacs, virus, virus_egg, virus_label, virus_label_short) %>%
+  summarise(.groups = "drop", total = n(), n_seroconv = sum(seroconv)) %>%
+  mutate(props = map2(n_seroconv, total, summarise_prop)) %>%
+  unnest(props)
+
+write_csv(seroconv_summary, "data-summary/seroconv.csv")
+
+seroconv_plot2 <- seroconv_summary %>%
+  filter(virus_egg, prior_vacs %in% c(0, 1, 5)) %>%
+  ggplot(aes(virus_label_short, prop, ymin = low, ymax = high, col = as.factor(prior_vacs))) +
+  theme_bw() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 30, hjust = 1),
+    plot.margin = margin(5, 5, 5, 25),
+    panel.grid.minor = element_blank()
+  ) +
+  scale_y_continuous("Seroconverted", breaks = seq(0, 1, 0.1), labels = scales::percent_format(accuracy = 1)) +
+  scale_x_discrete("Virus") +
+  scale_color_manual("Prior vaccinations", values = colors2) +
+  geom_errorbar(position = position_dodge(width = 0.5), width = 0.4) +
+  geom_point(position = position_dodge(width = 0.5))
+
+ggsave("data-summary/seroconv2.pdf", seroconv_plot2, width = 15, height = 10, units = "cm")
