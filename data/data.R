@@ -260,12 +260,10 @@ vaccination_instrument_raw %>%
   filter(n() > 1) %>%
   arrange(pid, year)
 
-# NOTE(sen) Should see one change due to the above
-all.equal(vaccination_instrument_raw_fixed, vaccination_instrument_raw)
-
 # NOTE(sen) Shouldn't be any conflicting information
+# TODO(sen) Contacted melbourne site about ALF-018 on 2021-08-26 through study email
 vaccination_history_no_duplicates %>%
-  inner_join(vaccination_instrument_raw_fixed, c("pid", "year")) %>%
+  inner_join(vaccination_instrument_raw, c("pid", "year")) %>%
   filter(
     (vaccinated != 1 & status == "Australia") |
       (vaccinated == 0 & status != "No")
@@ -273,7 +271,7 @@ vaccination_history_no_duplicates %>%
 
 vaccination_history_with_instrument <- vaccination_history_no_duplicates %>%
   bind_rows(
-    vaccination_instrument_raw_fixed %>%
+    vaccination_instrument_raw %>%
       filter(
         !paste0(pid, year) %in%
           with(vaccination_history_no_duplicates, paste0(pid, year))
@@ -333,6 +331,93 @@ setdiff(bleed_dates_long$pid, participants_fix_pid$pid)
 write_csv(bleed_dates_long, "data/bleed-dates.csv")
 
 # SECTION Consent
+
+redcap_consent_request <- function(year) {
+  redcap_request(
+    year,
+    "baseline_arm_1",
+    "record_id,consent,add_bleed,consent_future_use,consent_covid,study_group_vacc,econsent_future_vacc,consent_unvacc,econsent_future_unvacc,study_group_vacc_covax,econsent_future_vacc_covax"
+  )
+}
+
+redcap_consent_raw <- redcap_consent_request(2020) %>% bind_rows(redcap_consent_request(2021))
+
+redcap_consent_long <- redcap_consent_raw %>%
+  mutate(
+    consent_flu_manual = case_when(
+      consent == 1 & add_bleed == 1 ~ "nested",
+      consent == 1 ~ "main",
+      consent == 0 ~ "no"
+    ),
+    consent_flu_electronic_vac = case_when(
+      study_group_vacc == 1 ~ "main",
+      study_group_vacc == 2 ~ "nested"
+    ),
+    consent_flu_electronic_unvac = case_when(
+      consent_unvacc == 1 ~ "main",
+      consent_unvacc == 0 ~ "no"
+    ),
+    consent_covid_manual = case_when(
+      consent_covid == 1 ~ "main",
+      consent_covid == 2 ~ "nested",
+      consent_covid == 3 ~ "no"
+    ),
+    consent_covid_electronic = case_when(
+      study_group_vacc_covax == 1 ~ "main",
+      study_group_vacc_covax == 2 ~ "nested"
+    )
+  ) %>%
+  select(
+    record_id,
+    redcap_project_year,
+    consent_flu_manual,
+    consent_flu_electronic_vac, consent_flu_electronic_unvac,
+    consent_covid_manual, consent_covid_electronic
+  ) %>%
+  pivot_longer(-c(record_id, redcap_project_year), names_to = "form", values_to = "consent") %>%
+  mutate(
+    disease = str_replace(form, "^consent_([[:alpha:]]+)_.*$", "\\1"),
+    form = str_replace(form, paste0("consent_", disease, "_"), "")
+  )
+
+redcap_consent_long_extra <- redcap_consent_long %>%
+  inner_join(
+    yearly_changes_fix_pids %>%
+      select(record_id, pid, redcap_project_year),
+    c("record_id", "redcap_project_year")
+  ) %>%
+  select(pid, year = redcap_project_year, disease, form, consent)
+
+write_csv(redcap_consent_long_extra, "data/consent.csv")
+
+redcap_consent_use_long <- redcap_consent_raw %>%
+  select(record_id, redcap_project_year, contains("___")) %>%
+  pivot_longer(-c(record_id, redcap_project_year), names_to = "form", values_to = "consent_use") %>%
+  mutate(
+    disease = case_when(
+      str_starts(form, "consent_future_use___") ~ "both",
+      str_starts(form, "econsent_future_vacc___") ~ "flu",
+      str_starts(form, "econsent_future_unvacc___") ~ "flu",
+      str_starts(form, "econsent_future_vacc_covax___") ~ "covid",
+    ),
+    option = str_replace(form, ".*___(.*)$", "\\1") %>% recode("1" = "this", "2" = "other", "3" = "any"),
+    form = case_when(
+      str_starts(form, "consent_future_use___") ~ "manual",
+      str_starts(form, "econsent_future_vacc___") ~ "electronic",
+      str_starts(form, "econsent_future_unvacc___") ~ "electronic",
+      str_starts(form, "econsent_future_vacc_covax___") ~ "electronic",
+    ),
+  )
+
+redcap_consent_use_long_extra <- redcap_consent_use_long %>%
+  inner_join(
+    yearly_changes_fix_pids %>%
+      select(record_id, pid, redcap_project_year),
+    c("record_id", "redcap_project_year")
+  ) %>%
+  select(pid, year = redcap_project_year, disease, form, option, consent_use)
+
+write_csv(redcap_consent_use_long_extra, "data/consent-use.csv")
 
 # TODO(sen) Pull consent and consent conflicts
 
