@@ -136,57 +136,68 @@ serology2 <- serology %>%
     x_position = days_from_baseline_med + 4 * (as.integer(as.factor(prior_vacs)) - 2)
   )
 
-titre_summary2 <- serology2 %>%
-  group_by(virus_label, prior_vacs, timepoint, x_position, days_from_baseline_med) %>%
-  summarise(.groups = "drop", summarise_logmean(titre))
-
 colors2 <- c("#D39547", "#3F4393", "#319364")
 
-titre_plot2 <- serology2 %>%
-  ggplot(aes(
-    x_position, y_position,
-    col = as.factor(prior_vacs)
-  )) +
-  theme_bw() +
-  theme(
-    legend.position = "bottom",
-    legend.box.spacing = unit(0, "null"),
-    panel.spacing = unit(0, "null"),
-    strip.background = element_blank(),
-    panel.grid.minor = element_blank(),
-    axis.text.x = element_text(angle = 30, hjust = 1)
-  ) +
-  scale_y_log10("Titre", breaks = 5 * 2^(0:15)) +
-  scale_x_continuous(
-    "Timepoint",
-    breaks = bleed_offsets_av %>% filter(day != 7) %>% pull(days_from_baseline_med),
-    labels = levels(fct_drop(serology2$timepoint))
-  ) +
-  scale_color_manual("Prior vaccinations", values = colors2) +
-  facet_wrap(~virus_label, nrow = 2) +
-  guides(color = guide_legend(override.aes = list(alpha = 1), nrow = 1)) +
-  geom_hline(yintercept = 40, lty = "11", alpha = 0.5) +
-  geom_point(alpha = 0.3, shape = 18) +
-  geom_line(
-    data = titre_summary2,
-    aes(y = mean),
-    size = 1
-  ) +
-  geom_errorbar(
-    data = titre_summary2,
-    aes(y = mean, ymin = low, ymax = high),
-    size = 1.2,
-    width = 0.1
-  ) +
-  geom_point(
-    data = titre_summary2,
-    aes(y = mean),
-    size = 3
-  )
+fun_titre_plot2 <- function(data) {
+  titre_summary2 <- data %>%
+    group_by(virus_label, prior_vacs, timepoint, x_position, days_from_baseline_med) %>%
+    summarise(.groups = "drop", summarise_logmean(titre))
+
+  data %>%
+    ggplot(aes(
+      x_position, y_position,
+      col = as.factor(prior_vacs)
+    )) +
+    theme_bw() +
+    theme(
+      legend.position = "bottom",
+      legend.box.spacing = unit(0, "null"),
+      panel.spacing = unit(0, "null"),
+      strip.background = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.text.x = element_text(angle = 30, hjust = 1)
+    ) +
+    scale_y_log10("Titre", breaks = 5 * 2^(0:15)) +
+    scale_x_continuous(
+      "Timepoint",
+      breaks = bleed_offsets_av %>% filter(day != 7) %>% pull(days_from_baseline_med),
+      labels = levels(fct_drop(serology2$timepoint))
+    ) +
+    scale_color_manual("Prior vaccinations", values = colors2) +
+    facet_wrap(~virus_label, nrow = 2) +
+    guides(color = guide_legend(override.aes = list(alpha = 1), nrow = 1)) +
+    geom_hline(yintercept = 40, lty = "11", alpha = 0.5) +
+    geom_point(alpha = 0.3, shape = 18) +
+    geom_line(
+      data = titre_summary2,
+      aes(y = mean),
+      size = 1
+    ) +
+    geom_errorbar(
+      data = titre_summary2,
+      aes(y = mean, ymin = low, ymax = high),
+      size = 1.2,
+      width = 0.1
+    ) +
+    geom_point(
+      data = titre_summary2,
+      aes(y = mean),
+      size = 3
+    )
+}
+
+titre_plot2 <- fun_titre_plot2(serology2)
+titre_plot2_brisbane <- fun_titre_plot2(serology2 %>% filter(site == "brisbane"))
 
 ggsave(
   "data-summary/titre-plot2.pdf",
   titre_plot2,
+  unit = "cm", width = 25, height = 20
+)
+
+ggsave(
+  "data-summary/titre-plot2-brisbane.pdf",
+  titre_plot2_brisbane,
   unit = "cm", width = 25, height = 20
 )
 
