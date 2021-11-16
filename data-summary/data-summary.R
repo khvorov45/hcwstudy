@@ -201,14 +201,23 @@ ggsave(
   unit = "cm", width = 25, height = 20
 )
 
-prevax_ratios <- serology %>%
-  group_by(pid, virus) %>%
-  filter("Pre-vax" %in% timepoint) %>%
-  mutate(ratio_to_pre = titre / titre[timepoint == "Pre-vax"]) %>%
-  ungroup() %>%
-  filter(timepoint != "Pre-vax")
+fun_prevax_rations <- function(data) {
+  data %>%
+    group_by(pid, virus) %>%
+    filter("Pre-vax" %in% timepoint) %>%
+    mutate(ratio_to_pre = titre / titre[timepoint == "Pre-vax"]) %>%
+    ungroup() %>%
+    filter(timepoint != "Pre-vax")
+}
+
+prevax_ratios <- fun_prevax_rations(serology)
+prevax_ratios_brisbane <- fun_prevax_rations(serology %>% filter(site == "brisbane"))
 
 ratio_summary <- prevax_ratios %>%
+  group_by(virus_label, prior_vacs, timepoint) %>%
+  summarise(.groups = "drop", summarise_logmean(ratio_to_pre, 2))
+
+ratio_summary_brisbane <- prevax_ratios_brisbane %>%
   group_by(virus_label, prior_vacs, timepoint) %>%
   summarise(.groups = "drop", summarise_logmean(ratio_to_pre, 2))
 
@@ -216,42 +225,52 @@ ratio_summary_wide <- ratio_summary %>%
   select(virus_label, prior_vacs, timepoint, string) %>%
   pivot_wider(names_from = "prior_vacs", values_from = "string")
 
-write_csv(ratio_summary_wide, "data-summary/ratio-summary.csv")
+ratio_summary_wide_brisbane <- ratio_summary_brisbane %>%
+  select(virus_label, prior_vacs, timepoint, string) %>%
+  pivot_wider(names_from = "prior_vacs", values_from = "string")
 
-ratio_plot <- prevax_ratios %>%
-  mutate(y_position = rnorm(n(), log(ratio_to_pre), 0.1) %>% exp()) %>%
-  ggplot(aes(
-    timepoint, y_position,
-    col = as.factor(prior_vacs)
-  )) +
-  theme_bw() +
-  theme(
-    legend.position = "bottom",
-    legend.box.spacing = unit(0, "null"),
-    panel.spacing = unit(0, "null"),
-    strip.background = element_blank(),
-    panel.grid.minor = element_blank(),
-  ) +
-  scale_y_log10("Ratio to pre-vax", breaks = c(0.1, 0.25, 0.5, 1, 2, 4, 10, 100)) +
-  scale_x_discrete("Timepoint") +
-  scale_color_discrete("Prior vaccinations") +
-  scale_shape_discrete("Prior vaccinations") +
-  facet_wrap(~virus_label, nrow = 4) +
-  guides(color = guide_legend(override.aes = list(alpha = 1), nrow = 1)) +
-  geom_point(alpha = 0.3, position = position_dodge(width = 0.75), shape = 18) +
-  geom_errorbar(
-    data = ratio_summary,
-    aes(y = mean, ymin = low, ymax = high),
-    position = position_dodge(width = 0.75),
-    size = 1.2,
-    width = 0.7
-  ) +
-  geom_point(
-    data = ratio_summary,
-    aes(y = mean),
-    position = position_dodge(width = 0.75),
-    size = 4
-  )
+write_csv(ratio_summary_wide, "data-summary/ratio-summary.csv")
+write_csv(ratio_summary_wide_brisbane, "data-summary/ratio-summary-brisbane.csv")
+
+fun_ratio_plot <- function(data) {
+  data %>%
+    mutate(y_position = rnorm(n(), log(ratio_to_pre), 0.1) %>% exp()) %>%
+    ggplot(aes(
+      timepoint, y_position,
+      col = as.factor(prior_vacs)
+    )) +
+    theme_bw() +
+    theme(
+      legend.position = "bottom",
+      legend.box.spacing = unit(0, "null"),
+      panel.spacing = unit(0, "null"),
+      strip.background = element_blank(),
+      panel.grid.minor = element_blank(),
+    ) +
+    scale_y_log10("Ratio to pre-vax", breaks = c(0.1, 0.25, 0.5, 1, 2, 4, 10, 100)) +
+    scale_x_discrete("Timepoint") +
+    scale_color_discrete("Prior vaccinations") +
+    scale_shape_discrete("Prior vaccinations") +
+    facet_wrap(~virus_label, nrow = 4) +
+    guides(color = guide_legend(override.aes = list(alpha = 1), nrow = 1)) +
+    geom_point(alpha = 0.3, position = position_dodge(width = 0.75), shape = 18) +
+    geom_errorbar(
+      data = ratio_summary,
+      aes(y = mean, ymin = low, ymax = high),
+      position = position_dodge(width = 0.75),
+      size = 1.2,
+      width = 0.7
+    ) +
+    geom_point(
+      data = ratio_summary,
+      aes(y = mean),
+      position = position_dodge(width = 0.75),
+      size = 4
+    )
+}
+
+ratio_plot <- fun_ratio_plot(prevax_ratios)
+ratio_plot_brisbane <- fun_ratio_plot(prevax_ratios_brisbane)
 
 ggsave(
   "data-summary/ratio-plot.pdf",
@@ -259,6 +278,15 @@ ggsave(
   unit = "cm", width = 35, height = 40
 )
 
+ggsave(
+  "data-summary/ratio-plot-brisbane.pdf",
+  ratio_plot_brisbane,
+  unit = "cm", width = 25, height = 20
+)
+
+#
+# SECTION Seroconversion
+#
 
 summarise_prop <- function(success, total) {
   ci <- PropCIs::exactci(success, total, 0.95)
@@ -272,33 +300,47 @@ summarise_prop <- function(success, total) {
   )
 }
 
-seroconv_summary <- serology %>%
-  select(-day) %>%
-  filter(timepoint %in% c("Pre-vax", "Post-vax (14 days)")) %>%
-  pivot_wider(names_from = timepoint, values_from = "titre") %>%
-  mutate(seroconv = `Post-vax (14 days)` / `Pre-vax` >= 4) %>%
-  filter(!is.na(seroconv)) %>%
-  group_by(prior_vacs, virus, virus_egg, virus_label, virus_label_short) %>%
-  summarise(.groups = "drop", total = n(), n_seroconv = sum(seroconv)) %>%
-  mutate(props = map2(n_seroconv, total, summarise_prop)) %>%
-  unnest(props)
+fun_seroconv_summary <- function(data) {
+  data %>%
+    select(-day, -bleed_date, -days_from_baseline) %>%
+    filter(timepoint %in% c("Pre-vax", "Post-vax (14 days)")) %>%
+    pivot_wider(names_from = timepoint, values_from = "titre") %>%
+    mutate(seroconv = `Post-vax (14 days)` / `Pre-vax` >= 4) %>%
+    filter(!is.na(seroconv)) %>%
+    group_by(prior_vacs, virus, virus_egg, virus_label, virus_label_short) %>%
+    summarise(.groups = "drop", total = n(), n_seroconv = sum(seroconv)) %>%
+    mutate(props = map2(n_seroconv, total, summarise_prop)) %>%
+    unnest(props)
+}
+
+seroconv_summary <- fun_seroconv_summary(serology)
+seroconv_summary_brisbane <- fun_seroconv_summary(serology %>% filter(site == "brisbane"))
 
 write_csv(seroconv_summary, "data-summary/seroconv.csv")
+write_csv(seroconv_summary_brisbane, "data-summary/seroconv-brisbane.csv")
 
-seroconv_plot2 <- seroconv_summary %>%
-  filter(virus_egg, prior_vacs %in% c(0, 1, 5)) %>%
-  ggplot(aes(virus_label_short, prop, ymin = low, ymax = high, col = as.factor(prior_vacs))) +
-  theme_bw() +
-  theme(
-    legend.position = "bottom",
-    axis.text.x = element_text(angle = 30, hjust = 1),
-    plot.margin = margin(5, 5, 5, 25),
-    panel.grid.minor = element_blank()
-  ) +
-  scale_y_continuous("Seroconverted", breaks = seq(0, 1, 0.1), labels = scales::percent_format(accuracy = 1)) +
-  scale_x_discrete("Virus") +
-  scale_color_manual("Prior vaccinations", values = colors2) +
-  geom_errorbar(position = position_dodge(width = 0.5), width = 0.4) +
-  geom_point(position = position_dodge(width = 0.5))
+fun_seroconv_plot2 <- function(data) {
+  data %>%
+    filter(virus_egg, prior_vacs %in% c(0, 1, 5)) %>%
+    ggplot(aes(virus_label_short, prop, ymin = low, ymax = high, col = as.factor(prior_vacs))) +
+    theme_bw() +
+    theme(
+      legend.position = "bottom",
+      axis.text.x = element_text(angle = 30, hjust = 1),
+      plot.margin = margin(5, 5, 5, 25),
+      panel.grid.minor = element_blank()
+    ) +
+    scale_y_continuous("Seroconverted", breaks = seq(0, 1, 0.1), labels = scales::percent_format(accuracy = 1)) +
+    scale_x_discrete("Virus") +
+    scale_color_manual("Prior vaccinations", values = colors2) +
+    geom_errorbar(position = position_dodge(width = 0.5), width = 0.4) +
+    geom_point(position = position_dodge(width = 0.5))
+}
+
+seroconv_plot2 <- fun_seroconv_plot2(seroconv_summary)
+seroconv_plot2_brisbane <- fun_seroconv_plot2(seroconv_summary_brisbane)
 
 ggsave("data-summary/seroconv2.pdf", seroconv_plot2, width = 15, height = 10, units = "cm")
+ggsave("data-summary/seroconv2-brisbane.pdf", seroconv_plot2_brisbane, width = 15, height = 10, units = "cm")
+
+write_csv(serology %>% filter(site == "brisbane"), "data-summary/serology-brisbane.csv")
