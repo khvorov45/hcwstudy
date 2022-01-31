@@ -26,7 +26,10 @@ redcap_request <- function(project_year, event, fields, ...) {
 
 redcap_upload <- function(project_year, event, data) {
   temp_file <- tempfile()
-  write_csv(data %>% mutate(redcap_event_name = event), temp_file, na = "")
+  if (event != "") {
+    data <- data %>% mutate(redcap_event_name = event)
+  }
+  write_csv(data, temp_file, na = "")
   csv_string <- readChar(temp_file, file.info(temp_file)$size)
   httr::POST(
     "https://biredcap.mh.org.au/api/",
@@ -94,6 +97,12 @@ active2021 <- consent2021 %>%
   filter(!record_id %in% withdrawn2021$record_id)
 
 redcap_upload_spoonfed(20, 2022, "baseline_arm1", active2021)
+
+data_access_groups2021 <- consent2021 %>%
+  select(record_id, redcap_data_access_group) %>%
+  filter(record_id %in% active2021$record_id)
+
+redcap_upload_spoonfed(20, 2022, "", data_access_groups2021)
 
 #
 # SECTION PID, study group
