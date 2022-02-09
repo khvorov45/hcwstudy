@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+
+  <style>
+    :root {
+      --color-text: #bfbdb6;
+      --color-background: #10141c;
+      --color-background2: #30343c;
+      --color-border: #6c738099;
+      --color-error:  #f26d78b3;
+    }
+
+    input {
+      color: inherit;
+      background-color: inherit;
+    }
+
+    input:focus {
+      color: inherit;
+      background-color: inherit;
+    }
+  </style>
+
+  <body
+    style="
+      background-color: var(--color-background);
+      color: var(--color-text);
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    "
+  >
+    <div id="main"></div>
+  </body>
+
+  <script>
+    let globalState = {
+      currentYear: 2022,
+      data: {
+        2020: [],
+        2021: [],
+        2022: [],
+      },
+      dom: {
+        main: document.getElementById("main"),
+        passwordBox: {
+          container: document.createElement("div"),
+          input: document.createElement("input"),
+          label: document.createElement("div"),
+          button: document.createElement("div"),
+          buttonText: document.createElement("div"),
+          errorText: document.createElement("div"),
+        },
+        data: {
+          container: document.createElement("div"),
+          tableContainer: document.createElement("div"),
+        },
+        loading: document.createElement("div"),
+      },
+    }
+
+    const arrSum = (arr) => {
+      let result = 0
+      for (let val of arr) {
+        result += val
+      }
+      return result
+    }
+
+    const seq = (start, step, count) => {
+      let result = [start]
+      for (let i = 1; i < count; i += 1) {
+        result.push(start + i * step)
+      }
+      return result
+    }
+
+    const dateSeq = (start, step, count) => {
+      
+      let result = []
+      
+      let startDate = new Date(start)
+      let startDayIndex = startDate.getDate()
+
+      for (let i = 0; i < count; i++) {
+        let newDayIndex = startDayIndex + step * i
+        let newDate = new Date(startDate)
+        newDate.setDate(newDayIndex)
+        result.push(newDate)
+      }
+
+      return result
+    }
+
+    const formatDate = (date) => {
+      let result = date.toISOString().slice(0, 10)
+      return result
+    }
+
+    const createTableCellElement = (widthPx) => {
+      let cellElement = document.createElement("div")
+      cellElement.setAttribute(
+        "style", 
+        "width: " + widthPx + "px; display: flex; align-items: center; justify-content: center;"
+      )
+      return cellElement
+    }
+
+    const createTableRowElement = (color) => {
+      let rowElement = document.createElement("div")
+      rowElement.setAttribute("style", "display: flex; height: 30px;" + "background-color: " + color + ";")
+      return rowElement      
+    }
+
+    const createTableElementFromSoa = (soa, formatters, colWidthsPx, title) => {
+      
+      let tableWidthPx = arrSum(Object.values(colWidthsPx))
+
+      let table = document.createElement("div")
+      let colnames = Object.keys(soa)
+      table.setAttribute("style", "width:" + tableWidthPx + "px;")
+
+      let titleElement = document.createElement("div")
+      titleElement.setAttribute(
+        "style", 
+        "display: flex; align-items: center; justify-content: center; background-color: var(--color-background2);"
+      )
+      titleElement.innerHTML = title
+      table.appendChild(titleElement)
+
+      let headerRow = createTableRowElement("var(--color-border)")
+      table.appendChild(headerRow)
+
+      for (colname of colnames) {
+        let colWidthPx = colWidthsPx[colname]
+        let headerElement = createTableCellElement(colWidthPx)
+        headerRow.appendChild(headerElement)
+        headerElement.innerHTML = colname
+      }
+
+      if (colnames.length > 0) {
+        let rowCount = soa[colnames[0]].length
+
+        for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+          color = "var(--color-background)"
+          if (rowIndex % 2 == 1) {
+            color = "var(--color-background2)"
+          }
+          let rowElement = createTableRowElement(color)
+          table.appendChild(rowElement)
+
+          for (colname of colnames) {
+            let colWidthPx = colWidthsPx[colname]
+            let cellElement = createTableCellElement(colWidthPx)
+            rowElement.appendChild(cellElement)
+
+            let colData = soa[colname][rowIndex]
+            let formatter = formatters[colname]
+            let colDataFormatted = formatter(colData)
+            cellElement.innerHTML = colDataFormatted
+          }
+        }        
+      }
+
+      return [table, tableWidthPx]
+    }
+
+    const parseCsv = (input) => {
+      let result = []
+      if (input.length > 0) {
+        let lines = input.split(/\r?\n/).filter((line) => line !== "")
+        let linesSplit = lines.map((line) => line.split(","))
+        let names = linesSplit[0]
+        if (linesSplit.length > 1) {
+          for (let values of linesSplit.slice(1)) {
+            let row = {}
+            for (let [index, name] of names.entries()) {
+              let value = values[index]
+              row[name] = value
+            }
+            result.push(row)
+          }
+        }
+      }
+      return result
+    }
+
+    const updateData = async (password, years) => {
+      let success = true
+
+      if (
+        password === "" ||
+        password === null ||
+        password === undefined ||
+        !(typeof password === "string" || password instanceof String)
+      ) {
+
+        success = false
+
+      } else {
+
+        for (let year of years) {
+          let address =
+            "https://reports2.hcwflustudy.com/api/" +
+            password +
+            "/redcap" +
+            year +
+            ".csv"
+
+          try {
+            resp = await fetch(address)
+            if (resp.status !== 200) {
+              success = false
+            }
+            text = await resp.text()
+            parsed = parseCsv(text)
+            globalState.data[year] = parsed
+          } catch (e) {
+            success = false
+            console.error(e)
+          }
+
+          if (!success) {
+            break
+          }
+        }
+      }
+
+      return success
+    }
+
+    // NOTE(sen) Init password box
+    {
+      let dom = globalState.dom
+
+      let container = dom.passwordBox.container
+      let input = dom.passwordBox.input
+      let label = dom.passwordBox.label
+      let button = dom.passwordBox.button
+      let buttonText = dom.passwordBox.buttonText
+      let errorText = dom.passwordBox.errorText
+      container.appendChild(label)
+      container.appendChild(input)
+      container.appendChild(button)
+      container.appendChild(errorText)
+      button.appendChild(buttonText)
+
+      input.setAttribute("type", "password")
+      input.setAttribute("style", "width: 75vw; height: 2em;")
+
+      label.innerHTML = "Password"
+      buttonText.innerHTML = "Submit"
+
+      container.setAttribute(
+        "style",
+        "width: 75vw; margin: auto; margin-top: 5vh"
+      )
+
+      button.setAttribute(
+        "style",
+        "cursor: pointer; border: 1px solid var(--color-border); height: 50px; width: 50%; margin: auto; margin-top: 10px; display: flex; align-items: center; justify-content: center;"
+      )
+
+      errorText.setAttribute(
+        "style",
+        "color: var(--color-error); text-align: center; margin-top: 10px"
+      )
+
+      button.addEventListener("click", (e) => {
+        errorText.innerHTML = ""
+        if (input.value === "") {
+          errorText.innerHTML = "Password is empty"
+        } else {
+          buttonText.innerHTML = "..."
+          updateData(input.value, [globalState.currentYear]).then((updateSuccess) => {
+            buttonText.innerHTML = "Submit"
+            if (!updateSuccess) {
+              errorText.innerHTML = "Not recognized"
+            } else {
+              localStorage.setItem("password", input.value)
+              dom.main.removeChild(container)
+              dom.main.appendChild(dom.data.container)
+            }
+          })
+        }
+      })
+    }
+
+    // NOTE(sen) Init data page
+    {
+      let dom = globalState.dom
+      let container = dom.data.container
+      let tableContainer = dom.data.tableContainer
+      container.appendChild(tableContainer)
+
+      weeklySurveyDates2022 = {
+        week: seq(1, 1, 52),
+        start: dateSeq("2022-01-03", 7, 52),
+        end: dateSeq("2022-01-09", 7, 52),
+        send: dateSeq("2022-01-10", 7, 52),
+      }
+
+      let [weeklySurveyDates2022Table, tableWidth] = createTableElementFromSoa(
+          weeklySurveyDates2022, 
+          {
+            week: (x) => x,
+            start: formatDate,
+            end: formatDate,
+            send: formatDate,
+          },
+          {
+            week: 50,
+            start: 100,
+            end: 100,
+            send: 100,
+          },
+          "Weekly survey dates 2022"
+        )
+
+      tableContainer.appendChild(weeklySurveyDates2022Table)
+      let scrollbarWidth = 15
+      tableContainer.setAttribute(
+        "style", 
+        "height: 100vh; overflow-x: hidden; overflow-y: scroll; width: " 
+        + (tableWidth + scrollbarWidth) + 
+        "px; display: flex; justify-content: center"
+      )
+    }
+
+    // NOTE(sen) Init loading indicator
+    {
+      let dom = globalState.dom
+      let loading = dom.loading
+      loading.setAttribute(
+        "style", 
+        "font-size: 40px; display: flex; align-items: center; justify-content: center; height: 100vh"
+      )
+      loading.innerHTML = "Loading..."
+    }
+
+    // NOTE(sen) Attempt to login from local storage
+    {
+      let dom = globalState.dom
+      let password = localStorage.getItem("password")
+      
+      if (password === null) {
+      
+        dom.main.appendChild(dom.passwordBox.container)
+      
+      } else {
+
+        dom.main.appendChild(dom.loading)
+        updateData(password, [globalState.currentYear]).then((updateSuccess) => {          
+          dom.main.removeChild(dom.loading)
+
+          if (!updateSuccess) {
+            localStorage.removeItem("password")
+            dom.main.appendChild(dom.passwordBox.container)
+          } else {
+            dom.main.appendChild(dom.data.container)
+          }
+        })
+      
+      }
+    }
+  </script>
+</html>
