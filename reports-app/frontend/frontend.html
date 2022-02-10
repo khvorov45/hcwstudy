@@ -12,6 +12,7 @@
       --color-background2: #30343c;
       --color-border: #6c738099;
       --color-error:  #f26d78b3;
+      --color-selected: #670033;
     }
 
     input {
@@ -22,6 +23,30 @@
     input:focus {
       color: inherit;
       background-color: inherit;
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar {
+      width: 7px;
+    }
+
+    ::-webkit-scrollbar-track,
+    ::-webkit-scrollbar-corner {
+      background: var(--color-background);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--color-border);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--color-selected);
+    }
+
+    html,
+    html * {
+      scrollbar-color: var(--color-border) var(--color-background);
+      scrollbar-width: thin;
     }
   </style>
 
@@ -36,7 +61,9 @@
     <div id="main"></div>
   </body>
 
-  <script>
+  <script type="text/javascript" src="/PapaParse.js"></script>
+
+  <script type="text/javascript">
     let globalState = {
       currentYear: 2022,
       data: {
@@ -46,6 +73,7 @@
       },
       dom: {
         main: document.getElementById("main"),
+
         passwordBox: {
           container: document.createElement("div"),
           input: document.createElement("input"),
@@ -54,10 +82,16 @@
           buttonText: document.createElement("div"),
           errorText: document.createElement("div"),
         },
+
         data: {
           container: document.createElement("div"),
-          tableContainer: document.createElement("div"),
+          datesTableContainer: document.createElement("div"),
+          surveyTableContainer: document.createElement("div"),
+          surveyCompletionsContainer: document.createElement("div"),
+          surveyTable: document.createElement("div"),
+          surveyCompletions: document.createElement("div"),
         },
+
         loading: document.createElement("div"),
       },
     }
@@ -100,6 +134,15 @@
       return result
     }
 
+    const tableContainerStyle = (widthPx) => {
+      let scrollbarWidth = 15 // TODO(sen) Something better than a guess here
+      result = "height: calc(100vh - " + scrollbarWidth + 
+      "px); overflow-x: hidden; overflow-y: scroll; width: " 
+      + (widthPx + scrollbarWidth) + 
+      "px; display: flex; justify-content: center; flex-shrink: 0;"
+      return result
+    }
+
     const createTableCellElement = (widthPx) => {
       let cellElement = document.createElement("div")
       cellElement.setAttribute(
@@ -109,10 +152,49 @@
       return cellElement
     }
 
+    const createTableCellStringElement = (widthPx, string) => {
+      let cellElement = createTableCellElement(widthPx)
+      cellElement.innerHTML = string
+      return cellElement
+    }
+
     const createTableRowElement = (color) => {
       let rowElement = document.createElement("div")
       rowElement.setAttribute("style", "display: flex; height: 30px;" + "background-color: " + color + ";")
       return rowElement      
+    }
+
+    const createTableTitleElement = (title) => {
+      let titleElement = document.createElement("div")
+      titleElement.setAttribute(
+        "style", 
+        "display: flex; align-items: center; justify-content: center; background-color: var(--color-background2);"
+      )
+      titleElement.innerHTML = title
+      return titleElement
+    }
+
+    const createTableHeaderRowElement = (colWidthsPx) => {
+      let headerRow = createTableRowElement("var(--color-border)")
+      let colnames = Object.keys(colWidthsPx)
+
+      for (colname of colnames) {
+        let colWidthPx = colWidthsPx[colname]
+        let headerElement = createTableCellElement(colWidthPx)
+        headerRow.appendChild(headerElement)
+        headerElement.innerHTML = colname
+      }
+
+      return headerRow
+    }
+
+    const createTableDataRowElement = (rowIndex) => {
+      color = "var(--color-background)"
+      if (rowIndex % 2 == 1) {
+        color = "var(--color-background2)"
+      }
+      let rowElement = createTableRowElement(color)
+      return rowElement
     }
 
     const createTableElementFromSoa = (soa, formatters, colWidthsPx, title) => {
@@ -123,44 +205,27 @@
       let colnames = Object.keys(soa)
       table.setAttribute("style", "width:" + tableWidthPx + "px;")
 
-      let titleElement = document.createElement("div")
-      titleElement.setAttribute(
-        "style", 
-        "display: flex; align-items: center; justify-content: center; background-color: var(--color-background2);"
-      )
-      titleElement.innerHTML = title
+      let titleElement = createTableTitleElement(title)
       table.appendChild(titleElement)
 
-      let headerRow = createTableRowElement("var(--color-border)")
+      let headerRow = createTableHeaderRowElement(colWidthsPx)
       table.appendChild(headerRow)
-
-      for (colname of colnames) {
-        let colWidthPx = colWidthsPx[colname]
-        let headerElement = createTableCellElement(colWidthPx)
-        headerRow.appendChild(headerElement)
-        headerElement.innerHTML = colname
-      }
 
       if (colnames.length > 0) {
         let rowCount = soa[colnames[0]].length
 
         for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
-          color = "var(--color-background)"
-          if (rowIndex % 2 == 1) {
-            color = "var(--color-background2)"
-          }
-          let rowElement = createTableRowElement(color)
+          let rowElement = createTableDataRowElement(rowIndex)
           table.appendChild(rowElement)
 
           for (colname of colnames) {
-            let colWidthPx = colWidthsPx[colname]
-            let cellElement = createTableCellElement(colWidthPx)
-            rowElement.appendChild(cellElement)
-
             let colData = soa[colname][rowIndex]
             let formatter = formatters[colname]
             let colDataFormatted = formatter(colData)
-            cellElement.innerHTML = colDataFormatted
+
+            let colWidthPx = colWidthsPx[colname]
+            let cellElement = createTableCellStringElement(colWidthPx, colDataFormatted)
+            rowElement.appendChild(cellElement)
           }
         }        
       }
@@ -170,22 +235,161 @@
 
     const parseCsv = (input) => {
       let result = []
-      if (input.length > 0) {
-        let lines = input.split(/\r?\n/).filter((line) => line !== "")
-        let linesSplit = lines.map((line) => line.split(","))
-        let names = linesSplit[0]
-        if (linesSplit.length > 1) {
-          for (let values of linesSplit.slice(1)) {
-            let row = {}
-            for (let [index, name] of names.entries()) {
-              let value = values[index]
-              row[name] = value
-            }
-            result.push(row)
-          }
-        }
+      let papaResult = Papa.parse(
+        input, 
+        { delimiter: ",", header: true, skipEmptyLines: true, dynamicTyping: false}
+      )
+      if (papaResult.errors.length > 0) {
+        console.error("CSV parsing errors")
+        console.error(papaResult)
+      } else {
+        result = papaResult.data
       }
       return result
+    }
+
+    const updateSurveyTable = () => {
+
+      globalState.dom.data.surveyTableContainer.removeChild(globalState.dom.data.surveyTable)
+      globalState.dom.data.surveyTable = document.createElement("div")
+      let table = globalState.dom.data.surveyTable
+      globalState.dom.data.surveyTableContainer.appendChild(table)
+
+      let allData = globalState.data[globalState.currentYear]
+
+      let colWidthsPx = {
+        record_id: 100,
+        week: 100,
+        completed: 100,
+        ari: 100,
+      }
+      let tableWidthPx = arrSum(Object.values(colWidthsPx))
+      table.setAttribute("style", "width: " + tableWidthPx + "px;")
+      globalState.dom.data.surveyTableContainer.setAttribute(
+        "style", tableContainerStyle(tableWidthPx)
+      )
+
+      table.appendChild(createTableTitleElement("Weekly surveys"))
+      table.appendChild(createTableHeaderRowElement(colWidthsPx))
+
+      let completions = {}
+      let rowsShown = 0
+      for (let row of allData) {
+        if (row.redcap_event_name !== undefined && row.redcap_event_name !== null) {
+
+          if (row.redcap_event_name.startsWith("weekly_survey")) {
+            let weekMatch = /weekly_survey_(\d+)_arm_1/.exec(row.redcap_event_name)
+            if (weekMatch !== null && weekMatch.length === 2) {
+            
+              let week = weekMatch[1]
+
+              let rowElement = createTableDataRowElement(rowsShown)
+              rowsShown += 1
+              table.appendChild(rowElement)
+
+              let recordIdCell = createTableCellStringElement(colWidthsPx.record_id, row.record_id)
+              rowElement.appendChild(recordIdCell)
+
+              let weekCell = createTableCellStringElement(colWidthsPx.week, week)
+              rowElement.appendChild(weekCell)
+
+              let completed = row.weekly_symptom_survey_complete
+              let completedCell = createTableCellStringElement(colWidthsPx.completed, completed)
+              rowElement.appendChild(completedCell)
+
+              let ari = row.ari_definition
+              let ariCell = createTableCellStringElement(colWidthsPx.ari, ari)
+              rowElement.appendChild(ariCell)
+
+              if (completed !== "0") {
+                if (completions[row.record_id] === undefined) {
+                  completions[row.record_id] = []
+                }
+                completions[row.record_id].push(parseInt(week))
+              }
+
+            } else {
+
+              console.error("failed to extract week from ", row)
+            }
+          }
+        } else {
+
+          console.error("no event field in row", row)
+        }
+      }
+
+      return completions
+    }
+
+    const updateCompletionsTable = (completions) => {
+
+      globalState.dom.data.surveyCompletionsContainer.removeChild(globalState.dom.data.surveyCompletions)
+      globalState.dom.data.surveyCompletions = document.createElement("div")
+      let table = globalState.dom.data.surveyCompletions
+      globalState.dom.data.surveyCompletionsContainer.appendChild(table)
+
+      let colWidthsPx = {
+        record_id: 100,
+        completions: 300,
+      }
+      let tableWidthPx = arrSum(Object.values(colWidthsPx))
+      table.setAttribute("style", "width: " + tableWidthPx + "px;")
+      globalState.dom.data.surveyCompletionsContainer.setAttribute(
+        "style", tableContainerStyle(tableWidthPx)
+      )
+
+      table.appendChild(createTableTitleElement("Weekly completions"))
+      table.appendChild(createTableHeaderRowElement(colWidthsPx))
+
+      let rowsShown = 0
+      for ([record, completedSurveys] of Object.entries(completions)) {
+        let rowElement = createTableDataRowElement(rowsShown)
+        table.appendChild(rowElement)
+        rowsShown += 1
+
+        rowElement.appendChild(createTableCellStringElement(colWidthsPx.record_id, record))
+        
+        let collapsedCompletions = ""
+        if (completedSurveys.length > 0) {
+          collapsedCompletions += completedSurveys[0]
+          if (completedSurveys.length > 1) {
+
+            let prev = completedSurveys[0]
+            let currentStreak = 1
+            for (let completeIndex = 1; completeIndex < completedSurveys.length; completeIndex += 1) {
+              let compl = completedSurveys[completeIndex]
+
+              if (completeIndex == completedSurveys.length - 1) {
+              
+                if (currentStreak > 1) {
+                  collapsedCompletions += "-"
+                } else {
+                  collapsedCompletions += ", "
+                }
+                collapsedCompletions += compl
+              
+              } else if (compl - prev == currentStreak) {
+
+                currentStreak += 1
+
+              } else {
+
+                if (currentStreak > 1) {
+                  let lastNotShown = prev + currentStreak - 1
+                  collapsedCompletions += "-" + lastNotShown + ", "
+                }
+
+                collapsedCompletions += compl
+                currentStreak = 1
+              }
+
+            }
+          }
+        }
+
+        rowElement.appendChild(createTableCellStringElement(colWidthsPx.completions, collapsedCompletions))
+      }
     }
 
     const updateData = async (password, years) => {
@@ -210,6 +414,8 @@
             year +
             ".csv"
 
+          //address = "/pull-redcap/redcap2022-newcastle.csv"
+
           try {
             resp = await fetch(address)
             if (resp.status !== 200) {
@@ -227,10 +433,19 @@
             break
           }
         }
+
+        if (success) {
+          let completions = updateSurveyTable()
+          updateCompletionsTable(completions)
+        }
       }
 
       return success
     }
+
+    //
+    // NOTE(sen) DOM secton
+    //
 
     // NOTE(sen) Init password box
     {
@@ -293,8 +508,21 @@
     {
       let dom = globalState.dom
       let container = dom.data.container
-      let tableContainer = dom.data.tableContainer
-      container.appendChild(tableContainer)
+      let datesTableContainer = dom.data.datesTableContainer
+      let surveyTableContainer = dom.data.surveyTableContainer
+      let surveyCompletionsContainer = dom.data.surveyCompletionsContainer
+      let surveyTable = dom.data.surveyTable
+      let surveyCompletions = dom.data.surveyCompletions
+      container.appendChild(datesTableContainer)
+      container.appendChild(surveyTableContainer)
+      container.appendChild(surveyCompletionsContainer)
+      surveyTableContainer.appendChild(surveyTable)
+      surveyCompletionsContainer.appendChild(surveyCompletions)
+
+      container.setAttribute("id", "dom-data-container")
+      container.setAttribute("style", "display: flex")
+
+      // NOTE(sen) Dates of weekly surveys only since we know them in advance
 
       weeklySurveyDates2022 = {
         week: seq(1, 1, 52),
@@ -320,14 +548,8 @@
           "Weekly survey dates 2022"
         )
 
-      tableContainer.appendChild(weeklySurveyDates2022Table)
-      let scrollbarWidth = 15
-      tableContainer.setAttribute(
-        "style", 
-        "height: 100vh; overflow-x: hidden; overflow-y: scroll; width: " 
-        + (tableWidth + scrollbarWidth) + 
-        "px; display: flex; justify-content: center"
-      )
+      datesTableContainer.appendChild(weeklySurveyDates2022Table)
+      datesTableContainer.setAttribute("style", tableContainerStyle(tableWidth))
     }
 
     // NOTE(sen) Init loading indicator
