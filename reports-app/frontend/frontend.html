@@ -10,8 +10,8 @@
       --color-text: #bfbdb6;
       --color-background: #10141c;
       --color-background2: #30343c;
-      --color-border: #6c738099;
-      --color-error:  #f26d78b3;
+      --color-border: #474d56;
+      --color-error:  #f26d78;
       --color-selected: #670033;
     }
 
@@ -96,6 +96,8 @@
       },
     }
 
+    const TABLE_ROW_HEIGHT_PX = 30
+
     const arrSum = (arr) => {
       let result = 0
       for (let val of arr) {
@@ -143,6 +145,11 @@
       return result
     }
 
+    const tableContentStyle = (widthPx, rowCount) => {
+      let result = "width: " + widthPx + "px; height: " + (rowCount * TABLE_ROW_HEIGHT_PX) + "px;"
+      return result
+    }
+
     const createTableCellElement = (widthPx) => {
       let cellElement = document.createElement("div")
       cellElement.setAttribute(
@@ -160,7 +167,9 @@
 
     const createTableRowElement = (color) => {
       let rowElement = document.createElement("div")
-      rowElement.setAttribute("style", "display: flex; height: 30px;" + "background-color: " + color + ";")
+      rowElement.setAttribute("style", 
+        "display: flex; height: " + TABLE_ROW_HEIGHT_PX + "px;" + "background-color: " + color + ";"
+      )
       return rowElement      
     }
 
@@ -176,6 +185,7 @@
 
     const createTableHeaderRowElement = (colWidthsPx) => {
       let headerRow = createTableRowElement("var(--color-border)")
+      headerRow.setAttribute("style", headerRow.getAttribute("style") + "position: sticky; top: 0;")
       let colnames = Object.keys(colWidthsPx)
 
       for (colname of colnames) {
@@ -203,7 +213,6 @@
 
       let table = document.createElement("div")
       let colnames = Object.keys(soa)
-      table.setAttribute("style", "width:" + tableWidthPx + "px;")
 
       let titleElement = createTableTitleElement(title)
       table.appendChild(titleElement)
@@ -213,6 +222,7 @@
 
       if (colnames.length > 0) {
         let rowCount = soa[colnames[0]].length
+        table.setAttribute("style", tableContentStyle(tableWidthPx, rowCount))
 
         for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
           let rowElement = createTableDataRowElement(rowIndex)
@@ -264,7 +274,6 @@
         ari: 100,
       }
       let tableWidthPx = arrSum(Object.values(colWidthsPx))
-      table.setAttribute("style", "width: " + tableWidthPx + "px;")
       globalState.dom.data.surveyTableContainer.setAttribute(
         "style", tableContainerStyle(tableWidthPx)
       )
@@ -318,6 +327,7 @@
           console.error("no event field in row", row)
         }
       }
+      table.setAttribute("style", tableContentStyle(tableWidthPx, rowsShown))
 
       return completions
     }
@@ -329,12 +339,14 @@
       let table = globalState.dom.data.surveyCompletions
       globalState.dom.data.surveyCompletionsContainer.appendChild(table)
 
+      let rows = Object.entries(completions)
+
       let colWidthsPx = {
         record_id: 100,
         completions: 300,
       }
       let tableWidthPx = arrSum(Object.values(colWidthsPx))
-      table.setAttribute("style", "width: " + tableWidthPx + "px;")
+      table.setAttribute("style", tableContentStyle(tableWidthPx, rows.length))
       globalState.dom.data.surveyCompletionsContainer.setAttribute(
         "style", tableContainerStyle(tableWidthPx)
       )
@@ -343,7 +355,7 @@
       table.appendChild(createTableHeaderRowElement(colWidthsPx))
 
       let rowsShown = 0
-      for ([record, completedSurveys] of Object.entries(completions)) {
+      for ([record, completedSurveys] of rows) {
         let rowElement = createTableDataRowElement(rowsShown)
         table.appendChild(rowElement)
         rowsShown += 1
