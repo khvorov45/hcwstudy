@@ -74,24 +74,14 @@
       dom: {
         main: document.getElementById("main"),
 
-        passwordBox: {
-          container: document.createElement("div"),
-          input: document.createElement("input"),
-          label: document.createElement("div"),
-          button: document.createElement("div"),
-          buttonText: document.createElement("div"),
-          errorText: document.createElement("div"),
-        },
+        passwordBox: document.createElement("div"),
 
         data: {
           container: document.createElement("div"),
           weeklySurveysContainer: document.createElement("div"),
           countsContainer: document.createElement("div"),
-          datesTableContainer: document.createElement("div"),
           surveyTableContainer: document.createElement("div"),
           surveyCompletionsContainer: document.createElement("div"),
-          surveyTable: document.createElement("div"),
-          surveyCompletions: document.createElement("div"),
         },
 
         loading: document.createElement("div"),
@@ -136,6 +126,12 @@
     const formatDate = (date) => {
       let result = date.toISOString().slice(0, 10)
       return result
+    }
+
+    const removeChildren = (element) => {
+      while (element.lastChild) {
+        element.removeChild(element.lastChild)
+      }
     }
 
     const tableContainerStyle = (widthPx) => {
@@ -262,9 +258,8 @@
 
     const updateSurveyTable = () => {
 
-      globalState.dom.data.surveyTableContainer.removeChild(globalState.dom.data.surveyTable)
-      globalState.dom.data.surveyTable = document.createElement("div")
-      let table = globalState.dom.data.surveyTable
+      removeChildren(globalState.dom.data.surveyTableContainer)
+      let table = document.createElement("div")
       globalState.dom.data.surveyTableContainer.appendChild(table)
 
       let allData = globalState.data[globalState.currentYear]
@@ -336,9 +331,8 @@
 
     const updateCompletionsTable = (completions) => {
 
-      globalState.dom.data.surveyCompletionsContainer.removeChild(globalState.dom.data.surveyCompletions)
-      globalState.dom.data.surveyCompletions = document.createElement("div")
-      let table = globalState.dom.data.surveyCompletions
+      removeChildren(globalState.dom.data.surveyCompletionsContainer)
+      let table = document.createElement("div")
       globalState.dom.data.surveyCompletionsContainer.appendChild(table)
 
       let rows = Object.entries(completions)
@@ -465,12 +459,12 @@
     {
       let dom = globalState.dom
 
-      let container = dom.passwordBox.container
-      let input = dom.passwordBox.input
-      let label = dom.passwordBox.label
-      let button = dom.passwordBox.button
-      let buttonText = dom.passwordBox.buttonText
-      let errorText = dom.passwordBox.errorText
+      let container = dom.passwordBox
+      let input = document.createElement("input")
+      let label = document.createElement("div")
+      let button = document.createElement("div")
+      let buttonText = document.createElement("div")
+      let errorText = document.createElement("div")
       container.appendChild(label)
       container.appendChild(input)
       container.appendChild(button)
@@ -538,6 +532,7 @@
         link.innerHTML = name
         sidebar.appendChild(link)
         link.addEventListener("click", (event) => {
+          // NOTE(sen) Data page container has 2 children - sidebar and content
           container.removeChild(container.lastChild)
           let destContainer = globalState.dom.data[dest]
           container.appendChild(destContainer)
@@ -549,18 +544,13 @@
       container.appendChild(weeklySurveysContainer)
       weeklySurveysContainer.setAttribute("style", "display: flex")
 
-      let datesTableContainer = dom.data.datesTableContainer
+      let datesTableContainer = document.createElement("div")
       let surveyTableContainer = dom.data.surveyTableContainer
       let surveyCompletionsContainer = dom.data.surveyCompletionsContainer
-      let surveyTable = dom.data.surveyTable
-      let surveyCompletions = dom.data.surveyCompletions
 
       weeklySurveysContainer.appendChild(datesTableContainer)
       weeklySurveysContainer.appendChild(surveyTableContainer)
       weeklySurveysContainer.appendChild(surveyCompletionsContainer)
-
-      surveyTableContainer.appendChild(surveyTable)
-      surveyCompletionsContainer.appendChild(surveyCompletions)
 
       // NOTE(sen) Dates of weekly surveys only since we know them in advance
 
@@ -610,7 +600,7 @@
       
       if (password === null) {
       
-        dom.main.appendChild(dom.passwordBox.container)
+        dom.main.appendChild(dom.passwordBox)
       
       } else {
 
@@ -620,7 +610,7 @@
 
           if (!updateSuccess) {
             localStorage.removeItem("password")
-            dom.main.appendChild(dom.passwordBox.container)
+            dom.main.appendChild(dom.passwordBox)
           } else {
             dom.main.appendChild(dom.data.container)
           }
