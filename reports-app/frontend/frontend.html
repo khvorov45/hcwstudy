@@ -85,6 +85,8 @@
 
         data: {
           container: document.createElement("div"),
+          weeklySurveysContainer: document.createElement("div"),
+          countsContainer: document.createElement("div"),
           datesTableContainer: document.createElement("div"),
           surveyTableContainer: document.createElement("div"),
           surveyCompletionsContainer: document.createElement("div"),
@@ -520,19 +522,45 @@
     {
       let dom = globalState.dom
       let container = dom.data.container
+      container.setAttribute("id", "dom-data-container")
+      container.setAttribute("style", "display: flex")
+
+      // NOTE(sen) Sidebar
+      let sidebar = document.createElement("div")
+      container.appendChild(sidebar)
+      sidebar.setAttribute("style", "width: 200px; flex-shrink: 0;")
+      let sidebarLinks = {
+        "Weekly surveys": "weeklySurveysContainer",
+        "Counts": "countsContainer"
+      }
+      for (let [name, dest] of Object.entries(sidebarLinks)) {
+        let link = document.createElement("div")
+        link.innerHTML = name
+        sidebar.appendChild(link)
+        link.addEventListener("click", (event) => {
+          container.removeChild(container.lastChild)
+          let destContainer = globalState.dom.data[dest]
+          container.appendChild(destContainer)
+        })
+      }
+
+      // NOTE(sen) Weekly surveys
+      let weeklySurveysContainer = dom.data.weeklySurveysContainer
+      container.appendChild(weeklySurveysContainer)
+      weeklySurveysContainer.setAttribute("style", "display: flex")
+
       let datesTableContainer = dom.data.datesTableContainer
       let surveyTableContainer = dom.data.surveyTableContainer
       let surveyCompletionsContainer = dom.data.surveyCompletionsContainer
       let surveyTable = dom.data.surveyTable
       let surveyCompletions = dom.data.surveyCompletions
-      container.appendChild(datesTableContainer)
-      container.appendChild(surveyTableContainer)
-      container.appendChild(surveyCompletionsContainer)
+
+      weeklySurveysContainer.appendChild(datesTableContainer)
+      weeklySurveysContainer.appendChild(surveyTableContainer)
+      weeklySurveysContainer.appendChild(surveyCompletionsContainer)
+
       surveyTableContainer.appendChild(surveyTable)
       surveyCompletionsContainer.appendChild(surveyCompletions)
-
-      container.setAttribute("id", "dom-data-container")
-      container.setAttribute("style", "display: flex")
 
       // NOTE(sen) Dates of weekly surveys only since we know them in advance
 
