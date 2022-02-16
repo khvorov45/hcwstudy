@@ -63,7 +63,8 @@
 
   <script type="text/javascript" src="/PapaParse.js"></script>
 
-  <script type="text/javascript">
+  <script type="module">
+
     const getScrollbarWidths = () => {
       let outer = document.createElement('div');
       outer.style.visibility = "hidden";
@@ -159,7 +160,7 @@
     }
 
     const tableContainerStyle = (widthPx) => {
-      result = "height: calc(100vh - " + globalState.scrollbarWidths[0] + 
+      let result = "height: calc(100vh - " + globalState.scrollbarWidths[0] + 
       "px); overflow-x: hidden; overflow-y: scroll; width: " 
       + (widthPx + globalState.scrollbarWidths[1]) + 
       "px; display: flex; justify-content: center; flex-shrink: 0;"
@@ -209,7 +210,7 @@
       headerRow.setAttribute("style", headerRow.getAttribute("style") + "position: sticky; top: 0;")
       let colnames = Object.keys(colWidthsPx)
 
-      for (colname of colnames) {
+      for (let colname of colnames) {
         let colWidthPx = colWidthsPx[colname]
         let headerElement = createTableCellElement(colWidthPx)
         headerRow.appendChild(headerElement)
@@ -220,7 +221,7 @@
     }
 
     const createTableDataRowElement = (rowIndex) => {
-      color = "var(--color-background)"
+      let color = "var(--color-background)"
       if (rowIndex % 2 == 1) {
         color = "var(--color-background2)"
       }
@@ -249,7 +250,7 @@
           let rowElement = createTableDataRowElement(rowIndex)
           table.appendChild(rowElement)
 
-          for (colname of colnames) {
+          for (let colname of colnames) {
             let colData = soa[colname][rowIndex]
             let formatter = formatters[colname]
             let colDataFormatted = formatter(colData)
@@ -374,7 +375,7 @@
       table.appendChild(createTableHeaderRowElement(colWidthsPx))
 
       let rowsShown = 0
-      for ([record, completedSurveys] of rows) {
+      for (let [record, completedSurveys] of rows) {
         let rowElement = createTableDataRowElement(rowsShown)
         table.appendChild(rowElement)
         rowsShown += 1
@@ -448,12 +449,12 @@
           //address = "/pull-redcap/redcap2022-newcastle.csv"
 
           try {
-            resp = await fetch(address)
+            let resp = await fetch(address)
             if (resp.status !== 200) {
               success = false
             }
-            text = await resp.text()
-            parsed = parseCsv(text)
+            let text = await resp.text()
+            let parsed = parseCsv(text)
             globalState.data[year] = parsed
           } catch (e) {
             success = false
@@ -521,16 +522,15 @@
           errorText.innerHTML = "Password is empty"
         } else {
           buttonText.innerHTML = "..."
-          updateData(input.value, [globalState.currentYear]).then((updateSuccess) => {
-            buttonText.innerHTML = "Submit"
-            if (!updateSuccess) {
-              errorText.innerHTML = "Not recognized"
-            } else {
-              localStorage.setItem("password", input.value)
-              dom.main.removeChild(container)
-              dom.main.appendChild(dom.data.container)
-            }
-          })
+          let updateSucces = updateData(input.value, [globalState.currentYear])
+          buttonText.innerHTML = "Submit"
+          if (!updateSuccess) {
+            errorText.innerHTML = "Not recognized"
+          } else {
+            localStorage.setItem("password", input.value)
+            dom.main.removeChild(container)
+            dom.main.appendChild(dom.data.container)
+          }
         }
       })
     }
@@ -611,7 +611,7 @@
 
       // NOTE(sen) Dates of weekly surveys only since we know them in advance
 
-      weeklySurveyDates2022 = {
+      let weeklySurveyDates2022 = {
         week: seq(1, 1, 52),
         start: dateSeq("2022-01-03", 7, 52),
         end: dateSeq("2022-01-09", 7, 52),
@@ -664,17 +664,15 @@
       } else {
 
         dom.main.appendChild(dom.loading)
-        updateData(password, [globalState.currentYear]).then((updateSuccess) => {          
-          dom.main.removeChild(dom.loading)
+        let updateSuccess = await updateData(password, [globalState.currentYear])
+        dom.main.removeChild(dom.loading)
 
-          if (!updateSuccess) {
-            localStorage.removeItem("password")
-            dom.main.appendChild(dom.passwordBox)
-          } else {
-            dom.main.appendChild(dom.data.container)
-          }
-        })
-      
+        if (!updateSuccess) {
+          localStorage.removeItem("password")
+          dom.main.appendChild(dom.passwordBox)
+        } else {
+          dom.main.appendChild(dom.data.container)
+        }
       }
     }
   </script>
