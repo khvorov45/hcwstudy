@@ -64,7 +64,30 @@
   <script type="text/javascript" src="/PapaParse.js"></script>
 
   <script type="text/javascript">
+    const getScrollbarWidths = () => {
+      let outer = document.createElement('div');
+      outer.style.visibility = "hidden";
+      outer.style.overflowY = "scroll";
+      document.body.appendChild(outer);
+
+      let inner = document.createElement('div');
+      outer.appendChild(inner);
+
+      let scrollbarWidthV = (outer.offsetWidth - inner.offsetWidth);
+      outer.removeChild(inner)
+
+      outer.style.overflowY = "hidden"
+      outer.style.overflowX = "scroll"
+
+      outer.appendChild(inner)
+      let scrollbarWidthH = outer.offsetHeight - inner.offsetHeight
+
+      outer.parentNode.removeChild(outer);
+      return [scrollbarWidthH, scrollbarWidthV];
+    }
+
     let globalState = {
+      scrollbarWidths: getScrollbarWidths(),
       currentYear: 2022,
       data: {
         2020: [],
@@ -136,10 +159,9 @@
     }
 
     const tableContainerStyle = (widthPx) => {
-      let scrollbarWidth = 15 // TODO(sen) Something better than a guess here
-      result = "height: calc(100vh - " + scrollbarWidth + 
+      result = "height: calc(100vh - " + globalState.scrollbarWidths[0] + 
       "px); overflow-x: hidden; overflow-y: scroll; width: " 
-      + (widthPx + scrollbarWidth) + 
+      + (widthPx + globalState.scrollbarWidths[1]) + 
       "px; display: flex; justify-content: center; flex-shrink: 0;"
       return result
     }
