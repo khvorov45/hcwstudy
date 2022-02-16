@@ -71,6 +71,7 @@
         2021: [],
         2022: [],
       },
+      currentDataContainer: "weeklySurveysContainer",
       dom: {
         main: document.getElementById("main"),
 
@@ -523,25 +524,59 @@
       let sidebar = document.createElement("div")
       container.appendChild(sidebar)
       sidebar.setAttribute("style", "width: 200px; flex-shrink: 0;")
+
+      let sidebarLinksContainer = document.createElement("div")
+      sidebar.appendChild(sidebarLinksContainer)
+
       let sidebarLinks = {
         "Weekly surveys": "weeklySurveysContainer",
         "Counts": "countsContainer"
       }
+
       for (let [name, dest] of Object.entries(sidebarLinks)) {
         let link = document.createElement("div")
+        sidebarLinksContainer.appendChild(link)
+
+        let baseStyle = "padding-top: 5px; padding-bottom: 5px; cursor: pointer;"
+        let hoverStyle = baseStyle + "background-color: var(--color-background2);"
+        let selectedStyle = baseStyle + "background-color: var(--color-selected);"
+
+        if (dest === globalState.currentDataContainer) {
+          link.setAttribute("style", selectedStyle)
+        } else {
+          link.setAttribute("style", baseStyle)
+        }
+
         link.innerHTML = name
-        sidebar.appendChild(link)
+
+        link.addEventListener("mouseover", (event) => {
+          if (dest !== globalState.currentDataContainer) {
+            link.setAttribute("style", hoverStyle)
+          }
+        })
+        link.addEventListener("mouseout", (event) => {
+          if (dest !== globalState.currentDataContainer) {
+            link.setAttribute("style", baseStyle)
+          }
+        })
+
         link.addEventListener("click", (event) => {
+
+          for (let child of sidebarLinksContainer.childNodes) {
+            child.setAttribute("style", baseStyle)
+          }
+
+          link.setAttribute("style", selectedStyle)
           // NOTE(sen) Data page container has 2 children - sidebar and content
           container.removeChild(container.lastChild)
           let destContainer = globalState.dom.data[dest]
           container.appendChild(destContainer)
+          globalState.currentDataContainer = dest
         })
       }
 
       // NOTE(sen) Weekly surveys
       let weeklySurveysContainer = dom.data.weeklySurveysContainer
-      container.appendChild(weeklySurveysContainer)
       weeklySurveysContainer.setAttribute("style", "display: flex")
 
       let datesTableContainer = document.createElement("div")
@@ -580,6 +615,8 @@
 
       datesTableContainer.appendChild(weeklySurveyDates2022Table)
       datesTableContainer.setAttribute("style", tableContainerStyle(tableWidth))
+
+      container.appendChild(globalState.dom.data[globalState.currentDataContainer])
     }
 
     // NOTE(sen) Init loading indicator
