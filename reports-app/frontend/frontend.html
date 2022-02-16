@@ -280,6 +280,34 @@
       return result
     }
 
+    const parseCsvFromNetwork = async (addr) => {
+
+      let result = []
+      let papaResult = await new Promise((resolve, reject) => {
+        Papa.parse(
+          addr, 
+          { 
+            delimiter: ",", 
+            header: true, 
+            skipEmptyLines: true, 
+            dynamicTyping: false, 
+            download: true, 
+            complete: resolve,
+            error: reject
+          }
+        )
+      })
+
+      if (papaResult.errors.length > 0) {
+        console.error("CSV parsing errors")
+        console.error(papaResult)
+      } else {
+        result = papaResult.data
+      }
+
+      return result
+    }
+
     const updateSurveyTable = () => {
 
       removeChildren(globalState.dom.data.surveyTableContainer)
@@ -449,13 +477,8 @@
           //address = "/pull-redcap/redcap2022-newcastle.csv"
 
           try {
-            let resp = await fetch(address)
-            if (resp.status !== 200) {
-              success = false
-            }
-            let text = await resp.text()
-            let parsed = parseCsv(text)
-            globalState.data[year] = parsed
+            let parsed = await parseCsvFromNetwork(address)
+            globalState.data[year] = parsed            
           } catch (e) {
             success = false
             console.error(e)
