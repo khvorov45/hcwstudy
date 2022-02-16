@@ -516,13 +516,13 @@
         "color: var(--color-error); text-align: center; margin-top: 10px"
       )
 
-      button.addEventListener("click", (e) => {
+      button.addEventListener("click", async (e) => {
         errorText.innerHTML = ""
         if (input.value === "") {
           errorText.innerHTML = "Password is empty"
         } else {
           buttonText.innerHTML = "..."
-          let updateSucces = updateData(input.value, [globalState.currentYear])
+          let updateSuccess = await updateData(input.value, [globalState.currentYear])
           buttonText.innerHTML = "Submit"
           if (!updateSuccess) {
             errorText.innerHTML = "Not recognized"
@@ -545,7 +545,12 @@
       // NOTE(sen) Sidebar
       let sidebar = document.createElement("div")
       container.appendChild(sidebar)
-      sidebar.setAttribute("style", "width: 200px; flex-shrink: 0;")
+      let sidebarWidthPx = 80
+      sidebar.setAttribute(
+        "style", 
+        "width: " + sidebarWidthPx + 
+        "px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: space-between; height: 100vh; overflow-x: hidden;"
+      )
 
       let sidebarLinksContainer = document.createElement("div")
       sidebar.appendChild(sidebarLinksContainer)
@@ -597,9 +602,23 @@
         })
       }
 
+      let logoutButton = document.createElement("div")
+      sidebar.appendChild(logoutButton)
+      logoutButton.setAttribute("style", "cursor: pointer;")
+      logoutButton.innerHTML = "Logout"
+      logoutButton.addEventListener("mouseover", (event) => logoutButton.style.backgroundColor = "var(--color-selected)")
+      logoutButton.addEventListener("mouseleave", (event) => logoutButton.style.backgroundColor = "inherit")
+      logoutButton.addEventListener("click", (event) => {
+        localStorage.removeItem("password")
+        globalState.dom.main.removeChild(globalState.dom.data.container)
+        globalState.dom.main.appendChild(globalState.dom.passwordBox)
+      })
+
+      let mainContentStyle = `display: flex; width: calc(100vw - ${sidebarWidthPx}px); overflow-x: scroll;`
+
       // NOTE(sen) Weekly surveys
       let weeklySurveysContainer = dom.data.weeklySurveysContainer
-      weeklySurveysContainer.setAttribute("style", "display: flex")
+      weeklySurveysContainer.setAttribute("style", mainContentStyle)
 
       let datesTableContainer = document.createElement("div")
       let surveyTableContainer = dom.data.surveyTableContainer
@@ -637,6 +656,10 @@
 
       datesTableContainer.appendChild(weeklySurveyDates2022Table)
       datesTableContainer.setAttribute("style", tableContainerStyle(tableWidth))
+
+      // NOTE(sen) Counts
+      let countsContainer = dom.data.countsContainer
+      countsContainer.setAttribute("style", mainContentStyle)
 
       container.appendChild(globalState.dom.data[globalState.currentDataContainer])
     }
