@@ -115,6 +115,26 @@
 
     const TABLE_ROW_HEIGHT_PX = 30
 
+    const notNU = (val) => {
+      let reuslt = val !== null && val !== undefined
+      return result
+    }
+
+    const fieldsArePresent = (obj, colnames) => {
+      let result = true
+      let missingColnames = []
+      for (let colname of colnames) {
+        if (obj[colname] === undefined) {
+          result = false
+          missingColnames.push(colname)
+        }
+      }
+      if (!result) {
+        console.error(`fields ${missingColnames.join(",")} not present in`, obj)
+      }
+      return result
+    }
+
     const arrSum = (arr) => {
       let result = 0
       for (let val of arr) {
@@ -452,6 +472,98 @@
       }
     }
 
+    const updateCountsTable = () => {
+
+      removeChildren(globalState.dom.data.countsContainer)
+      let countPage = document.createElement("div")
+      globalState.dom.data.countsContainer.appendChild(countPage)
+
+      let allData = globalState.data[globalState.currentYear]
+
+      let withdrawals = {}
+      for (let row of allData) {
+        if (fieldsArePresent(row, ["record_id", "redcap_event_name"])) {
+          if (row.redcap_event_name === "withdrawal_arm_1") {
+            if (fieldsArePresent(row, ["withdrawn"])) {
+              let withdrawn = row.withdrawn === "1"
+              if (withdrawn) {
+                withdrawals[row.record_id] = true
+              }
+            }
+          }
+        }
+      }
+
+      let siteCounts = {}
+      for (let row of allData) {
+        if (fieldsArePresent(row, ["record_id", "redcap_event_name"])) {
+          if (row.redcap_event_name === "baseline_arm_1") {
+
+            if (fieldsArePresent(row, ["pid"])) {
+              if (row.pid.length >= 3) {
+                let first3 = row.pid.slice(0, 3)
+                if (siteCounts[first3] === undefined) {
+                  siteCounts[first3] = {total: 0, active: 0}
+                }
+                siteCounts[first3].total += 1
+
+                if (fieldsArePresent(row, ["consent", "study_group_vacc", "consent_unvacc"])) {
+                  let consent = row.consent === "1" || row.study_group_vacc === "1" || 
+                    row.study_group_vacc === "2" || row.consent_unvacc === "1"
+                  let withdrawn = withdrawals[row.record_id] === true
+                  if (consent && !withdrawn) {
+                    siteCounts[first3].active += 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      //
+      // NOTE(sen) Total counts
+      //
+
+      let totalCountsColWidthsPx = {
+        site: 100,
+        total: 100,
+        active: 100,
+      }
+      let totalCountsWidthPx = arrSum(Object.values(totalCountsColWidthsPx))
+
+      let totalCountsTableContainer = document.createElement("div")
+      countPage.appendChild(totalCountsTableContainer)
+      totalCountsTableContainer.setAttribute("style", tableContentStyle(totalCountsWidthPx))
+
+      let totalCountsTable = document.createElement("div")
+      totalCountsTableContainer.appendChild(totalCountsTable)
+
+      totalCountsTable.appendChild(createTableTitleElement("Record counts"))
+      totalCountsTable.appendChild(createTableHeaderRowElement(totalCountsColWidthsPx))
+
+      let sitesTotal = 0
+      let sitesActive = 0
+      for (let [site, count] of Object.entries(siteCounts)) {
+        let rowElement = createTableRowElement("var(--color-background)")
+        totalCountsTable.appendChild(rowElement)
+
+        sitesTotal += count.total
+        sitesActive += count.active
+
+        rowElement.appendChild(createTableCellStringElement(totalCountsColWidthsPx.site, site))
+        rowElement.appendChild(createTableCellStringElement(totalCountsColWidthsPx.total, count.total))
+        rowElement.appendChild(createTableCellStringElement(totalCountsColWidthsPx.active, count.active))
+      }
+      {
+        let rowElement = createTableRowElement("var(--color-background)")
+        totalCountsTable.appendChild(rowElement)
+        rowElement.appendChild(createTableCellStringElement(totalCountsColWidthsPx.site, "Total"))
+        rowElement.appendChild(createTableCellStringElement(totalCountsColWidthsPx.total, sitesTotal))
+        rowElement.appendChild(createTableCellStringElement(totalCountsColWidthsPx.active, sitesActive))
+      }
+    }
+
     const updateData = async (password, years) => {
       let success = true
 
@@ -492,6 +604,7 @@
         if (success) {
           let completions = updateSurveyTable()
           updateCompletionsTable(completions)
+          updateCountsTable()
         }
       }
 
