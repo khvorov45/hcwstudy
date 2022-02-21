@@ -457,11 +457,13 @@
 
                 if (currentStreak > 1) {
                   let lastNotShown = prev + currentStreak - 1
-                  collapsedCompletions += "-" + lastNotShown + ", "
+                  collapsedCompletions += "-" + lastNotShown
                 }
 
+                collapsedCompletions += ", "
                 collapsedCompletions += compl
                 currentStreak = 1
+                prev = compl
               }
 
             }
