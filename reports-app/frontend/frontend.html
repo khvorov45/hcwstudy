@@ -347,48 +347,50 @@
         "style", tableContainerStyle(tableWidthPx)
       )
 
-      table.appendChild(createTableTitleElement("Weekly surveys"))
+      table.appendChild(createTableTitleElement("Completed weekly surveys"))
       table.appendChild(createTableHeaderRowElement(colWidthsPx))
 
       let completions = {}
       let rowsShown = 0
       for (let row of allData) {
         if (row.redcap_event_name !== undefined && row.redcap_event_name !== null) {
-
           if (row.redcap_event_name.startsWith("weekly_survey")) {
-            let weekMatch = /weekly_survey_(\d+)_arm_1/.exec(row.redcap_event_name)
-            if (weekMatch !== null && weekMatch.length === 2) {
-            
-              let week = weekMatch[1]
 
-              let rowElement = createTableDataRowElement(rowsShown)
-              rowsShown += 1
-              table.appendChild(rowElement)
+            let completed = row.weekly_symptom_survey_complete
+            if (completed !== "0") {
 
-              let recordIdCell = createTableCellStringElement(colWidthsPx.record_id, row.record_id)
-              rowElement.appendChild(recordIdCell)
+              let weekMatch = /weekly_survey_(\d+)_arm_1/.exec(row.redcap_event_name)
+              if (weekMatch !== null && weekMatch.length === 2) {
 
-              let weekCell = createTableCellStringElement(colWidthsPx.week, week)
-              rowElement.appendChild(weekCell)
+                let week = weekMatch[1]
 
-              let completed = row.weekly_symptom_survey_complete
-              let completedCell = createTableCellStringElement(colWidthsPx.completed, completed)
-              rowElement.appendChild(completedCell)
+                let rowElement = createTableDataRowElement(rowsShown)
+                rowsShown += 1
+                table.appendChild(rowElement)
 
-              let ari = row.ari_definition
-              let ariCell = createTableCellStringElement(colWidthsPx.ari, ari)
-              rowElement.appendChild(ariCell)
+                let recordIdCell = createTableCellStringElement(colWidthsPx.record_id, row.record_id)
+                rowElement.appendChild(recordIdCell)
 
-              if (completed !== "0") {
-                if (completions[row.record_id] === undefined) {
-                  completions[row.record_id] = []
-                }
-                completions[row.record_id].push(parseInt(week))
+                let weekCell = createTableCellStringElement(colWidthsPx.week, week)
+                rowElement.appendChild(weekCell)
+
+                let completed = row.weekly_symptom_survey_complete
+                let completedCell = createTableCellStringElement(colWidthsPx.completed, completed)
+                rowElement.appendChild(completedCell)
+
+                let ari = row.ari_definition
+                let ariCell = createTableCellStringElement(colWidthsPx.ari, ari)
+                rowElement.appendChild(ariCell)
+
+                  if (completions[row.record_id] === undefined) {
+                    completions[row.record_id] = []
+                  }
+                  completions[row.record_id].push(parseInt(week))
+
+              } else {
+
+                console.error("failed to extract week from ", row)
               }
-
-            } else {
-
-              console.error("failed to extract week from ", row)
             }
           }
         } else {
