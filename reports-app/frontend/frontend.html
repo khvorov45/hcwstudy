@@ -852,13 +852,15 @@
         })
 
         yearOption.addEventListener("click", async (event) => {
-          for (let child of sidebarYearSwitchContainer.childNodes) {
-            child.setAttribute("style", baseStyle)
-          }
-          yearOption.setAttribute("style", selectedStyle)
-          globalState.currentYear = year
+          if (globalState.currentYear !== year) {
+            for (let child of sidebarYearSwitchContainer.childNodes) {
+              child.setAttribute("style", baseStyle)
+            }
+            yearOption.setAttribute("style", selectedStyle)
+            globalState.currentYear = year
 
-          await updateDataWithLoading(localStorage.getItem("password"))
+            await updateDataWithLoading(localStorage.getItem("password"))
+          }
         })
 
         yearOption.innerHTML = year
@@ -902,17 +904,18 @@
         })
 
         link.addEventListener("click", (event) => {
+          if (globalState.currentDataContainer !== dest) {            
+            for (let child of sidebarLinksContainer.childNodes) {
+              child.setAttribute("style", baseStyle)
+            }
 
-          for (let child of sidebarLinksContainer.childNodes) {
-            child.setAttribute("style", baseStyle)
+            link.setAttribute("style", selectedStyle)
+            // NOTE(sen) Data page container has 2 children - sidebar and content
+            container.removeChild(container.lastChild)
+            let destContainer = globalState.dom.data[dest]
+            container.appendChild(destContainer)
+            globalState.currentDataContainer = dest
           }
-
-          link.setAttribute("style", selectedStyle)
-          // NOTE(sen) Data page container has 2 children - sidebar and content
-          container.removeChild(container.lastChild)
-          let destContainer = globalState.dom.data[dest]
-          container.appendChild(destContainer)
-          globalState.currentDataContainer = dest
         })
       }
 
