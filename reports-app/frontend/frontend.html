@@ -783,19 +783,21 @@
       )
 
       button.addEventListener("click", async (e) => {
-        errorText.innerHTML = ""
-        if (input.value === "") {
-          errorText.innerHTML = "Password is empty"
-        } else {
-          buttonText.innerHTML = "..."
-          let updateSuccess = await updateData(input.value, [globalState.currentYear])
-          buttonText.innerHTML = "Submit"
-          if (!updateSuccess) {
-            errorText.innerHTML = "Not recognized"
+        if (buttonText.innerHTML !== "...") {
+          errorText.innerHTML = ""
+          if (input.value === "") {
+            errorText.innerHTML = "Password is empty"
           } else {
-            localStorage.setItem("password", input.value)
-            dom.main.removeChild(container)
-            dom.main.appendChild(dom.data.container)
+            buttonText.innerHTML = "..."
+            let updateSuccess = await updateData(input.value, [globalState.currentYear])
+            if (!updateSuccess) {
+              errorText.innerHTML = "Not recognized"
+            } else {
+              localStorage.setItem("password", input.value)
+              dom.main.removeChild(container)
+              dom.main.appendChild(dom.data.container)
+            }
+            buttonText.innerHTML = "Submit"
           }
         }
       })
@@ -1012,6 +1014,5 @@
     // TODO(sen) Download all tables (current: bleed)
     // TODO(sen) Table filtering
     // TODO(sen) Table with emails and sites
-    // TODO(sen) Disable buttons during loading
   </script>
 </html>
