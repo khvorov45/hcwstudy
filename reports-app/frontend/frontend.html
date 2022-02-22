@@ -27,7 +27,7 @@
 
     /* Scrollbars */
     ::-webkit-scrollbar {
-      width: 7px;
+      width: 15px;
     }
 
     ::-webkit-scrollbar-track,
@@ -90,11 +90,7 @@
     let globalState = {
       scrollbarWidths: getScrollbarWidths(),
       currentYear: 2022,
-      data: {
-        2020: [],
-        2021: [],
-        2022: [],
-      },
+      data: [],
       currentDataContainer: "countsContainer",
       dom: {
         main: document.getElementById("main"),
@@ -105,6 +101,7 @@
           container: document.createElement("div"),
           weeklySurveysContainer: document.createElement("div"),
           countsContainer: document.createElement("div"),
+          bleedsContainer: document.createElement("div"),
           surveyTableContainer: document.createElement("div"),
           surveyCompletionsContainer: document.createElement("div"),
         },
@@ -334,7 +331,7 @@
       let table = document.createElement("div")
       globalState.dom.data.surveyTableContainer.appendChild(table)
 
-      let allData = globalState.data[globalState.currentYear]
+      let allData = globalState.data
 
       let colWidthsPx = {
         record_id: 100,
@@ -482,7 +479,7 @@
       let countPage = document.createElement("div")
       globalState.dom.data.countsContainer.appendChild(countPage)
 
-      let allData = globalState.data[globalState.currentYear]
+      let allData = globalState.data
 
       let withdrawals = {}
       for (let row of allData) {
@@ -568,6 +565,103 @@
       }
     }
 
+    const updateBleedsTable = () => {
+      removeChildren(globalState.dom.data.bleedsContainer)
+      let bleedsTableContainer = document.createElement("div")
+      globalState.dom.data.bleedsContainer.appendChild(bleedsTableContainer)
+
+      let allData = globalState.data
+
+      let colWidthsPx = {
+        record_id: 100,
+        pid: 100,
+        study: 100,
+        baseline: 100,
+        day7: 100,
+        day14: 100,
+        end: 100,
+        day0Covid: 100,
+        day7Covid: 100,
+        day14Covid: 100,
+      }
+      let tableWidthPx = arrSum(Object.values(colWidthsPx))
+      bleedsTableContainer.setAttribute("style", tableContainerStyle(tableWidthPx))
+
+      let bleedsTable = document.createElement("div")
+      bleedsTableContainer.appendChild(bleedsTable)      
+      bleedsTable.appendChild(createTableTitleElement("Bleed dates"))
+      bleedsTable.appendChild(createTableHeaderRowElement(colWidthsPx))
+
+      let rowsShown = 0
+      for (let row of allData) {
+        if (fieldsArePresent(row, ["redcap_event_name", "pid"])) {
+          if (row.redcap_event_name === "baseline_arm_1") {
+            
+            let reqFields = [
+              "date_baseline_blood", "date_7d_blood", "date_14d_blood", "date_end_season_blood", 
+            ]
+            if (globalState.currentYear > 2020) {
+              reqFields.concat("covax_d0_sampdate", "covax_d7_sampdate", "covax_d14_sampdate")
+            }
+
+            if (fieldsArePresent(row, reqFields)) {
+
+              let worthShowing = row.date_baseline_blood !== "" || row.date_7d_blood !== "" || row.date_14d_blood !== "" || row.date_end_season_blood !== ""
+              if (globalState.currentYear > 2020) {
+                worthShowing = worthShowing || row.covax_d0_sampdate !== "" || row.covax_d7_sampdate !== "" || row.covax_d14_sampdate !== ""
+              }
+
+              if (worthShowing) {
+                let rowElement = createTableDataRowElement(rowsShown)
+                rowsShown += 1
+                bleedsTable.appendChild(rowElement)
+
+                let recordIdCell = createTableCellStringElement(colWidthsPx.record_id, row.record_id)
+                rowElement.appendChild(recordIdCell)
+
+                let pidCell = createTableCellStringElement(colWidthsPx.pid, row.pid)
+                rowElement.appendChild(pidCell)
+
+                rowElement.appendChild(createTableCellStringElement(colWidthsPx.study, "Flu"))
+
+                let dateBaselineCell = createTableCellStringElement(colWidthsPx.baseline, row.date_baseline_blood)
+                rowElement.appendChild(dateBaselineCell)
+
+                let day7Cell = createTableCellStringElement(colWidthsPx.day7, row.date_7d_blood)
+                rowElement.appendChild(day7Cell)
+
+                let day14Cell = createTableCellStringElement(colWidthsPx.day14, row.date_14d_blood)
+                rowElement.appendChild(day14Cell)
+
+                let endCell = createTableCellStringElement(colWidthsPx.end, row.date_end_season_blood)
+                rowElement.appendChild(endCell)
+
+                if (globalState.currentYear > 2020) {
+                  let day0CovidCell = createTableCellStringElement(colWidthsPx.day0Covid, row.covax_d0_sampdate)
+                  rowElement.appendChild(day0CovidCell)
+
+                  let day7CovidCell = createTableCellStringElement(colWidthsPx.day7Covid, row.covax_d7_sampdate)
+                  rowElement.appendChild(day7CovidCell)
+
+                  let day14CovidCell = createTableCellStringElement(colWidthsPx.day14Covid, row.covax_d14_sampdate)
+                  rowElement.appendChild(day14CovidCell)
+                }
+              }
+            }
+          }
+        }
+      }
+
+      bleedsTable.setAttribute("style", tableContentStyle(tableWidthPx, rowsShown))
+    }
+
+    const updateAllTables = () => {
+      let completions = updateSurveyTable()
+      updateCompletionsTable(completions)
+      updateCountsTable()
+      updateBleedsTable()
+    }
+
     const updateData = async (password, years) => {
       let success = true
 
@@ -590,11 +684,11 @@
             year +
             ".csv"
 
-          //address = "/pull-redcap/redcap2022-newcastle.csv"
+          //address = `/pull-redcap/redcap${globalState.currentYear}-newcastle.csv`
 
           try {
-            let parsed = await parseCsvFromNetwork(address)
-            globalState.data[year] = parsed            
+            globalState.data = []
+            globalState.data = await parseCsvFromNetwork(address)            
           } catch (e) {
             success = false
             console.error(e)
@@ -606,9 +700,7 @@
         }
 
         if (success) {
-          let completions = updateSurveyTable()
-          updateCompletionsTable(completions)
-          updateCountsTable()
+          updateAllTables()
         }
       }
 
@@ -692,12 +784,59 @@
         "px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: space-between; height: 100vh; overflow-x: hidden;"
       )
 
+      let sidebarTopContainer = document.createElement("div")
+      sidebar.appendChild(sidebarTopContainer)
+      sidebarTopContainer.setAttribute("style", "display: flex; flex-direction: column; row-gap: 20px;")
+
+      // NOTE(sen) Year switch
+      let sidebarYearSwitchContainer = document.createElement("div")
+      sidebarTopContainer.appendChild(sidebarYearSwitchContainer)
+      
+      for (let year = 2020; year <= 2022; year += 1) {
+        let yearOption = document.createElement("div")
+        sidebarYearSwitchContainer.appendChild(yearOption)
+
+        let baseStyle = "padding-top: 5px; padding-bottom: 5px; cursor: pointer;"
+        let hoverStyle = baseStyle + "background-color: var(--color-background2);"
+        let selectedStyle = baseStyle + "background-color: var(--color-selected);"
+
+        if (year === globalState.currentYear) {
+          yearOption.setAttribute("style", selectedStyle)
+        } else {
+          yearOption.setAttribute("style", baseStyle)
+        }
+
+        yearOption.addEventListener("mouseover", (event) => {
+          if (year !== globalState.currentYear) {
+            yearOption.setAttribute("style", hoverStyle)
+          }
+        })
+        yearOption.addEventListener("mouseout", (event) => {
+          if (year !== globalState.currentYear) {
+            yearOption.setAttribute("style", baseStyle)
+          }
+        })
+
+        yearOption.addEventListener("click", (event) => {
+          for (let child of sidebarYearSwitchContainer.childNodes) {
+            child.setAttribute("style", baseStyle)
+          }
+          yearOption.setAttribute("style", selectedStyle)
+          globalState.currentYear = year
+          updateData(localStorage.getItem("password"), [globalState.currentYear])
+        })
+
+        yearOption.innerHTML = year
+      }
+
+      // NOTE(sen) Data table switch
       let sidebarLinksContainer = document.createElement("div")
-      sidebar.appendChild(sidebarLinksContainer)
+      sidebarTopContainer.appendChild(sidebarLinksContainer)
 
       let sidebarLinks = {
         "Weekly surveys": "weeklySurveysContainer",
-        "Counts": "countsContainer"
+        "Bleeds": "bleedsContainer",
+        "Counts": "countsContainer",
       }
 
       for (let [name, dest] of Object.entries(sidebarLinks)) {
@@ -802,6 +941,10 @@
       countsContainer.setAttribute("style", mainContentStyle)
 
       container.appendChild(globalState.dom.data[globalState.currentDataContainer])
+
+      // NOTE(sen) Bleeds
+      let bleedsContainer = dom.data.bleedsContainer
+      bleedsContainer.setAttribute("style", mainContentStyle)      
     }
 
     // NOTE(sen) Init loading indicator
