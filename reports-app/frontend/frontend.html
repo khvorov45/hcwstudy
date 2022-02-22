@@ -726,6 +726,21 @@
       return success
     }
 
+    const updateDataWithLoading = async (password) => {
+      let dom = globalState.dom
+      removeChildren(dom.main)
+      dom.main.appendChild(dom.loading)
+      let updateSuccess = await updateData(password, [globalState.currentYear])
+      dom.main.removeChild(dom.loading)
+
+      if (!updateSuccess) {
+        localStorage.removeItem("password")
+        dom.main.appendChild(dom.passwordBox)
+      } else {
+        dom.main.appendChild(dom.data.container)
+      }
+    }
+
     //
     // NOTE(sen) DOM secton
     //
@@ -836,13 +851,14 @@
           }
         })
 
-        yearOption.addEventListener("click", (event) => {
+        yearOption.addEventListener("click", async (event) => {
           for (let child of sidebarYearSwitchContainer.childNodes) {
             child.setAttribute("style", baseStyle)
           }
           yearOption.setAttribute("style", selectedStyle)
           globalState.currentYear = year
-          updateData(localStorage.getItem("password"), [globalState.currentYear])
+
+          await updateDataWithLoading(localStorage.getItem("password"))
         })
 
         yearOption.innerHTML = year
@@ -983,21 +999,9 @@
       let password = localStorage.getItem("password")
       
       if (password === null) {
-      
         dom.main.appendChild(dom.passwordBox)
-      
       } else {
-
-        dom.main.appendChild(dom.loading)
-        let updateSuccess = await updateData(password, [globalState.currentYear])
-        dom.main.removeChild(dom.loading)
-
-        if (!updateSuccess) {
-          localStorage.removeItem("password")
-          dom.main.appendChild(dom.passwordBox)
-        } else {
-          dom.main.appendChild(dom.data.container)
-        }
+        updateDataWithLoading(password)
       }
     }
 
@@ -1005,7 +1009,6 @@
     // TODO(sen) Download all tables (current: bleed)
     // TODO(sen) Table filtering
     // TODO(sen) Table with emails and sites
-    // TODO(sen) Loading indicator when switching years
     // TODO(sen) Disable buttons during loading
   </script>
 </html>
