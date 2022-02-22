@@ -91,6 +91,7 @@
       scrollbarWidths: getScrollbarWidths(),
       currentYear: 2022,
       data: [],
+      downloadCsv: {},
       currentDataContainer: "countsContainer",
       dom: {
         main: document.getElementById("main"),
@@ -216,9 +217,21 @@
       let titleElement = document.createElement("div")
       titleElement.setAttribute(
         "style", 
-        "display: flex; align-items: center; justify-content: center; background-color: var(--color-background2);"
+        "display: flex; align-items: center; justify-content: center; background-color: var(--color-background2); cursor: pointer;"
       )
-      titleElement.innerHTML = title
+      titleElement.innerHTML = title + " ⇓"
+      titleElement.addEventListener("click", (event) => {
+        let csv = globalState.downloadCsv[title]
+        if (csv) {
+          let hidden = document.createElement("a")
+          hidden.href = "data:text/csv;charset=utf-8," + encodeURI(csv)
+          hidden.target = "_blank"
+          hidden.download = title + ".csv"
+          hidden.click()  
+        } else {
+          console.error(`table '${title}' does not have a csv to download`)
+        }
+      })
       return titleElement
     }
 
@@ -575,7 +588,6 @@
       let colWidthsPx = {
         record_id: 100,
         pid: 100,
-        study: 100,
         baseline: 100,
         day7: 100,
         day14: 100,
@@ -588,8 +600,10 @@
       bleedsTableContainer.setAttribute("style", tableContainerStyle(tableWidthPx))
 
       let bleedsTable = document.createElement("div")
-      bleedsTableContainer.appendChild(bleedsTable)      
+      bleedsTableContainer.appendChild(bleedsTable)
+      let bleedsTableTitle = "Bleed dates"   
       bleedsTable.appendChild(createTableTitleElement("Bleed dates"))
+      globalState.downloadCsv[bleedsTableTitle] = Object.keys(colWidthsPx).join(",") + "\n"
       bleedsTable.appendChild(createTableHeaderRowElement(colWidthsPx))
 
       let rowsShown = 0
@@ -622,8 +636,6 @@
                 let pidCell = createTableCellStringElement(colWidthsPx.pid, row.pid)
                 rowElement.appendChild(pidCell)
 
-                rowElement.appendChild(createTableCellStringElement(colWidthsPx.study, "Flu"))
-
                 let dateBaselineCell = createTableCellStringElement(colWidthsPx.baseline, row.date_baseline_blood)
                 rowElement.appendChild(dateBaselineCell)
 
@@ -636,6 +648,8 @@
                 let endCell = createTableCellStringElement(colWidthsPx.end, row.date_end_season_blood)
                 rowElement.appendChild(endCell)
 
+                let rowCsv = row.record_id + "," + row.pid + "," + row.date_baseline_blood + "," + row.date_7d_blood + "," + row.date_14d_blood + "," + row.date_end_season_blood
+
                 if (globalState.currentYear > 2020) {
                   let day0CovidCell = createTableCellStringElement(colWidthsPx.day0Covid, row.covax_d0_sampdate)
                   rowElement.appendChild(day0CovidCell)
@@ -645,7 +659,12 @@
 
                   let day14CovidCell = createTableCellStringElement(colWidthsPx.day14Covid, row.covax_d14_sampdate)
                   rowElement.appendChild(day14CovidCell)
+
+                  rowCsv += "," + row.covax_d0_sampdate + "," + row.covax_d7_sampdate + "," + row.covax_d14_sampdate
                 }
+
+                rowCsv += "\n"
+                globalState.downloadCsv[bleedsTableTitle] += rowCsv
               }
             }
           }
