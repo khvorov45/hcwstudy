@@ -61,8 +61,6 @@
     <div id="main"></div>
   </body>
 
-  <script type="text/javascript" src="/PapaParse.js"></script>
-
   <script type="module">
 
     const getScrollbarWidths = () => {
@@ -201,7 +199,9 @@
 
     const createTableCellStringElement = (widthPx, string) => {
       let cellElement = createTableCellElement(widthPx)
-      cellElement.innerHTML = string
+      if (string !== undefined && string != null) {
+        cellElement.innerHTML = string
+      }
       return cellElement
     }
 
@@ -295,56 +295,13 @@
       return [table, tableWidthPx]
     }
 
-    const parseCsv = (input) => {
-      let result = []
-      let papaResult = Papa.parse(
-        input, 
-        { delimiter: ",", header: true, skipEmptyLines: true, dynamicTyping: false}
-      )
-      if (papaResult.errors.length > 0) {
-        console.error("CSV parsing errors")
-        console.error(papaResult)
-      } else {
-        result = papaResult.data
-      }
-      return result
-    }
-
-    const parseCsvFromNetwork = async (addr) => {
-
-      let result = []
-      let papaResult = await new Promise((resolve, reject) => {
-        Papa.parse(
-          addr, 
-          { 
-            delimiter: ",", 
-            header: true, 
-            skipEmptyLines: true, 
-            dynamicTyping: false, 
-            download: true, 
-            complete: resolve,
-            error: reject
-          }
-        )
-      })
-
-      if (papaResult.errors.length > 0) {
-        console.error("CSV parsing errors")
-        console.error(papaResult)
-      } else {
-        result = papaResult.data
-      }
-
-      return result
-    }
-
     const updateSurveyTable = () => {
 
       removeChildren(globalState.dom.data.surveyTableContainer)
       let table = document.createElement("div")
       globalState.dom.data.surveyTableContainer.appendChild(table)
 
-      let allData = globalState.data
+      let allData = globalState.data.weekly_surveys
 
       let colWidthsPx = {
         record_id: 100,
@@ -363,49 +320,37 @@
       let completions = {}
       let rowsShown = 0
       for (let row of allData) {
-        if (row.redcap_event_name !== undefined && row.redcap_event_name !== null) {
-          if (row.redcap_event_name.startsWith("weekly_survey")) {
 
-            let completed = row.weekly_symptom_survey_complete
-            if (completed !== "0") {
+        if (row.redcap_project_year == globalState.currentYear) {
 
-              let weekMatch = /weekly_survey_(\d+)_arm_1/.exec(row.redcap_event_name)
-              if (weekMatch !== null && weekMatch.length === 2) {
+          let completed = row.weekly_symptom_survey_complete
+          if (completed !== "0") {
 
-                let week = weekMatch[1]
+            let week = row.survey_index
 
-                let rowElement = createTableDataRowElement(rowsShown)
-                rowsShown += 1
-                table.appendChild(rowElement)
+            let rowElement = createTableDataRowElement(rowsShown)
+            rowsShown += 1
+            table.appendChild(rowElement)
 
-                let recordIdCell = createTableCellStringElement(colWidthsPx.record_id, row.record_id)
-                rowElement.appendChild(recordIdCell)
+            let recordIdCell = createTableCellStringElement(colWidthsPx.record_id, row.record_id)
+            rowElement.appendChild(recordIdCell)
 
-                let weekCell = createTableCellStringElement(colWidthsPx.week, week)
-                rowElement.appendChild(weekCell)
+            let weekCell = createTableCellStringElement(colWidthsPx.week, week)
+            rowElement.appendChild(weekCell)
 
-                let completed = row.weekly_symptom_survey_complete
-                let completedCell = createTableCellStringElement(colWidthsPx.completed, completed)
-                rowElement.appendChild(completedCell)
+            let completedCell = createTableCellStringElement(colWidthsPx.completed, completed)
+            rowElement.appendChild(completedCell)
 
-                let ari = row.ari_definition
-                let ariCell = createTableCellStringElement(colWidthsPx.ari, ari)
-                rowElement.appendChild(ariCell)
+            let ari = row.ari_definition
+            let ariCell = createTableCellStringElement(colWidthsPx.ari, ari)
+            rowElement.appendChild(ariCell)
 
-                  if (completions[row.record_id] === undefined) {
-                    completions[row.record_id] = []
-                  }
-                  completions[row.record_id].push(parseInt(week))
-
-              } else {
-
-                console.error("failed to extract week from ", row)
-              }
+            if (completions[row.record_id] === undefined) {
+              completions[row.record_id] = []
             }
-          }
-        } else {
+            completions[row.record_id].push(parseInt(week))
 
-          console.error("no event field in row", row)
+          }
         }
       }
       table.setAttribute("style", tableContentStyle(tableWidthPx, rowsShown))
@@ -492,44 +437,36 @@
       let countPage = document.createElement("div")
       globalState.dom.data.countsContainer.appendChild(countPage)
 
-      let allData = globalState.data
+      let withdrawalData = globalState.data.withdrawal
 
       let withdrawals = {}
-      for (let row of allData) {
-        if (fieldsArePresent(row, ["record_id", "redcap_event_name"])) {
-          if (row.redcap_event_name === "withdrawal_arm_1") {
-            if (fieldsArePresent(row, ["withdrawn"])) {
-              let withdrawn = row.withdrawn === "1"
-              if (withdrawn) {
-                withdrawals[row.record_id] = true
-              }
-            }
+      for (let row of withdrawalData) {
+        if (row.redcap_project_year === globalState.currentYear) {
+          let withdrawn = row.withdrawn === "1"
+          if (withdrawn) {
+            withdrawals[row.record_id] = true
           }
         }
       }
 
+      let baselineData = globalState.data.baseline
+
       let siteCounts = {}
-      for (let row of allData) {
-        if (fieldsArePresent(row, ["record_id", "redcap_event_name"])) {
-          if (row.redcap_event_name === "baseline_arm_1") {
+      for (let row of baselineData) {
+        if (row.pid !== undefined && row.redcap_project_year === globalState.currentYear) {
 
-            if (fieldsArePresent(row, ["pid"])) {
-              if (row.pid.length >= 3) {
-                let first3 = row.pid.slice(0, 3)
-                if (siteCounts[first3] === undefined) {
-                  siteCounts[first3] = {total: 0, active: 0}
-                }
-                siteCounts[first3].total += 1
+          if (row.pid.length >= 3) {
+            let first3 = row.pid.slice(0, 3)
+            if (siteCounts[first3] === undefined) {
+              siteCounts[first3] = {total: 0, active: 0}
+            }
+            siteCounts[first3].total += 1
 
-                if (fieldsArePresent(row, ["consent", "study_group_vacc", "consent_unvacc"])) {
-                  let consent = row.consent === "1" || row.study_group_vacc === "1" || 
-                    row.study_group_vacc === "2" || row.consent_unvacc === "1"
-                  let withdrawn = withdrawals[row.record_id] === true
-                  if (consent && !withdrawn) {
-                    siteCounts[first3].active += 1
-                  }
-                }
-              }
+            let consent = row.consent === "1" || row.study_group_vacc === "1" || 
+              row.study_group_vacc === "2" || row.consent_unvacc === "1"
+            let withdrawn = withdrawals[row.record_id] === true
+            if (consent && !withdrawn) {
+              siteCounts[first3].active += 1
             }
           }
         }
@@ -583,7 +520,7 @@
       let bleedsTableContainer = document.createElement("div")
       globalState.dom.data.bleedsContainer.appendChild(bleedsTableContainer)
 
-      let allData = globalState.data
+      let allData = globalState.data.baseline
 
       let colWidthsPx = {
         record_id: 100,
@@ -608,65 +545,69 @@
 
       let rowsShown = 0
       for (let row of allData) {
-        if (fieldsArePresent(row, ["redcap_event_name", "pid"])) {
-          if (row.redcap_event_name === "baseline_arm_1") {
-            
-            let reqFields = [
-              "date_baseline_blood", "date_7d_blood", "date_14d_blood", "date_end_season_blood", 
-            ]
+
+        if (row.redcap_project_year === globalState.currentYear) {
+          const toString = (str) => {
+            let result = ""
+            if (str !== undefined && str !== null) {
+              result = str
+            }
+            return result
+          }
+
+          let dateBaselineBlood = toString(row.date_baseline_blood)
+          let date7dBlood = toString(row.date_7d_blood)
+          let date14dBlood = toString(row.date_14d_blood)
+          let dateEndSeasonBlood = toString(row.date_end_season_blood)
+          let dateCovaxBaselineBlood = toString(row.covax_d0_sampdate)
+          let dateCovax7dBlood = toString(row.covax_d7_sampdate)
+          let dateCovax14dBlood = toString(row.covax_d14_sampdate)
+
+          let worthShowing = dateBaselineBlood !== "" || date7dBlood !== "" || date14dBlood !== "" || dateEndSeasonBlood !== ""
+          if (globalState.currentYear > 2020) {
+            worthShowing = worthShowing || dateCovaxBaselineBlood !== "" || dateCovax7dBlood !== "" || dateCovax14dBlood !== ""
+          }
+
+          if (worthShowing) {
+            let rowElement = createTableDataRowElement(rowsShown)
+            rowsShown += 1
+            bleedsTable.appendChild(rowElement)
+
+            let recordIdCell = createTableCellStringElement(colWidthsPx.record_id, row.record_id)
+            rowElement.appendChild(recordIdCell)
+
+            let pidCell = createTableCellStringElement(colWidthsPx.pid, row.pid)
+            rowElement.appendChild(pidCell)
+
+            let dateBaselineCell = createTableCellStringElement(colWidthsPx.baseline, dateBaselineBlood)
+            rowElement.appendChild(dateBaselineCell)
+
+            let day7Cell = createTableCellStringElement(colWidthsPx.day7, date7dBlood)
+            rowElement.appendChild(day7Cell)
+
+            let day14Cell = createTableCellStringElement(colWidthsPx.day14, date14dBlood)
+            rowElement.appendChild(day14Cell)
+
+            let endCell = createTableCellStringElement(colWidthsPx.end, dateEndSeasonBlood)
+            rowElement.appendChild(endCell)
+
+            let rowCsv = row.record_id + "," + row.pid + "," + dateBaselineBlood + "," + date7dBlood + "," + date14dBlood + "," + dateEndSeasonBlood
+
             if (globalState.currentYear > 2020) {
-              reqFields.concat("covax_d0_sampdate", "covax_d7_sampdate", "covax_d14_sampdate")
+              let day0CovidCell = createTableCellStringElement(colWidthsPx.day0Covid, dateCovaxBaselineBlood)
+              rowElement.appendChild(day0CovidCell)
+
+              let day7CovidCell = createTableCellStringElement(colWidthsPx.day7Covid, dateCovax7dBlood)
+              rowElement.appendChild(day7CovidCell)
+
+              let day14CovidCell = createTableCellStringElement(colWidthsPx.day14Covid, dateCovax14dBlood)
+              rowElement.appendChild(day14CovidCell)
+
+              rowCsv += "," + dateCovaxBaselineBlood + "," + dateCovax7dBlood + "," + dateCovax14dBlood
             }
 
-            if (fieldsArePresent(row, reqFields)) {
-
-              let worthShowing = row.date_baseline_blood !== "" || row.date_7d_blood !== "" || row.date_14d_blood !== "" || row.date_end_season_blood !== ""
-              if (globalState.currentYear > 2020) {
-                worthShowing = worthShowing || row.covax_d0_sampdate !== "" || row.covax_d7_sampdate !== "" || row.covax_d14_sampdate !== ""
-              }
-
-              if (worthShowing) {
-                let rowElement = createTableDataRowElement(rowsShown)
-                rowsShown += 1
-                bleedsTable.appendChild(rowElement)
-
-                let recordIdCell = createTableCellStringElement(colWidthsPx.record_id, row.record_id)
-                rowElement.appendChild(recordIdCell)
-
-                let pidCell = createTableCellStringElement(colWidthsPx.pid, row.pid)
-                rowElement.appendChild(pidCell)
-
-                let dateBaselineCell = createTableCellStringElement(colWidthsPx.baseline, row.date_baseline_blood)
-                rowElement.appendChild(dateBaselineCell)
-
-                let day7Cell = createTableCellStringElement(colWidthsPx.day7, row.date_7d_blood)
-                rowElement.appendChild(day7Cell)
-
-                let day14Cell = createTableCellStringElement(colWidthsPx.day14, row.date_14d_blood)
-                rowElement.appendChild(day14Cell)
-
-                let endCell = createTableCellStringElement(colWidthsPx.end, row.date_end_season_blood)
-                rowElement.appendChild(endCell)
-
-                let rowCsv = row.record_id + "," + row.pid + "," + row.date_baseline_blood + "," + row.date_7d_blood + "," + row.date_14d_blood + "," + row.date_end_season_blood
-
-                if (globalState.currentYear > 2020) {
-                  let day0CovidCell = createTableCellStringElement(colWidthsPx.day0Covid, row.covax_d0_sampdate)
-                  rowElement.appendChild(day0CovidCell)
-
-                  let day7CovidCell = createTableCellStringElement(colWidthsPx.day7Covid, row.covax_d7_sampdate)
-                  rowElement.appendChild(day7CovidCell)
-
-                  let day14CovidCell = createTableCellStringElement(colWidthsPx.day14Covid, row.covax_d14_sampdate)
-                  rowElement.appendChild(day14CovidCell)
-
-                  rowCsv += "," + row.covax_d0_sampdate + "," + row.covax_d7_sampdate + "," + row.covax_d14_sampdate
-                }
-
-                rowCsv += "\n"
-                globalState.downloadCsv[bleedsTableTitle] += rowCsv
-              }
-            }
+            rowCsv += "\n"
+            globalState.downloadCsv[bleedsTableTitle] += rowCsv
           }
         }
       }
@@ -699,15 +640,14 @@
           let address =
             "https://reports2.hcwflustudy.com/api/" +
             password +
-            "/redcap" +
-            year +
-            ".csv"
+            "/redcap.json"
 
-          //address = `/pull-redcap/redcap${globalState.currentYear}-newcastle.csv`
+          //address = `/pull-redcap/redcap-all_data.json`
 
           try {
+            let resp = await fetch(address)
             globalState.data = []
-            globalState.data = await parseCsvFromNetwork(address)            
+            globalState.data = await resp.json()            
           } catch (e) {
             success = false
             console.error(e)
@@ -861,7 +801,7 @@
             yearOption.setAttribute("style", selectedStyle)
             globalState.currentYear = year
 
-            await updateDataWithLoading(localStorage.getItem("password"))
+            updateAllTables()
           }
         })
 
@@ -1014,5 +954,6 @@
     // TODO(sen) Download all tables (current: bleed)
     // TODO(sen) Table filtering
     // TODO(sen) Table with emails and sites
+    // TODO(sen) Correct weekly survey dates for 2020 and 2021
   </script>
 </html>
