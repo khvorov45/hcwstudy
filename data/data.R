@@ -2,10 +2,10 @@ library(tidyverse)
 
 # SECTION Serology
 
-system("data-raw/pull-NIHHCWserol.sh")
+#system("data-raw/pull-NIHHCWserol.sh")
 
 # NOTE(sen) Export tables from access, one csv per table
-system("data-raw/export-NIHHCWserol.sh")
+#system("data-raw/export-NIHHCWserol.sh")
 
 serology_all_tables_2020 <- list.files("data-raw", pattern = "HI_", full.names = TRUE) %>%
   map_dfr(function(path) {
@@ -487,14 +487,12 @@ redcap_consent_use_long_extra <- redcap_consent_use_long %>%
 
 write_csv(redcap_consent_use_long_extra, "data/consent-use.csv")
 
-# TODO(sen) Pull consent and consent conflicts
-
 # SECTION Swabs
 
 redcap_swabs_request <- function(year) {
   survey_events <- paste0("weekly_survey_", 1:52, "_arm_1", collapse = ",")
   all_events <- paste0("infection_arm_1,", survey_events)
-  redcap_request(year, all_events, "record_id,swab_collection")
+  redcap_request(year, all_events, "record_id,swab_collection,samp_date")
 }
 
 swabs <- redcap_swabs_request(2020) %>%

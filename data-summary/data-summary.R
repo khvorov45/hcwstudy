@@ -5,19 +5,34 @@ participants <- read_csv("data/participants.csv", col_types = cols())
 vaccinations <- read_csv("data/vaccinations.csv", col_types = cols()) %>%
   inner_join(participants %>% select(pid, recruitment_year), "pid")
 
-prior_vaccination_counts <- vaccinations %>%
-  # NOTE(sen) Only looking at the past 5 years prior to serology (only have 2020
-  # serology right now)
-  filter(
-    year >= recruitment_year - 5,
-    recruitment_year == 2020,
-    year < recruitment_year
-  ) %>%
+prior_vaccination_counts_2020 <- vaccinations %>%
+  filter(year >= 2020 - 5, year < 2020) %>%
   group_by(pid) %>%
   summarise(
     .groups = "drop",
     prior_vacs = sum(status %in% c("Australia", "Overseas"))
   )
+
+prior_vaccination_counts_2021 <- vaccinations %>%
+  filter(year >= 2021 - 5, year < 2021) %>%
+  group_by(pid) %>%
+  summarise(
+    .groups = "drop",
+    prior_vacs = sum(status %in% c("Australia", "Overseas"))
+  )
+
+prior_vaccination_counts <- bind_rows(
+  prior_vaccination_counts_2020 %>% mutate(year = 2020),
+  prior_vaccination_counts_2021 %>% mutate(year = 2021),
+)
+
+setdiff(prior_vaccination_counts$pid, participants$pid)
+setdiff(participants$pid, prior_vaccination_counts$pid)
+
+vaccinations_study_years <- vaccinations %>% 
+  filter(year %in% c(2020, 2021)) %>% 
+  mutate(vaccinated = status %in% c("Australia", "Overseas")) %>%
+  select(pid, year, vaccinated)
 
 bleed_dates <- read_csv("data/bleed-dates.csv", col_types = cols())
 
@@ -31,8 +46,9 @@ bleed_offsets <- bleed_dates %>%
 
 serology <- read_csv("data/serology.csv", col_types = cols()) %>%
   inner_join(participants, "pid") %>%
-  inner_join(prior_vaccination_counts, "pid") %>%
-  inner_join(bleed_offsets, c("pid", "year", "day")) %>%
+  left_join(prior_vaccination_counts, c("pid", "year")) %>%
+  left_join(vaccinations_study_years, c("pid", "year")) %>%
+  left_join(bleed_offsets, c("pid", "year", "day")) %>%
   mutate(
     timepoint = recode(
       day,
@@ -80,110 +96,141 @@ summarise_logmean <- function(vec, round_to = 0) {
 }
 
 titre_summary <- serology %>%
-  group_by(year, virus_label_fct, prior_vacs, timepoint, day, subtype, virus_egg_cell) %>%
+  group_by(vaccinated, year, virus_label_fct, prior_vacs, timepoint, day, subtype, virus_egg_cell) %>%
   summarise(.groups = "drop", summarise_logmean(titre))
 
 titre_summary_wide <- titre_summary %>%
-  select(year, virus_label_fct, prior_vacs, string, timepoint) %>%
+  select(vaccinated, year, virus_label_fct, prior_vacs, string, timepoint) %>%
   pivot_wider(names_from = "prior_vacs", values_from = "string")
 
 write_csv(titre_summary_wide, "data-summary/titre-summary.csv")
 
-titre_plot <- serology %>%
-  mutate(y_position = rnorm(n(), log(titre), 0.1) %>% exp()) %>%
-  ggplot(aes(
-    timepoint, y_position,
-    col = as.factor(prior_vacs)
-  )) +
-  theme_bw() +
-  theme(
-    legend.position = "bottom",
-    legend.box.spacing = unit(0, "null"),
-    panel.spacing = unit(0, "null"),
-    strip.background = element_blank(),
-    panel.grid.minor = element_blank(),
-    axis.text.x = element_text(angle = 15, hjust = 1),
-  ) +
-  scale_y_log10("Titre", breaks = 5 * 2^(0:15)) +
-  scale_x_discrete("Timepoint") +
-  scale_color_discrete("Prior vaccinations") +
-  facet_wrap(~year + virus_label_fct, nrow = 4) +
-  guides(color = guide_legend(override.aes = list(alpha = 1), nrow = 1)) +
-  geom_point(alpha = 0.3, position = position_dodge(width = 0.75), shape = 18) +
-  geom_errorbar(
-    data = titre_summary,
-    aes(y = mean, ymin = low, ymax = high),
-    position = position_dodge(width = 0.75),
-    size = 1.2,
-    width = 0.7
-  ) +
-  geom_point(
-    data = titre_summary,
-    aes(y = mean),
-    position = position_dodge(width = 0.75),
-    size = 4
-  )
+fun_titre_plot <- function(titres, titre_summary) {
+  titres %>%
+    mutate(y_position = rnorm(n(), log(titre), 0.1) %>% exp()) %>%
+    ggplot(aes(
+      timepoint, y_position,
+      col = as.factor(prior_vacs)
+    )) +
+    theme_bw() +
+    theme(
+      legend.position = "bottom",
+      legend.box.spacing = unit(0, "null"),
+      panel.spacing = unit(0, "null"),
+      strip.background = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.text.x = element_text(angle = 15, hjust = 1),
+    ) +
+    scale_y_log10("Titre", breaks = 5 * 2^(0:15)) +
+    scale_x_discrete("Timepoint") +
+    scale_color_discrete("Prior vaccinations") +
+    facet_wrap(~year + virus_label_fct, nrow = 4) +
+    guides(color = guide_legend(override.aes = list(alpha = 1), nrow = 1)) +
+    geom_point(alpha = 0.3, position = position_dodge(width = 0.75), shape = 18) +
+    geom_errorbar(
+      data = titre_summary,
+      aes(y = mean, ymin = low, ymax = high),
+      position = position_dodge(width = 0.75),
+      size = 1.2,
+      width = 0.7
+    ) +
+    geom_point(
+      data = titre_summary,
+      aes(y = mean),
+      position = position_dodge(width = 0.75),
+      size = 4
+    )
+}
+
+titre_plot_vaccinated <- fun_titre_plot(
+  serology %>% filter(vaccinated), 
+  titre_summary %>% filter(vaccinated)
+)
 
 ggsave(
-  "data-summary/titre-plot.pdf",
-  titre_plot,
+  "data-summary/titre-plot-vaccinated.pdf",
+  titre_plot_vaccinated,
   unit = "cm", width = 35, height = 40
 )
 
 # SECTION Multi-year serology
 
 get_global_timepoint <- function(year, day) {
-  paste0(year, "-", day) %>% fct_reorder(year * 1000 + day)
+  paste0(year, "-", day)
 }
 
 serology_multiyear <- serology %>%
   mutate(
-    global_timepoint = get_global_timepoint(year, day),
+    global_timepoint = get_global_timepoint(year, day) %>% fct_reorder(year * 1000 + day),
     ypos = exp(runif(n(), log(titre) - 0.2, log(titre) + 0.2)),
     xpos = as.integer(global_timepoint),
     xpos_jit = runif(n(), xpos - 0.2, xpos + 0.2)
   )
 
-titre_multi_year_plot <- serology_multiyear %>% 
-  ggplot(aes(xpos_jit, ypos)) +
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(angle = 30, hjust = 1),
-    panel.spacing = unit(0, "null"),
-  ) +
-  scale_y_log10("Titre", breaks = 5 * 2^(0:10)) +
-  scale_x_continuous(
-    "Timepoint",
-    breaks = unique(serology_multiyear$xpos),
-    labels = unique(serology_multiyear$global_timepoint),
-  ) +
-  facet_grid(
-    subtype + virus_egg_cell ~ prior_vacs,
-    labeller = function(breaks) {
-      if ("prior_vacs" %in% colnames(breaks)) {
-        breaks$prior_vacs <- paste(breaks$prior_vacs, "prior")
-      } else {
-        breaks$subtype <- as.character(breaks$subtype)
-      }
-      breaks
-    }
-  ) +
-  geom_line(aes(group = pid), alpha = 0.1, col = "gray50") + 
-  geom_point(alpha = 0.1, shape = 18, col = "gray50") + 
-  geom_line(
-    aes(x = as.integer(global_timepoint), y = mean),
-    titre_summary %>% mutate(global_timepoint = get_global_timepoint(year, day)),
-    col = "hotpink"
-  ) +
-  geom_pointrange(
-    aes(x = as.integer(global_timepoint), y = mean, ymin = low, ymax = high),
-    titre_summary %>% mutate(global_timepoint = get_global_timepoint(year, day)),
-    col = "hotpink", fatten = 1.2, size = 1,
+fun_titre_multiyear_plot <- function(serology_multiyear, titre_summary, alpha = 0.1) {
+  titre_summary <- titre_summary %>% mutate(
+    global_timepoint = get_global_timepoint(year, day) %>% 
+      factor(levels(serology_multiyear$global_timepoint))
   )
 
+  serology_multiyear %>% 
+    ggplot(aes(xpos_jit, ypos)) +
+    theme_bw() +
+    theme(
+      axis.text.x = element_text(angle = 30, hjust = 1),
+      panel.spacing = unit(0, "null"),
+    ) +
+    scale_y_log10("Titre", breaks = 5 * 2^(0:10)) +
+    scale_x_continuous(
+      "Timepoint",
+      breaks = unique(serology_multiyear$xpos),
+      labels = unique(serology_multiyear$global_timepoint),
+    ) +
+    facet_grid(
+      subtype + virus_egg_cell ~ prior_vacs,
+      labeller = function(breaks) {
+        if ("prior_vacs" %in% colnames(breaks)) {
+          breaks$prior_vacs <- paste(breaks$prior_vacs, "prior")
+        } else {
+          breaks$subtype <- as.character(breaks$subtype)
+        }
+        breaks
+      }
+    ) +
+    geom_line(aes(group = pid), alpha = alpha, col = "gray50") + 
+    geom_point(alpha = alpha, shape = 18, col = "gray50") + 
+    geom_line(
+      aes(x = as.integer(global_timepoint), y = mean),
+      titre_summary,
+      col = "hotpink"
+    ) +
+    geom_pointrange(
+      aes(x = as.integer(global_timepoint), y = mean, ymin = low, ymax = high),
+      titre_summary,
+      col = "hotpink", fatten = 1.2, size = 1,
+    )
+}
+
+titre_multi_year_vaccinated_plot <- fun_titre_multiyear_plot(
+  serology_multiyear %>% filter(vaccinated),
+  titre_summary %>% filter(vaccinated)
+)
+
+titre_multi_year_unvaccinated_plot <- fun_titre_multiyear_plot(
+  serology_multiyear %>% filter(!vaccinated),
+  titre_summary %>% filter(!vaccinated),
+  alpha = 0.7
+)
+
 ggsave(
-  "data-summary/titre-multiyear.pdf",
-  titre_multi_year_plot,
+  "data-summary/titre-multiyear-vaccinated.pdf",
+  titre_multi_year_vaccinated_plot,
+  unit = "cm", width = 35, height = 40
+)
+
+ggsave(
+  "data-summary/titre-multiyear-unvaccinated.pdf",
+  titre_multi_year_unvaccinated_plot,
   unit = "cm", width = 35, height = 40
 )
 
@@ -192,8 +239,7 @@ ggsave(
 serology2 <- serology %>%
   inner_join(bleed_offsets_av, "day") %>%
   filter(
-    year == 2020,
-    prior_vacs %in% c(0, 1, 5), str_detect(virus, "e$"), 
+    str_detect(virus, "e$"), 
     timepoint != "Post-vax (7 days)"
   ) %>%
   mutate(
@@ -205,7 +251,7 @@ colors2 <- c("#D39547", "#3F4393", "#319364")
 
 fun_titre_plot2 <- function(data) {
   titre_summary2 <- data %>%
-    group_by(virus_label, prior_vacs, timepoint, x_position, days_from_baseline_med) %>%
+    group_by(virus_label_fct, prior_vacs, timepoint, x_position, days_from_baseline_med) %>%
     summarise(.groups = "drop", summarise_logmean(titre))
 
   data %>%
@@ -229,7 +275,7 @@ fun_titre_plot2 <- function(data) {
       labels = levels(fct_drop(serology2$timepoint))
     ) +
     scale_color_manual("Prior vaccinations", values = colors2) +
-    facet_wrap(~virus_label, nrow = 2) +
+    facet_wrap(~virus_label_fct, nrow = 2) +
     guides(color = guide_legend(override.aes = list(alpha = 1), nrow = 1)) +
     geom_hline(yintercept = 40, lty = "11", alpha = 0.5) +
     geom_point(alpha = 0.3, shape = 18) +
@@ -251,18 +297,43 @@ fun_titre_plot2 <- function(data) {
     )
 }
 
-titre_plot2 <- fun_titre_plot2(serology2)
-titre_plot2_brisbane <- fun_titre_plot2(serology2 %>% filter(site == "brisbane"))
+titre_plot2_015_2020_vaccinated <- fun_titre_plot2(
+  serology2 %>% filter(vaccinated, year == 2020, prior_vacs %in% c(0, 1, 5))
+)
+
+titre_plot2_035_2020_vaccinated <- fun_titre_plot2(
+  serology2 %>% filter(vaccinated, year == 2020, prior_vacs %in% c(0, 3, 5))
+)
+
+titre_plot2_015_2021_vaccinated <- fun_titre_plot2(
+  serology2 %>% filter(vaccinated, year == 2021, prior_vacs %in% c(0, 1, 5))
+)
+
+titre_plot2_035_2021_vaccinated <- fun_titre_plot2(
+  serology2 %>% filter(vaccinated, year == 2021, prior_vacs %in% c(0, 3, 5))
+)
 
 ggsave(
-  "data-summary/titre-plot2.pdf",
-  titre_plot2,
+  "data-summary/titre-plot2-015-2020-vaccinated.pdf",
+  titre_plot2_015_2020_vaccinated,
   unit = "cm", width = 25, height = 20
 )
 
 ggsave(
-  "data-summary/titre-plot2-brisbane.pdf",
-  titre_plot2_brisbane,
+  "data-summary/titre-plot2-035-2020-vaccinated.pdf",
+  titre_plot2_035_2020_vaccinated,
+  unit = "cm", width = 25, height = 20
+)
+
+ggsave(
+  "data-summary/titre-plot2-015-2021-vaccinated.pdf",
+  titre_plot2_015_2021_vaccinated,
+  unit = "cm", width = 25, height = 20
+)
+
+ggsave(
+  "data-summary/titre-plot2-035-2021-vaccinated.pdf",
+  titre_plot2_035_2021_vaccinated,
   unit = "cm", width = 25, height = 20
 )
 
@@ -278,29 +349,19 @@ fun_prevax_rations <- function(data) {
 }
 
 prevax_ratios <- fun_prevax_rations(serology)
-prevax_ratios_brisbane <- fun_prevax_rations(serology %>% filter(site == "brisbane"))
 
 ratio_summary <- prevax_ratios %>%
-  group_by(year, virus_label, prior_vacs, timepoint) %>%
-  summarise(.groups = "drop", summarise_logmean(ratio_to_pre, 2))
-
-ratio_summary_brisbane <- prevax_ratios_brisbane %>%
-  group_by(year, virus_label, prior_vacs, timepoint) %>%
+  group_by(vaccinated, year, virus_label_fct, prior_vacs, timepoint) %>%
   summarise(.groups = "drop", summarise_logmean(ratio_to_pre, 2))
 
 ratio_summary_wide <- ratio_summary %>%
-  select(year, virus_label, prior_vacs, timepoint, string) %>%
-  pivot_wider(names_from = "prior_vacs", values_from = "string")
-
-ratio_summary_wide_brisbane <- ratio_summary_brisbane %>%
-  select(year, virus_label, prior_vacs, timepoint, string) %>%
+  select(vaccinated, year, virus_label_fct, prior_vacs, timepoint, string) %>%
   pivot_wider(names_from = "prior_vacs", values_from = "string")
 
 write_csv(ratio_summary_wide, "data-summary/ratio-summary.csv")
-write_csv(ratio_summary_wide_brisbane, "data-summary/ratio-summary-brisbane.csv")
 
-fun_ratio_plot <- function(data) {
-  data %>%
+fun_ratio_plot <- function(ratio, ratio_summary) {
+  ratio %>%
     mutate(y_position = rnorm(n(), log(ratio_to_pre), 0.1) %>% exp()) %>%
     ggplot(aes(
       timepoint, y_position,
@@ -319,7 +380,7 @@ fun_ratio_plot <- function(data) {
     scale_x_discrete("Timepoint") +
     scale_color_discrete("Prior vaccinations") +
     scale_shape_discrete("Prior vaccinations") +
-    facet_wrap(~year + virus_label, nrow = 4) +
+    facet_wrap(~year + virus_label_fct, nrow = 4) +
     coord_cartesian(ylim = c(0.1, 100)) + 
     guides(color = guide_legend(override.aes = list(alpha = 1), nrow = 1)) +
     geom_point(alpha = 0.3, position = position_dodge(width = 0.75), shape = 18) +
@@ -338,19 +399,15 @@ fun_ratio_plot <- function(data) {
     )
 }
 
-ratio_plot <- fun_ratio_plot(prevax_ratios)
-ratio_plot_brisbane <- fun_ratio_plot(prevax_ratios_brisbane)
-
-ggsave(
-  "data-summary/ratio-plot.pdf",
-  ratio_plot,
-  unit = "cm", width = 35, height = 40
+ratio_plot_vaccinated <- fun_ratio_plot(
+  prevax_ratios %>% filter(vaccinated), 
+  ratio_summary %>% filter(vaccinated)
 )
 
 ggsave(
-  "data-summary/ratio-plot-brisbane.pdf",
-  ratio_plot_brisbane,
-  unit = "cm", width = 25, height = 20
+  "data-summary/ratio-plot-vaccinated.pdf",
+  ratio_plot_vaccinated,
+  unit = "cm", width = 35, height = 40
 )
 
 #
@@ -376,17 +433,16 @@ fun_seroconv_summary <- function(data) {
     pivot_wider(names_from = timepoint, values_from = "titre") %>%
     mutate(seroconv = `Post-vax (14 days)` / `Pre-vax` >= 4) %>%
     filter(!is.na(seroconv)) %>%
-    group_by(year, prior_vacs, virus, virus_egg_cell, virus_label_fct, subtype) %>%
+    group_by(vaccinated, year, prior_vacs, virus, virus_egg_cell, virus_label_fct, subtype) %>%
     summarise(.groups = "drop", total = n(), n_seroconv = sum(seroconv)) %>%
     mutate(props = map2(n_seroconv, total, summarise_prop)) %>%
-    unnest(props)
+    unnest(props) %>%
+    arrange(vaccinated, year, prior_vacs, virus_label_fct)
 }
 
 seroconv_summary <- fun_seroconv_summary(serology)
-seroconv_summary_brisbane <- fun_seroconv_summary(serology %>% filter(site == "brisbane"))
 
 write_csv(seroconv_summary, "data-summary/seroconv.csv")
-write_csv(seroconv_summary_brisbane, "data-summary/seroconv-brisbane.csv")
 
 seroconv_plot <- seroconv_summary %>% 
   mutate(
@@ -400,9 +456,16 @@ seroconv_plot <- seroconv_summary %>%
     axis.text.x = element_text(angle = 30, hjust = 1),
     legend.position = "bottom",
   ) +
-  facet_wrap(
-    ~ prior_vacs, ncol = 1, strip.position = "right",
-    labeller = as_labeller(~paste(.x, "prior"))
+  facet_grid(
+    vaccinated ~ prior_vacs,
+    labeller = function(breaks) {
+      if ("vaccinated" %in% colnames(breaks)) {
+        breaks$vaccinated <- if_else(breaks$vaccinated, "Vaccinated", "Unvaccinated")
+      } else {
+        breaks$prior_vacs <- paste(breaks$prior_vacs, "prior")
+      }
+      breaks
+    }
   ) +
   coord_cartesian(ylim = c(0, 1)) +
   scale_x_discrete("Subtype") +
@@ -413,12 +476,11 @@ seroconv_plot <- seroconv_summary %>%
 ggsave(
   "data-summary/seroconv.pdf",
   seroconv_plot,
-  units = "cm", width = 15, height = 30,
+  units = "cm", width = 35, height = 20,
 )
 
 fun_seroconv_plot2 <- function(data) {
   data %>%
-    filter(year == 2020, virus_egg_cell == "egg", prior_vacs %in% c(0, 1, 5)) %>%
     ggplot(aes(virus_label_fct, prop, ymin = low, ymax = high, col = as.factor(prior_vacs))) +
     theme_bw() +
     theme(
@@ -434,10 +496,38 @@ fun_seroconv_plot2 <- function(data) {
     geom_point(position = position_dodge(width = 0.5))
 }
 
-seroconv_plot2 <- fun_seroconv_plot2(seroconv_summary)
-seroconv_plot2_brisbane <- fun_seroconv_plot2(seroconv_summary_brisbane)
+seroconv_plot2_2020_egg_015_vac <- fun_seroconv_plot2(
+  seroconv_summary %>% filter(vaccinated, year == 2020, virus_egg_cell == "egg", prior_vacs %in% c(0, 1, 5))
+)
 
-ggsave("data-summary/seroconv2.pdf", seroconv_plot2, width = 15, height = 10, units = "cm")
-ggsave("data-summary/seroconv2-brisbane.pdf", seroconv_plot2_brisbane, width = 15, height = 10, units = "cm")
+seroconv_plot2_2021_egg_015_vac <- fun_seroconv_plot2(
+  seroconv_summary %>% filter(vaccinated, year == 2021, virus_egg_cell == "egg", prior_vacs %in% c(0, 1, 5))
+)
 
-write_csv(serology %>% filter(site == "brisbane"), "data-summary/serology-brisbane.csv")
+seroconv_plot2_2020_egg_035_vac <- fun_seroconv_plot2(
+  seroconv_summary %>% filter(vaccinated, year == 2020, virus_egg_cell == "egg", prior_vacs %in% c(0, 3, 5))
+)
+
+seroconv_plot2_2021_egg_035_vac <- fun_seroconv_plot2(
+  seroconv_summary %>% filter(vaccinated, year == 2021, virus_egg_cell == "egg", prior_vacs %in% c(0, 3, 5))
+)
+
+ggsave(
+  "data-summary/seroconv2-2020-egg-015-vac.pdf", 
+  seroconv_plot2_2020_egg_015_vac, width = 15, height = 10, units = "cm"
+)
+
+ggsave(
+  "data-summary/seroconv2-2021-egg-015-vac.pdf", 
+  seroconv_plot2_2021_egg_015_vac, width = 15, height = 10, units = "cm"
+)
+
+ggsave(
+  "data-summary/seroconv2-2020-egg-035-vac.pdf", 
+  seroconv_plot2_2020_egg_035_vac, width = 15, height = 10, units = "cm"
+)
+
+ggsave(
+  "data-summary/seroconv2-2021-egg-035-vac.pdf", 
+  seroconv_plot2_2021_egg_035_vac, width = 15, height = 10, units = "cm"
+)
