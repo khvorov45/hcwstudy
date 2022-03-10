@@ -9,8 +9,10 @@ save_split <- function(data, name) {
 
 participants <- read_csv("data/participants.csv")
 
+withdrawn <- read_csv("data/withdrawn.csv")
+
 missing_baseline <- participants %>%
-	filter(!complete.cases(.))
+	filter(!complete.cases(.), !pid %in% withdrawn$pid)
 
 save_split(missing_baseline, "missing_baseline")
 
@@ -52,19 +54,26 @@ vaccinations_after_recruitment <- vaccinations %>%
 	filter(year >= recruitment_year)
 
 missing_vaccination_history <- participants %>% 
-	filter(!pid %in% vaccinations_before_recruitment$pid)
+	filter(!pid %in% vaccinations_before_recruitment$pid, !pid %in% withdrawn$pid)
 
 save_split(missing_vaccination_history, "missing_vaccination_history")
 
 missing_vaccination_records <- participants %>% 
-	filter(!pid %in% vaccinations_after_recruitment$pid)
+	filter(!pid %in% vaccinations_after_recruitment$pid, !pid %in% withdrawn$pid)
 
 save_split(missing_vaccination_records, "missing_vaccination_records")
 
 swabs <- read_csv("data/swabs.csv") %>% 
 	inner_join(participants %>% select(pid, site), "pid")
 
-swabs_missing_date <- swabs %>% 
-	filter(swab_collection == 1 & is.na(samp_date))
+swabs_missing_date <- swabs %>%
+	filter(swab_collection == 1 & is.na(samp_date), !pid %in% withdrawn$pid)
 
 save_split(swabs_missing_date, "swabs_missing_date")
+
+withdrawn_missing_date <- withdrawn %>%
+	inner_join(participants %>% select(pid, site), "pid") %>%
+	filter(is.na(withdrawal_date)) %>% 
+	arrange(pid)
+
+save_split(withdrawn_missing_date, "withdrawn_missing_date")

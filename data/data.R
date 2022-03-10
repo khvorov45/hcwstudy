@@ -508,3 +508,24 @@ swabs <- redcap_swabs_request(2020) %>%
 swabs_no_missing <- swabs %>% filter(!is.na(swab_collection))
 
 write_csv(swabs_no_missing, "data/swabs.csv")
+
+#
+# SECTION Withdrawn
+#
+
+redcap_withdrawn_request <- function(year) {
+  redcap_request(year, "withdrawal_arm_1", "record_id,withdrawn,withdrawal_date")
+}
+
+withdrawn_raw <- redcap_withdrawn_request(2020) %>% bind_rows(redcap_withdrawn_request(2021))
+
+withdrawn <- withdrawn_raw %>%
+  inner_join(
+    yearly_changes_fix_pids %>%
+      select(record_id, pid, redcap_project_year),
+    c("record_id", "redcap_project_year")
+  ) %>%
+  select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance, -record_id) %>%
+  select(pid, everything())
+
+write_csv(withdrawn, "data/withdrawn.csv")
