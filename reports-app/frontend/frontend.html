@@ -764,50 +764,6 @@
       sidebar.appendChild(sidebarTopContainer)
       sidebarTopContainer.setAttribute("style", "display: flex; flex-direction: column; row-gap: 20px;")
 
-      // NOTE(sen) Year switch
-      let sidebarYearSwitchContainer = document.createElement("div")
-      sidebarTopContainer.appendChild(sidebarYearSwitchContainer)
-      
-      for (let year = 2020; year <= 2022; year += 1) {
-        let yearOption = document.createElement("div")
-        sidebarYearSwitchContainer.appendChild(yearOption)
-
-        let baseStyle = "padding-top: 5px; padding-bottom: 5px; cursor: pointer;"
-        let hoverStyle = baseStyle + "background-color: var(--color-background2);"
-        let selectedStyle = baseStyle + "background-color: var(--color-selected);"
-
-        if (year === globalState.currentYear) {
-          yearOption.setAttribute("style", selectedStyle)
-        } else {
-          yearOption.setAttribute("style", baseStyle)
-        }
-
-        yearOption.addEventListener("mouseover", (event) => {
-          if (year !== globalState.currentYear) {
-            yearOption.setAttribute("style", hoverStyle)
-          }
-        })
-        yearOption.addEventListener("mouseout", (event) => {
-          if (year !== globalState.currentYear) {
-            yearOption.setAttribute("style", baseStyle)
-          }
-        })
-
-        yearOption.addEventListener("click", async (event) => {
-          if (globalState.currentYear !== year) {
-            for (let child of sidebarYearSwitchContainer.childNodes) {
-              child.setAttribute("style", baseStyle)
-            }
-            yearOption.setAttribute("style", selectedStyle)
-            globalState.currentYear = year
-
-            updateAllTables()
-          }
-        })
-
-        yearOption.innerHTML = year
-      }
-
       // NOTE(sen) Data table switch
       let sidebarLinksContainer = document.createElement("div")
       sidebarTopContainer.appendChild(sidebarLinksContainer)
@@ -859,6 +815,50 @@
             globalState.currentDataContainer = dest
           }
         })
+      }
+
+      // NOTE(sen) Year switch
+      let sidebarYearSwitchContainer = document.createElement("div")
+      sidebarTopContainer.appendChild(sidebarYearSwitchContainer)
+      
+      for (let year = 2020; year <= 2022; year += 1) {
+        let yearOption = document.createElement("div")
+        sidebarYearSwitchContainer.appendChild(yearOption)
+
+        let baseStyle = "padding-top: 5px; padding-bottom: 5px; cursor: pointer;"
+        let hoverStyle = baseStyle + "background-color: var(--color-background2);"
+        let selectedStyle = baseStyle + "background-color: var(--color-selected);"
+
+        if (year === globalState.currentYear) {
+          yearOption.setAttribute("style", selectedStyle)
+        } else {
+          yearOption.setAttribute("style", baseStyle)
+        }
+
+        yearOption.addEventListener("mouseover", (event) => {
+          if (year !== globalState.currentYear) {
+            yearOption.setAttribute("style", hoverStyle)
+          }
+        })
+        yearOption.addEventListener("mouseout", (event) => {
+          if (year !== globalState.currentYear) {
+            yearOption.setAttribute("style", baseStyle)
+          }
+        })
+
+        yearOption.addEventListener("click", async (event) => {
+          if (globalState.currentYear !== year) {
+            for (let child of sidebarYearSwitchContainer.childNodes) {
+              child.setAttribute("style", baseStyle)
+            }
+            yearOption.setAttribute("style", selectedStyle)
+            globalState.currentYear = year
+
+            updateAllTables()
+          }
+        })
+
+        yearOption.innerHTML = year
       }
 
       let logoutButton = document.createElement("div")
