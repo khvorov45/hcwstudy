@@ -87,10 +87,12 @@
 
     let globalState = {
       scrollbarWidths: getScrollbarWidths(),
-      currentYear: 2022,
       data: [],
       downloadCsv: {},
       currentDataContainer: "countsContainer",
+      weeklySurveysSettings: { year: 2022 }, 
+      bleedsSettings: { year: 2022 }, 
+      countsSettings: { }, 
       dom: {
         main: document.getElementById("main"),
 
@@ -98,9 +100,16 @@
 
         data: {
           container: document.createElement("div"),
+          sidebarSpecificSettingsContainer: document.createElement("div"),
+          mainPageContainer: document.createElement("div"),
+
           weeklySurveysContainer: document.createElement("div"),
-          countsContainer: document.createElement("div"),
+          weeklySurveysSettingsContainer: document.createElement("div"),
           bleedsContainer: document.createElement("div"),
+          bleedsSettingsContainer: document.createElement("div"),
+          countsContainer: document.createElement("div"),
+          countsSettingsContainer: document.createElement("div"),
+
           surveyTableContainer: document.createElement("div"),
           surveyCompletionsContainer: document.createElement("div"),
         },
@@ -295,6 +304,52 @@
       return [table, tableWidthPx]
     }
 
+    const createYearSwitch = (initYear, onUpdate) => {
+      let yearSwitch = document.createElement("div")
+      let currentYear = initYear
+
+      for (let year = 2020; year <= 2022; year += 1) {
+        let yearOption = document.createElement("div")
+        yearSwitch.appendChild(yearOption)
+
+        let baseStyle = "padding-top: 5px; padding-bottom: 5px; cursor: pointer;"
+        let hoverStyle = baseStyle + "background-color: var(--color-background2);"
+        let selectedStyle = baseStyle + "background-color: var(--color-selected);"
+
+        if (year === initYear) {
+          yearOption.setAttribute("style", selectedStyle)
+        } else {
+          yearOption.setAttribute("style", baseStyle)
+        }
+
+        yearOption.addEventListener("mouseover", (event) => {
+          if (year !== currentYear) {
+            yearOption.setAttribute("style", hoverStyle)
+          }
+        })
+        yearOption.addEventListener("mouseout", (event) => {
+          if (year !== currentYear) {
+            yearOption.setAttribute("style", baseStyle)
+          }
+        })
+
+        yearOption.addEventListener("click", async (event) => {
+          if (year !== currentYear) {
+            for (let child of yearSwitch.childNodes) {
+              child.setAttribute("style", baseStyle)
+            }
+            yearOption.setAttribute("style", selectedStyle)
+            currentYear = year
+            onUpdate(year)
+          }
+        })
+
+        yearOption.innerHTML = year
+      }
+
+      return yearSwitch
+    }
+
     const updateSurveyTable = () => {
 
       removeChildren(globalState.dom.data.surveyTableContainer)
@@ -321,7 +376,7 @@
       let rowsShown = 0
       for (let row of allData) {
 
-        if (row.redcap_project_year == globalState.currentYear) {
+        if (row.redcap_project_year == globalState.weeklySurveysSettings.year) {
 
           let completed = row.weekly_symptom_survey_complete
           if (completed !== "0") {
@@ -441,7 +496,7 @@
 
       let withdrawals = {}
       for (let row of withdrawalData) {
-        if (row.redcap_project_year === globalState.currentYear) {
+        if (row.redcap_project_year === 2022) {
           let withdrawn = row.withdrawn === "1"
           if (withdrawn) {
             withdrawals[row.record_id] = true
@@ -453,7 +508,7 @@
 
       let siteCounts = {}
       for (let row of baselineData) {
-        if (row.pid !== undefined && row.redcap_project_year === globalState.currentYear) {
+        if (row.pid !== undefined && row.redcap_project_year === 2022) {
 
           if (row.pid.length >= 3) {
             let first3 = row.pid.slice(0, 3)
@@ -546,7 +601,7 @@
       let rowsShown = 0
       for (let row of allData) {
 
-        if (row.redcap_project_year === globalState.currentYear) {
+        if (row.redcap_project_year === globalState.bleedsSettings.year) {
           const toString = (str) => {
             let result = ""
             if (str !== undefined && str !== null) {
@@ -564,7 +619,7 @@
           let dateCovax14dBlood = toString(row.covax_d14_sampdate)
 
           let worthShowing = dateBaselineBlood !== "" || date7dBlood !== "" || date14dBlood !== "" || dateEndSeasonBlood !== ""
-          if (globalState.currentYear > 2020) {
+          if (globalState.bleedsSettings.year > 2020) {
             worthShowing = worthShowing || dateCovaxBaselineBlood !== "" || dateCovax7dBlood !== "" || dateCovax14dBlood !== ""
           }
 
@@ -593,7 +648,7 @@
 
             let rowCsv = row.record_id + "," + row.pid + "," + dateBaselineBlood + "," + date7dBlood + "," + date14dBlood + "," + dateEndSeasonBlood
 
-            if (globalState.currentYear > 2020) {
+            if (globalState.bleedsSettings.year > 2020) {
               let day0CovidCell = createTableCellStringElement(colWidthsPx.day0Covid, dateCovaxBaselineBlood)
               rowElement.appendChild(day0CovidCell)
 
@@ -622,7 +677,7 @@
       updateBleedsTable()
     }
 
-    const updateData = async (password, years) => {
+    const updateData = async (password) => {
       let success = true
 
       if (
@@ -636,26 +691,20 @@
 
       } else {
 
-        for (let year of years) {
-          let address =
-            "https://reports2.hcwflustudy.com/api/" +
-            password +
-            "/redcap.json"
+        let address =
+          "https://reports2.hcwflustudy.com/api/" +
+          password +
+          "/redcap.json"
 
-          //address = `/pull-redcap/redcap-all_data.json`
+        //address = `/pull-redcap/redcap-all_data.json`
 
-          try {
-            let resp = await fetch(address)
-            globalState.data = []
-            globalState.data = await resp.json()            
-          } catch (e) {
-            success = false
-            console.error(e)
-          }
-
-          if (!success) {
-            break
-          }
+        try {
+          let resp = await fetch(address)
+          globalState.data = []
+          globalState.data = await resp.json()            
+        } catch (e) {
+          success = false
+          console.error(e)
         }
 
         if (success) {
@@ -670,7 +719,7 @@
       let dom = globalState.dom
       removeChildren(dom.main)
       dom.main.appendChild(dom.loading)
-      let updateSuccess = await updateData(password, [globalState.currentYear])
+      let updateSuccess = await updateData(password)
       dom.main.removeChild(dom.loading)
 
       if (!updateSuccess) {
@@ -729,7 +778,7 @@
             errorText.innerHTML = "Password is empty"
           } else {
             buttonText.innerHTML = "..."
-            let updateSuccess = await updateData(input.value, [globalState.currentYear])
+            let updateSuccess = await updateData(input.value, [2022])
             if (!updateSuccess) {
               errorText.innerHTML = "Not recognized"
             } else {
@@ -769,12 +818,14 @@
       sidebarTopContainer.appendChild(sidebarLinksContainer)
 
       let sidebarLinks = {
-        "Weekly surveys": "weeklySurveysContainer",
-        "Bleeds": "bleedsContainer",
-        "Counts": "countsContainer",
+        "weeklySurveysContainer": {name: "Weekly surveys", settings: "weeklySurveysSettingsContainer"},
+        "bleedsContainer": {name: "Bleeds", settings: "bleedsSettingsContainer"},
+        "countsContainer": {name: "Counts", settings: "countsSettingsContainer"},
       }
 
-      for (let [name, dest] of Object.entries(sidebarLinks)) {
+      for (let [dest, other] of Object.entries(sidebarLinks)) {
+        let name = other.name
+
         let link = document.createElement("div")
         sidebarLinksContainer.appendChild(link)
 
@@ -802,65 +853,48 @@
         })
 
         link.addEventListener("click", (event) => {
-          if (globalState.currentDataContainer !== dest) {            
+          if (globalState.currentDataContainer !== dest) {
+
             for (let child of sidebarLinksContainer.childNodes) {
               child.setAttribute("style", baseStyle)
             }
 
             link.setAttribute("style", selectedStyle)
+            
             // NOTE(sen) Data page container has 2 children - sidebar and content
             container.removeChild(container.lastChild)
             let destContainer = globalState.dom.data[dest]
             container.appendChild(destContainer)
             globalState.currentDataContainer = dest
+
+            // NOTE(sen) Replace page-specific settings
+            removeChildren(globalState.dom.data.sidebarSpecificSettingsContainer)
+            globalState.dom.data.sidebarSpecificSettingsContainer.appendChild(globalState.dom.data[other.settings])
           }
         })
       }
 
-      // NOTE(sen) Year switch
-      let sidebarYearSwitchContainer = document.createElement("div")
-      sidebarTopContainer.appendChild(sidebarYearSwitchContainer)
-      
-      for (let year = 2020; year <= 2022; year += 1) {
-        let yearOption = document.createElement("div")
-        sidebarYearSwitchContainer.appendChild(yearOption)
+      // NOTE(sen) Page-specific settings
+      sidebarTopContainer.appendChild(globalState.dom.data.sidebarSpecificSettingsContainer)
 
-        let baseStyle = "padding-top: 5px; padding-bottom: 5px; cursor: pointer;"
-        let hoverStyle = baseStyle + "background-color: var(--color-background2);"
-        let selectedStyle = baseStyle + "background-color: var(--color-selected);"
-
-        if (year === globalState.currentYear) {
-          yearOption.setAttribute("style", selectedStyle)
-        } else {
-          yearOption.setAttribute("style", baseStyle)
+      globalState.dom.data.weeklySurveysSettingsContainer = createYearSwitch(
+        globalState.weeklySurveysSettings.year,
+        (year) => {
+          globalState.weeklySurveysSettings.year = year
+          updateSurveyTable()
         }
+      )
 
-        yearOption.addEventListener("mouseover", (event) => {
-          if (year !== globalState.currentYear) {
-            yearOption.setAttribute("style", hoverStyle)
-          }
-        })
-        yearOption.addEventListener("mouseout", (event) => {
-          if (year !== globalState.currentYear) {
-            yearOption.setAttribute("style", baseStyle)
-          }
-        })
+      globalState.dom.data.bleedsSettingsContainer = createYearSwitch(
+        globalState.bleedsSettings.year, 
+        (year) => {
+          globalState.bleedsSettings.year = year
+          updateBleedsTable()
+        }
+      )
+      globalState.dom.data.countsSettingsContainer.innerHTML = "COUNTS SETTINGS"
 
-        yearOption.addEventListener("click", async (event) => {
-          if (globalState.currentYear !== year) {
-            for (let child of sidebarYearSwitchContainer.childNodes) {
-              child.setAttribute("style", baseStyle)
-            }
-            yearOption.setAttribute("style", selectedStyle)
-            globalState.currentYear = year
-
-            updateAllTables()
-          }
-        })
-
-        yearOption.innerHTML = year
-      }
-
+      // NOTE(sen) Logout button
       let logoutButton = document.createElement("div")
       sidebar.appendChild(logoutButton)
       logoutButton.setAttribute("style", "cursor: pointer;")
@@ -920,11 +954,16 @@
       let countsContainer = dom.data.countsContainer
       countsContainer.setAttribute("style", mainContentStyle)
 
-      container.appendChild(globalState.dom.data[globalState.currentDataContainer])
 
       // NOTE(sen) Bleeds
       let bleedsContainer = dom.data.bleedsContainer
       bleedsContainer.setAttribute("style", mainContentStyle)      
+
+      // NOTE(sen) Init the correct table and settings
+      container.appendChild(globalState.dom.data[globalState.currentDataContainer])
+      globalState.dom.data.sidebarSpecificSettingsContainer.appendChild( 
+        globalState.dom.data[sidebarLinks[globalState.currentDataContainer].settings]
+      )
     }
 
     // NOTE(sen) Init loading indicator
