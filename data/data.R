@@ -403,7 +403,14 @@ covax_request <- covax_request_raw %>%
     covid_vac_brand == "Other" & !is.na(other_covax_brand), other_covax_brand, covid_vac_brand
   )) %>%
   select(-covid_vac_brand, -other_covax_brand) %>%
-  rename(date = covid_vacc_date, batch = covid_vac_batch)
+  rename(date = covid_vacc_date, batch = covid_vac_batch) %>%
+  inner_join(
+    yearly_changes_fix_pids %>%
+      select(record_id, pid, redcap_project_year),
+    c("record_id", "redcap_project_year")
+  ) %>%
+  rename(year = redcap_project_year) %>%
+  select(pid, year, dose, received, date, batch, brand)
 
 write_csv(covax_request, "data/covid-vax.csv")
 
@@ -444,6 +451,37 @@ bleed_dates_long <- bleed_dates_raw %>%
 setdiff(bleed_dates_long$pid, participants_fix_pid$pid)
 
 write_csv(bleed_dates_long, "data/bleed-dates.csv")
+
+#
+# SECTION Covid bleed dates
+#
+
+redcap_covid_bleed_dates_request <- function(year) {
+  redcap_request(
+    year, "baseline_arm_1",
+    "record_id,covax_d0_sampdate,covax_d7_sampdate,covax_d14_sampdate"
+  )
+}
+
+covid_bleed_dates_raw <- redcap_covid_bleed_dates_request(2020) %>%
+  bind_rows(redcap_covid_bleed_dates_request(2021)) %>%
+  inner_join(
+    yearly_changes_fix_pids %>%
+      select(record_id, pid, redcap_project_year),
+    c("record_id", "redcap_project_year")
+  ) %>%
+  select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance, -record_id) %>%
+  rename(year = redcap_project_year)
+
+covid_bleed_dates_long <- covid_bleed_dates_raw %>%
+  pivot_longer(contains("date"), names_to = "timepoint", values_to = "date") %>%
+  mutate(
+    day = str_replace(timepoint, "covax_d(\\d+)_sampdate", "\\1"),
+  ) %>%
+  select(-timepoint) %>%
+  filter(!is.na(date))
+
+write_csv(covid_bleed_dates_long, "data/covid-bleed-dates.csv")
 
 #
 # SECTION Consent

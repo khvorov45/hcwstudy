@@ -42,8 +42,6 @@ missing_bleed_dates <- serology %>%
 
 save_split(missing_bleed_dates, "missing_bleed_dates")
 
-intersect(missing_baseline$pid, missing_bleed_dates$pid)
-
 vaccinations <- read_csv("data/vaccinations.csv") %>% 
 	inner_join(participants, "pid")
 
@@ -77,3 +75,22 @@ withdrawn_missing_date <- withdrawn %>%
 	arrange(pid)
 
 save_split(withdrawn_missing_date, "withdrawn_missing_date")
+
+#
+# SECTION Covid bleed dates but no covid vaccination records
+#
+
+covid_bleed_dates <- read_csv("data/covid-bleed-dates.csv")
+
+covid_vax <- read_csv("data/covid-vax.csv")
+
+covid_vax_only_rec <- covid_vax %>%
+	group_by(pid, year) %>%
+	summarise(rec_any = any(received == 1))
+
+covid_bleeds_no_vax <- covid_bleed_dates %>%
+	left_join(covid_vax_only_rec, c("pid", "year")) %>%
+	filter(is.na(rec_any) | !rec_any) %>%
+	inner_join(participants %>% select(pid, site), "pid")
+
+save_split(covid_bleeds_no_vax, "covid_bleeds_no_vax")
