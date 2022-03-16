@@ -670,9 +670,13 @@
       bleedsTable.setAttribute("style", tableContentStyle(tableWidthPx, rowsShown))
     }
 
-    const updateAllTables = () => {
+    const updateSurveyPage = () => {
       let completions = updateSurveyTable()
       updateCompletionsTable(completions)
+    }
+
+    const updateAllTables = () => {
+      updateSurveyPage()
       updateCountsTable()
       updateBleedsTable()
     }
@@ -883,7 +887,7 @@
         globalState.weeklySurveysSettings.year,
         (year) => {
           globalState.weeklySurveysSettings.year = year
-          updateSurveyTable()
+          updateSurveyPage()
         }
       )
 
