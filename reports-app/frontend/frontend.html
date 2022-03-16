@@ -869,7 +869,9 @@
 
             // NOTE(sen) Replace page-specific settings
             removeChildren(globalState.dom.data.sidebarSpecificSettingsContainer)
-            globalState.dom.data.sidebarSpecificSettingsContainer.appendChild(globalState.dom.data[other.settings])
+            globalState.dom.data.sidebarSpecificSettingsContainer.appendChild(
+              globalState.dom.data[other.settings]
+            )
           }
         })
       }
