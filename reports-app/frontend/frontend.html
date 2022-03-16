@@ -90,9 +90,9 @@
       data: [],
       downloadCsv: {},
       currentDataContainer: "countsContainer",
-      weeklySurveysSettings: { year: 2022 }, 
-      bleedsSettings: { year: 2022 }, 
-      countsSettings: { }, 
+      weeklySurveysSettings: { year: 2022 },
+      bleedsSettings: { year: 2022 },
+      countsSettings: { },
       dom: {
         main: document.getElementById("main"),
 
@@ -157,9 +157,9 @@
     }
 
     const dateSeq = (start, step, count) => {
-      
+
       let result = []
-      
+
       let startDate = new Date(start)
       let startDayIndex = startDate.getDate()
 
@@ -185,9 +185,9 @@
     }
 
     const tableContainerStyle = (widthPx) => {
-      let result = "height: calc(100vh - " + globalState.scrollbarWidths[0] + 
-      "px); overflow-x: hidden; overflow-y: scroll; width: " 
-      + (widthPx + globalState.scrollbarWidths[1]) + 
+      let result = "height: calc(100vh - " + globalState.scrollbarWidths[0] +
+      "px); overflow-x: hidden; overflow-y: scroll; width: "
+      + (widthPx + globalState.scrollbarWidths[1]) +
       "px; display: flex; justify-content: center; flex-shrink: 0;"
       return result
     }
@@ -200,7 +200,7 @@
     const createTableCellElement = (widthPx) => {
       let cellElement = document.createElement("div")
       cellElement.setAttribute(
-        "style", 
+        "style",
         "width: " + widthPx + "px; display: flex; align-items: center; justify-content: center;"
       )
       return cellElement
@@ -216,16 +216,16 @@
 
     const createTableRowElement = (color) => {
       let rowElement = document.createElement("div")
-      rowElement.setAttribute("style", 
+      rowElement.setAttribute("style",
         "display: flex; height: " + TABLE_ROW_HEIGHT_PX + "px;" + "background-color: " + color + ";"
       )
-      return rowElement      
+      return rowElement
     }
 
     const createTableTitleElement = (title) => {
       let titleElement = document.createElement("div")
       titleElement.setAttribute(
-        "style", 
+        "style",
         "display: flex; align-items: center; justify-content: center; background-color: var(--color-background2); cursor: pointer;"
       )
       titleElement.innerHTML = title + " ⇓"
@@ -236,7 +236,7 @@
           hidden.href = "data:text/csv;charset=utf-8," + encodeURI(csv)
           hidden.target = "_blank"
           hidden.download = title + ".csv"
-          hidden.click()  
+          hidden.click()
         } else {
           console.error(`table '${title}' does not have a csv to download`)
         }
@@ -269,7 +269,7 @@
     }
 
     const createTableElementFromSoa = (soa, formatters, colWidthsPx, title) => {
-      
+
       let tableWidthPx = arrSum(Object.values(colWidthsPx))
 
       let table = document.createElement("div")
@@ -298,7 +298,7 @@
             let cellElement = createTableCellStringElement(colWidthPx, colDataFormatted)
             rowElement.appendChild(cellElement)
           }
-        }        
+        }
       }
 
       return [table, tableWidthPx]
@@ -441,7 +441,7 @@
         rowsShown += 1
 
         rowElement.appendChild(createTableCellStringElement(colWidthsPx.record_id, record))
-        
+
         let collapsedCompletions = ""
         if (completedSurveys.length > 0) {
           collapsedCompletions += completedSurveys[0]
@@ -453,14 +453,14 @@
               let compl = completedSurveys[completeIndex]
 
               if (completeIndex == completedSurveys.length - 1) {
-              
+
                 if (currentStreak > 1) {
                   collapsedCompletions += "-"
                 } else {
                   collapsedCompletions += ", "
                 }
                 collapsedCompletions += compl
-              
+
               } else if (compl - prev == currentStreak) {
 
                 currentStreak += 1
@@ -517,7 +517,7 @@
             }
             siteCounts[first3].total += 1
 
-            let consent = row.consent === "1" || row.study_group_vacc === "1" || 
+            let consent = row.consent === "1" || row.study_group_vacc === "1" ||
               row.study_group_vacc === "2" || row.consent_unvacc === "1"
             let withdrawn = withdrawals[row.record_id] === true
             if (consent && !withdrawn) {
@@ -593,7 +593,7 @@
 
       let bleedsTable = document.createElement("div")
       bleedsTableContainer.appendChild(bleedsTable)
-      let bleedsTableTitle = "Bleed dates"   
+      let bleedsTableTitle = "Bleed dates"
       bleedsTable.appendChild(createTableTitleElement("Bleed dates"))
       globalState.downloadCsv[bleedsTableTitle] = Object.keys(colWidthsPx).join(",") + "\n"
       bleedsTable.appendChild(createTableHeaderRowElement(colWidthsPx))
@@ -701,7 +701,7 @@
         try {
           let resp = await fetch(address)
           globalState.data = []
-          globalState.data = await resp.json()            
+          globalState.data = await resp.json()
         } catch (e) {
           success = false
           console.error(e)
@@ -804,8 +804,8 @@
       container.appendChild(sidebar)
       let sidebarWidthPx = 80
       sidebar.setAttribute(
-        "style", 
-        "width: " + sidebarWidthPx + 
+        "style",
+        "width: " + sidebarWidthPx +
         "px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: space-between; height: 100vh; overflow-x: hidden;"
       )
 
@@ -860,7 +860,7 @@
             }
 
             link.setAttribute("style", selectedStyle)
-            
+
             // NOTE(sen) Data page container has 2 children - sidebar and content
             container.removeChild(container.lastChild)
             let destContainer = globalState.dom.data[dest]
@@ -888,7 +888,7 @@
       )
 
       globalState.dom.data.bleedsSettingsContainer = createYearSwitch(
-        globalState.bleedsSettings.year, 
+        globalState.bleedsSettings.year,
         (year) => {
           globalState.bleedsSettings.year = year
           updateBleedsTable()
@@ -933,7 +933,7 @@
       }
 
       let [weeklySurveyDates2022Table, tableWidth] = createTableElementFromSoa(
-          weeklySurveyDates2022, 
+          weeklySurveyDates2022,
           {
             week: (x) => x,
             start: formatDate,
@@ -959,11 +959,11 @@
 
       // NOTE(sen) Bleeds
       let bleedsContainer = dom.data.bleedsContainer
-      bleedsContainer.setAttribute("style", mainContentStyle)      
+      bleedsContainer.setAttribute("style", mainContentStyle)
 
       // NOTE(sen) Init the correct table and settings
       container.appendChild(globalState.dom.data[globalState.currentDataContainer])
-      globalState.dom.data.sidebarSpecificSettingsContainer.appendChild( 
+      globalState.dom.data.sidebarSpecificSettingsContainer.appendChild(
         globalState.dom.data[sidebarLinks[globalState.currentDataContainer].settings]
       )
     }
@@ -973,7 +973,7 @@
       let dom = globalState.dom
       let loading = dom.loading
       loading.setAttribute(
-        "style", 
+        "style",
         "font-size: 40px; display: flex; align-items: center; justify-content: center; height: 100vh"
       )
       loading.innerHTML = "Loading..."
@@ -983,7 +983,7 @@
     {
       let dom = globalState.dom
       let password = localStorage.getItem("password")
-      
+
       if (password === null) {
         dom.main.appendChild(dom.passwordBox)
       } else {
