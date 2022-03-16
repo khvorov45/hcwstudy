@@ -1,6 +1,8 @@
 library(tidyverse)
 
+#
 # SECTION Serology
+#
 
 #system("data-raw/pull-NIHHCWserol.sh")
 
@@ -152,7 +154,9 @@ serology_all_tables %>%
 
 write_csv(serology_all_tables %>% select(-path), "data/serology.csv")
 
+#
 # SECTION Participants
+#
 
 redcap_tokens <- read_csv("data-raw/redcap-tokens.csv", col_types = cols())
 
@@ -244,7 +248,9 @@ setdiff(participants_fix_pid$pid, serology_all_tables$pid) %>% sort()
 
 write_csv(participants_fix_pid, "data/participants.csv")
 
+#
 # SECTION Participant information that changes yearly
+#
 
 redcap_yearly_changes_request <- function(year) {
   redcap_request(year, "baseline_arm_1", "pid,record_id")
@@ -269,7 +275,9 @@ setdiff(participants_fix_pid$pid, yearly_changes_fix_pids$pid)
 
 write_csv(yearly_changes_fix_pids, "data/yearly-changes.csv")
 
+#
 # SECTION Vaccination history
+#
 
 redcap_vaccination_history_request <- function(year) {
   redcap_request(
@@ -362,7 +370,46 @@ setdiff(vaccination_history_with_instrument$pid, participants_fix_pid$pid)
 
 write_csv(vaccination_history_with_instrument, "data/vaccinations.csv")
 
+#
+# SECTION Covid vaccination
+#
+
+redcap_covax_request <- function(year) {
+  redcap_request(
+    year, "vaccination_arm_1",
+    paste0(
+      "record_id,",
+      "covid_vac_brand,other_covax_brand,covid_vac_dose1_rec,covid_vacc_date1,covid_vac_batch1,",
+      "covid_vac_brand2,other_covax_brand2,covid_vac_dose2_rec,covid_vacc_date2,covid_vac_batch2,",
+      "covid_vac_brand3,other_covax_brand3,covid_vac_dose3_rec,covid_vacc_date3,covid_vac_batch3,",
+      "covid_vac_brand4,other_covax_brand4,covid_vac_dose4_rec,covid_vacc_date4,covid_vac_batch4"
+    )
+  )
+}
+
+covax_request_raw <- redcap_covax_request(2021)
+
+covax_request <- covax_request_raw %>%
+  select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance) %>%
+  rename(covid_vac_brand1 = covid_vac_brand, other_covax_brand1 = other_covax_brand) %>%
+  pivot_longer(
+    c(-record_id, -redcap_project_year),
+    names_pattern = "^(.*)(\\d).*$", names_to = c(".value", "dose")
+  ) %>%
+  rename(received = covid_vac_dose) %>%
+  mutate(covid_vac_brand = recode(covid_vac_brand, "1" = "Pfizer", "2" = "Astra-Zeneca", "3" = "Other")) %>%
+  filter(!is.na(received)) %>%
+  mutate(brand = if_else(
+    covid_vac_brand == "Other" & !is.na(other_covax_brand), other_covax_brand, covid_vac_brand
+  )) %>%
+  select(-covid_vac_brand, -other_covax_brand) %>%
+  rename(date = covid_vacc_date, batch = covid_vac_batch)
+
+write_csv(covax_request, "data/covid-vax.csv")
+
+#
 # SECTION Bleed dates
+#
 
 redcap_bleed_dates_request <- function(year) {
   redcap_request(
@@ -398,7 +445,9 @@ setdiff(bleed_dates_long$pid, participants_fix_pid$pid)
 
 write_csv(bleed_dates_long, "data/bleed-dates.csv")
 
+#
 # SECTION Consent
+#
 
 redcap_consent_request <- function(year) {
   redcap_request(
@@ -487,7 +536,9 @@ redcap_consent_use_long_extra <- redcap_consent_use_long %>%
 
 write_csv(redcap_consent_use_long_extra, "data/consent-use.csv")
 
+#
 # SECTION Swabs
+#
 
 redcap_swabs_request <- function(year) {
   survey_events <- paste0("weekly_survey_", 1:52, "_arm_1", collapse = ",")
