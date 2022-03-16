@@ -148,6 +148,22 @@
       return result
     }
 
+    const arrLinSearch = (arr, item) => {
+      let result = -1
+      for (let index = 0; index < arr.length; index += 1) {
+        let elem = arr[index]
+        if (elem == item) {
+          result = index
+          break
+        }
+      }
+      return result
+    }
+
+    const arrRemoveIndex = (arr, index) => {
+      arr.splice(index, 1)
+    }
+
     const seq = (start, step, count) => {
       let result = [start]
       for (let i = 1; i < count; i += 1) {
@@ -304,50 +320,70 @@
       return [table, tableWidthPx]
     }
 
-    const createYearSwitch = (initYear, onUpdate) => {
-      let yearSwitch = document.createElement("div")
-      let currentYear = initYear
+    const createSwitch = (init, opts, onUpdate) => {
+      let switchElement = document.createElement("div")
+      let currentSel = init
+      let multiple = Array.isArray(init)
 
-      for (let year = 2020; year <= 2022; year += 1) {
-        let yearOption = document.createElement("div")
-        yearSwitch.appendChild(yearOption)
+      const isSelected = (opt) => {
+        let result = (!multiple && opt === init) ||
+          (multiple && arrLinSearch(init, opt) !== -1)
+        return result
+      }
+
+      for (let opt of opts) {
+        let optElement = document.createElement("div")
+        switchElement.appendChild(optElement)
 
         let baseStyle = "padding-top: 5px; padding-bottom: 5px; cursor: pointer;"
         let hoverStyle = baseStyle + "background-color: var(--color-background2);"
         let selectedStyle = baseStyle + "background-color: var(--color-selected);"
 
-        if (year === initYear) {
-          yearOption.setAttribute("style", selectedStyle)
+        if (isSelected(opt)) {
+          optElement.setAttribute("style", selectedStyle)
         } else {
-          yearOption.setAttribute("style", baseStyle)
+          optElement.setAttribute("style", baseStyle)
         }
 
-        yearOption.addEventListener("mouseover", (event) => {
-          if (year !== currentYear) {
-            yearOption.setAttribute("style", hoverStyle)
+        optElement.addEventListener("mouseover", (event) => {
+          if (!isSelected(opt)) {
+            optElement.setAttribute("style", hoverStyle)
           }
         })
-        yearOption.addEventListener("mouseout", (event) => {
-          if (year !== currentYear) {
-            yearOption.setAttribute("style", baseStyle)
+        optElement.addEventListener("mouseout", (event) => {
+          if (!isSelected(opt)) {
+            optElement.setAttribute("style", baseStyle)
           }
         })
 
-        yearOption.addEventListener("click", async (event) => {
-          if (year !== currentYear) {
-            for (let child of yearSwitch.childNodes) {
+        optElement.addEventListener("click", async (event) => {
+          if (!multiple && opt !== currentSel) {
+
+            for (let child of switchElement.childNodes) {
               child.setAttribute("style", baseStyle)
             }
-            yearOption.setAttribute("style", selectedStyle)
-            currentYear = year
-            onUpdate(year)
+            optElement.setAttribute("style", selectedStyle)
+            currentSel = opt
+            onUpdate(opt)
+
+          } else if (multiple) {
+
+            let optIndex = arrLinSearch(currentSel, opt)
+            if (optIndex !== -1) {
+              optElement.setAttribute("style", baseStyle)
+              arrRemoveIndex(currentSel, optIndex)
+            } else {
+              optElement.setAttribute("style", selectedStyle)
+              currentSel.push(opt)
+            }
+
           }
         })
 
-        yearOption.innerHTML = year
+        optElement.innerHTML = opt
       }
 
-      return yearSwitch
+      return switchElement
     }
 
     const updateSurveyTable = () => {
@@ -883,22 +919,31 @@
       // NOTE(sen) Page-specific settings
       sidebarTopContainer.appendChild(globalState.dom.data.sidebarSpecificSettingsContainer)
 
-      globalState.dom.data.weeklySurveysSettingsContainer = createYearSwitch(
+      let years = [2020, 2021, 2022]
+
+      globalState.dom.data.weeklySurveysSettingsContainer = createSwitch(
         globalState.weeklySurveysSettings.year,
+        years,
         (year) => {
           globalState.weeklySurveysSettings.year = year
           updateSurveyPage()
         }
       )
 
-      globalState.dom.data.bleedsSettingsContainer = createYearSwitch(
+      globalState.dom.data.bleedsSettingsContainer = createSwitch(
         globalState.bleedsSettings.year,
+        years,
         (year) => {
           globalState.bleedsSettings.year = year
           updateBleedsTable()
         }
       )
-      globalState.dom.data.countsSettingsContainer.innerHTML = "COUNTS SETTINGS"
+
+      globalState.dom.data.countsSettingsContainer = createSwitch(
+        ["site"],
+        ["site", "year"],
+        () => {}
+      )
 
       // NOTE(sen) Logout button
       let logoutButton = document.createElement("div")
