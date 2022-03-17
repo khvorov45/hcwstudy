@@ -326,8 +326,8 @@
       let multiple = Array.isArray(init)
 
       const isSelected = (opt) => {
-        let result = (!multiple && opt === init) ||
-          (multiple && arrLinSearch(init, opt) !== -1)
+        let result = (!multiple && opt === currentSel) ||
+          (multiple && arrLinSearch(currentSel, opt) !== -1)
         return result
       }
 
