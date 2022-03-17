@@ -37,7 +37,10 @@ baseline <- all_data %>%
 		consent, study_group_vacc, consent_unvacc,
 		date_baseline_blood, date_7d_blood, date_14d_blood, date_end_season_blood,
 		covax_d0_sampdate, covax_d7_sampdate, covax_d14_sampdate,
-	)
+	) %>%
+  group_by(pid) %>%
+  mutate(recruit_year = min(redcap_project_year)) %>%
+  ungroup()
 
 weekly_survey_fields <- c(
   "date_symptom_survey",

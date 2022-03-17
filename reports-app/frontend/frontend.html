@@ -92,7 +92,7 @@
       currentDataContainer: "countsContainer",
       weeklySurveysSettings: { year: 2022 },
       bleedsSettings: { year: 2022 },
-      countsSettings: { },
+      countsSettings: { groups: ["site"] },
       dom: {
         main: document.getElementById("main"),
 
@@ -376,6 +376,7 @@
               optElement.setAttribute("style", selectedStyle)
               currentSel.push(opt)
             }
+            onUpdate(currentSel)
 
           }
         })
@@ -384,6 +385,11 @@
       }
 
       return switchElement
+    }
+
+    const isObject = (val) => {
+      let result = val && typeof val === 'object' && val.constructor === Object
+      return result
     }
 
     const updateSurveyTable = () => {
@@ -542,36 +548,75 @@
 
       let baselineData = globalState.data.baseline
 
-      let siteCounts = {}
+      let groups = globalState.countsSettings.groups
+      let groupedCounts = {}
+      if (groups.length === 0) {
+        groupedCounts = {total: {total: 0, active: 0}}
+      }
+      let pidsInTotalCounts = {}
+
       for (let row of baselineData) {
-        if (row.pid !== undefined && row.redcap_project_year === 2022) {
+        if (row.pid !== undefined) {
 
           if (row.pid.length >= 3) {
-            let first3 = row.pid.slice(0, 3)
-            if (siteCounts[first3] === undefined) {
-              siteCounts[first3] = {total: 0, active: 0}
-            }
-            siteCounts[first3].total += 1
 
             let consent = row.consent === "1" || row.study_group_vacc === "1" ||
               row.study_group_vacc === "2" || row.consent_unvacc === "1"
             let withdrawn = withdrawals[row.record_id] === true
-            if (consent && !withdrawn) {
-              siteCounts[first3].active += 1
+            let active = consent && !withdrawn && row.redcap_project_year === 2022
+
+            if (groups.length === 0) {
+              if (pidsInTotalCounts[row.pid] === undefined) {
+                groupedCounts.total.total += 1
+                pidsInTotalCounts[row.pid] = true
+              }
+              if (active) {
+                groupedCounts.total.active += 1
+              }
+            }
+
+            let currentGroupCount = groupedCounts
+            for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
+              let group = groups[groupIndex]
+              let key = null
+
+              switch (group) {
+              case "site": {key = row.pid.slice(0, 3);} break
+              case "recruited": {key = row.recruit_year;} break
+              }
+
+              if (groupIndex == groups.length - 1) {
+                if (currentGroupCount[key] === undefined) {
+                  currentGroupCount[key] = {total: 0, active: 0}
+                }
+                if (pidsInTotalCounts[row.pid] === undefined) {
+                  currentGroupCount[key].total += 1
+                  pidsInTotalCounts[row.pid] = true
+                }
+                if (active) {
+                  currentGroupCount[key].active += 1
+                }
+              } else {
+                if (currentGroupCount[key] === undefined) {
+                  currentGroupCount[key] = {}
+                }
+                currentGroupCount = groupedCounts[key]
+              }
             }
           }
         }
       }
 
-      //
-      // NOTE(sen) Total counts
-      //
-
-      let totalCountsColWidthsPx = {
-        site: 100,
-        total: 100,
-        active: 100,
+      let totalCountsColWidthsPx = {}
+      if (groups.length === 0) {
+        totalCountsColWidthsPx.Total = 100
       }
+      for (let group of groups) {
+        totalCountsColWidthsPx[group] = 100
+      }
+      totalCountsColWidthsPx.total = 100
+      totalCountsColWidthsPx.active = 100
+
       let totalCountsWidthPx = arrSum(Object.values(totalCountsColWidthsPx))
 
       let totalCountsTableContainer = document.createElement("div")
@@ -584,25 +629,47 @@
       totalCountsTable.appendChild(createTableTitleElement("Record counts"))
       totalCountsTable.appendChild(createTableHeaderRowElement(totalCountsColWidthsPx))
 
-      let sitesTotal = 0
-      let sitesActive = 0
-      for (let [site, count] of Object.entries(siteCounts)) {
+      if (groups.length === 0) {
+        let count = groupedCounts.total
+
         let rowElement = createTableRowElement("var(--color-background)")
         totalCountsTable.appendChild(rowElement)
 
-        sitesTotal += count.total
-        sitesActive += count.active
-
-        rowElement.appendChild(createTableCellStringElement(totalCountsColWidthsPx.site, site))
+        rowElement.appendChild(createTableCellStringElement(totalCountsColWidthsPx.Total, "total"))
         rowElement.appendChild(createTableCellStringElement(totalCountsColWidthsPx.total, count.total))
         rowElement.appendChild(createTableCellStringElement(totalCountsColWidthsPx.active, count.active))
       }
-      {
+
+      const flattenMap = (map, existing) => {
+        let result = []
+        for (let key of Object.keys(map)) {
+          let nested = map[key]
+          let newExisting = [...existing]
+          newExisting.push(key)
+          if (isObject(nested) && nested.total === undefined) {
+            result = result.concat(flattenMap(nested, newExisting))
+          } else {
+            newExisting.push(nested.total)
+            newExisting.push(nested.active)
+            result.push(newExisting)
+          }
+        }
+        return result
+      }
+
+      let groupedCountsFlat = flattenMap(groupedCounts, [])
+
+      let tableColNames = Object.keys(totalCountsColWidthsPx)
+      for (let rowVals of groupedCountsFlat) {
         let rowElement = createTableRowElement("var(--color-background)")
         totalCountsTable.appendChild(rowElement)
-        rowElement.appendChild(createTableCellStringElement(totalCountsColWidthsPx.site, "Total"))
-        rowElement.appendChild(createTableCellStringElement(totalCountsColWidthsPx.total, sitesTotal))
-        rowElement.appendChild(createTableCellStringElement(totalCountsColWidthsPx.active, sitesActive))
+
+        for (let rowValIndex = 0; rowValIndex < rowVals.length; rowValIndex += 1) {
+          let rowVal = rowVals[rowValIndex]
+          let colName = tableColNames[rowValIndex]
+          let width = totalCountsColWidthsPx[colName]
+          rowElement.appendChild(createTableCellStringElement(width, rowVal))
+        }
       }
     }
 
@@ -940,9 +1007,12 @@
       )
 
       globalState.dom.data.countsSettingsContainer = createSwitch(
-        ["site"],
-        ["site", "year"],
-        () => {}
+        globalState.countsSettings.groups,
+        ["site", "recruited"],
+        (groups) => {
+          globalState.countsSettings.groups = groups
+          updateCountsTable()
+        }
       )
 
       // NOTE(sen) Logout button
