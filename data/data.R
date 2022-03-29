@@ -192,8 +192,8 @@ participants2020 <- redcap_participants_request(2020)
 participants2021 <- redcap_participants_request(2021)
 
 participants <- bind_rows(
-  participants2020 %>% filter(!pid %in% participants2021$pid),
-  participants2021
+  participants2020,
+  participants2021 %>% filter(!pid %in% participants2020$pid),
 ) %>%
   filter(!is.na(pid)) %>%
   # NOTE(sen) WCH-025 became WCH-818
@@ -581,7 +581,7 @@ write_csv(redcap_consent_use_long_extra, "data/consent-use.csv")
 redcap_swabs_request <- function(year) {
   survey_events <- paste0("weekly_survey_", 1:52, "_arm_1", collapse = ",")
   all_events <- paste0("infection_arm_1,", survey_events)
-  redcap_request(year, all_events, "record_id,swab_collection,samp_date")
+  redcap_request(year, all_events, "record_id,swab_collection,samp_date,swab_result")
 }
 
 swabs <- redcap_swabs_request(2020) %>%
@@ -596,14 +596,41 @@ swabs <- redcap_swabs_request(2020) %>%
 
 swabs_no_missing <- swabs %>% filter(!is.na(swab_collection))
 
-write_csv(swabs_no_missing, "data/swabs.csv")
+swabs_long <- swabs_no_missing %>%
+  pivot_longer(contains("swab_result___"), names_to = "swab_virus", values_to = "swab_result") %>%
+  mutate(swab_virus = str_replace(swab_virus, "swab_result___", "") %>% recode(
+    "1" = "Flu A (unsubtyped)",
+    "2" = "Flu A H3",
+    "3" = "Flu A H1",
+    "4" = "Flu B (no lineage)",
+    "5" = "Flu B Vic",
+    "6" = "Flu B Yam",
+    "7" = "Flu C",
+    "8" = "Parainfluenza",
+    "9" = "Metapneumovirus",
+    "10" = "Piconavirus",
+    "11" = "Adenovirus",
+    "12" = "Coronavirus OC43, 229E, NL63, HKU, SARS",
+    "13" = "SARS-CoV-2",
+    "14" = "Other",
+    "15" = "Negative",
+    "ni" = "NI",
+  ))
+
+swabs_long %>% count(swab_virus, swab_result) %>% print(n = 100)
+
+write_csv(
+  swabs_long %>% 
+    select(pid, year, samp_date, swab_collection, swab_virus, swab_result), 
+  "data/swabs.csv"
+)
 
 #
 # SECTION Withdrawn
 #
 
 redcap_withdrawn_request <- function(year) {
-  redcap_request(year, "withdrawal_arm_1", "record_id,withdrawn,withdrawal_date")
+  redcap_request(year, "withdrawal_arm_1", "record_id,withdrawn,withdrawal_date,withdrawal_reason")
 }
 
 withdrawn_raw <- redcap_withdrawn_request(2020) %>% bind_rows(redcap_withdrawn_request(2021))
