@@ -28,6 +28,15 @@ consent_conflicts <- consent %>%
 
 save_split(consent_conflicts, "consent_conflicts")
 
+consent_multiple <- consent %>%
+  group_by(pid, year, disease) %>%
+  filter(length(na.omit(consent)) > 1) %>%
+  ungroup() %>%
+  pivot_wider(names_from = "form", values_from = "consent") %>% 
+  arrange(pid, site, year, disease)
+
+save_split(consent_multiple, "consent_multiple")
+
 bleed_dates <- read_csv("data/bleed-dates.csv") %>% 
 	inner_join(participants %>% select(pid, site), "pid")
 
