@@ -577,6 +577,7 @@
               case "recruited": {key = row.recruitment_year;} break
               case "gender": {key = row.gender;} break
               case "arm": {key = row.arm;} break
+              case "age": {key = row.age_group;} break
               }
 
               if (groupIndex == groups.length - 1) {
@@ -619,17 +620,6 @@
 
       totalCountsTable.appendChild(createTableTitleElement("Record counts"))
       totalCountsTable.appendChild(createTableHeaderRowElement(totalCountsColWidthsPx))
-
-      if (groups.length === 0) {
-        let count = groupedCounts.total
-
-        let rowElement = createTableRowElement("var(--color-background)")
-        totalCountsTable.appendChild(rowElement)
-
-        rowElement.appendChild(createTableCellStringElement(totalCountsColWidthsPx.Total, "total"))
-        rowElement.appendChild(createTableCellStringElement(totalCountsColWidthsPx.total, count.total))
-        rowElement.appendChild(createTableCellStringElement(totalCountsColWidthsPx.active, count.active))
-      }
 
       const flattenMap = (map, existing) => {
         let result = []
@@ -828,7 +818,7 @@
       dom.main.removeChild(dom.loading)
 
       if (!updateSuccess) {
-        localStorage.removeItem("password")
+        //localStorage.removeItem("password")
         dom.main.appendChild(dom.passwordBox)
       } else {
         dom.main.appendChild(dom.data.container)
@@ -1006,7 +996,7 @@
 
       globalState.dom.data.countsSettingsContainer = createSwitch(
         globalState.countsSettings.groups,
-        ["site", "recruited", "gender", "arm"],
+        ["site", "recruited", "arm", "gender", "age"],
         (groups) => {
           globalState.countsSettings.groups = groups
           updateCountsTable()
@@ -1107,7 +1097,7 @@
       }
     }
 
-    // TODO(sen) Summary splits (total counts, active counts, bleed counts) by prior vac / age
+    // TODO(sen) Summary splits (total counts, active counts, bleed counts) by prior vac
     // TODO(sen) Paths
     // TODO(sen) Download all tables (current: bleed)
     // TODO(sen) Table filtering

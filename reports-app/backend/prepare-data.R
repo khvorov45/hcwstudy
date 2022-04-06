@@ -1,6 +1,7 @@
 library(tidyverse)
 
-participants <- read_csv("../data/participants.csv")
+participants <- read_csv("../data/participants.csv") %>%
+	mutate(age_group = cut(age_screening, c(-Inf, 18, 30, 50, 65), right = FALSE))
 
 withdrawn <- read_csv("../data/withdrawn.csv") %>%
 	left_join(participants %>% select(pid, site), "pid") %>%
