@@ -114,3 +114,9 @@ participants %>%
 	count(site, gender) %>%
 	group_by(site) %>%
 	mutate(p = n / sum(n), t = sum(n))
+
+covid_bleed_dates <- read_csv("data/covid-bleed-dates.csv")
+
+covid_bleed_dates %>%
+	filter(year == 2021) %>%
+	summarise(n = n(), nu = length(unique(pid)))
