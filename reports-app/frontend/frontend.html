@@ -63,6 +63,22 @@
 
   <script type="module">
 
+    const createEl = (name) => document.createElement(name)
+    const createDiv = () => createEl("div")
+
+    const createTextline = (line) => {
+      let div = createDiv()
+      div.innerHTML = line
+      return div
+    }
+
+    const addEl = (parent, el) => {
+      parent.appendChild(el)
+      return el
+    }
+
+    const addTextline = (parent, line) => addEl(parent, createTextline(line))
+
     const getScrollbarWidths = () => {
       let outer = document.createElement('div');
       outer.style.visibility = "hidden";
@@ -619,11 +635,20 @@
       totalCountsTableContainer.setAttribute("style", tableContainerStyle(totalCountsWidthPx))
       countPage.appendChild(totalCountsTableContainer)
 
+      let countsTableDesc = createDiv()
+      addTextline(countsTableDesc, "total - total records in redcap")
+      addTextline(countsTableDesc, "active - total records in redcap who are not withdrawn")
+      if (groups.length > 0) {
+        addTextline(countsTableDesc, "all counts apply to the subset defined by (" + groups.join(", ") + ")")
+      }
+      addTextline(countsTableDesc, "download by clicking on title below")
+      
       let totalCountsTable = document.createElement("div")
       totalCountsTableContainer.appendChild(totalCountsTable)
 
       let countsTableTitle = "Record counts"
       globalState.downloadCsv[countsTableTitle] = Object.keys(totalCountsColWidthsPx).join(",") + "\n"
+      totalCountsTable.appendChild(countsTableDesc)
       totalCountsTable.appendChild(createTableTitleElement(countsTableTitle))
       totalCountsTable.appendChild(createTableHeaderRowElement(totalCountsColWidthsPx))
 
