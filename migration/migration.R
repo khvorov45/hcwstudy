@@ -96,7 +96,7 @@ active2021 <- consent2021 %>%
   filter(consent == 1 | !is.na(study_group_vacc) | consent_unvacc == 1) %>%
   filter(!record_id %in% withdrawn2021$record_id)
 
-redcap_upload_spoonfed(20, 2022, "baseline_arm1", active2021)
+redcap_upload_spoonfed(20, 2022, "baseline_arm_1", active2021)
 
 data_access_groups2021 <- consent2021 %>%
   select(record_id, redcap_data_access_group) %>%
@@ -136,7 +136,22 @@ pid2022 <- pid2021 %>%
 pid2022 %>% filter(is.na(studygroup_y2))
 pid2022 %>% filter(is.na(recruit_year))
 
-redcap_upload_spoonfed(20, 2022, "baseline_arm1", pid2022)
+redcap_upload_spoonfed(20, 2022, "baseline_arm_1", pid2022)
+
+redcap_upload(
+  2022, "baseline_arm_1", 
+  pid2021 %>% 
+    filter(pid == "JHH-060") %>% 
+    mutate(
+      studygroup_y2 = case_when(
+        nested_naive == 1 | nested_infect == 1 ~ 3,
+        main_vacc == 1 ~ 1,
+        main_unvacc == 1 ~ 2,
+      ),
+      recruit_year = replace_na(recruit_year, 2021)
+    ) %>%
+    select(record_id, pid, recruit_year, studygroup_y1, studygroup_y2)
+)
 
 #
 # SECTION Screening
@@ -159,7 +174,16 @@ screening2022 <- screening2021 %>%
   filter(!is.na(date_screening) | !is.na(site_name)) %>%
   select(-contains("redcap"))
 
-redcap_upload_spoonfed(20, 2022, "baseline_arm1", screening2022)
+redcap_upload_spoonfed(20, 2022, "baseline_arm_1", screening2022)
+
+redcap_upload(
+  2022,
+  "baseline_arm_1",
+  screening2021 %>%
+    filter(record_id == "170-71") %>%
+    filter(!is.na(date_screening) | !is.na(site_name)) %>%
+    select(-contains("redcap"))
+)
 
 #
 # SECTION Baseline questionnaire
@@ -183,6 +207,14 @@ baseline2022 <- baseline2021 %>%
 
 redcap_upload_spoonfed(10, 2022, "baseline_arm_1", baseline2022)
 
+redcap_upload(
+  2022,
+  "baseline_arm_1",
+  baseline2021 %>%
+    filter(record_id == "170-71") %>%
+    select(-contains("redcap"))
+)
+
 #
 # SECTION Covid vaccines
 #
@@ -204,3 +236,11 @@ covax2022 <- covax2021 %>%
   filter(record_id %in% active2021$record_id)
 
 redcap_upload_spoonfed(10, 2022, "vaccination_arm_1", covax2022)
+
+redcap_upload(
+  2022,
+  "vaccination_arm_1",
+  covax2021 %>%
+    select(-contains("redcap")) %>%
+    filter(record_id == "170-71")
+)
