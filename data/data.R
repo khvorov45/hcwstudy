@@ -92,7 +92,7 @@ serology_all_tables_2020_fix_viruses <- serology_all_tables_2020_fix_day %>%
     )
   )
 
-serology_all_tables_2020_fix_viruses %>% 
+serology_all_tables_2020_fix_viruses %>%
   count(virus, subtype, path)
 
 # NOTE(sen) WCH-025 became WCH-818 and we seem to have V0 WCH-818 data
@@ -108,8 +108,8 @@ serology_all_tables_2021_fix_viruses <- serology_all_tables_2021 %>%
       str_replace(" IVR Egg", "") %>%
       str_replace(" Volume looks right", "") %>%
       str_replace(" IVR_208", "") %>%
-      str_replace(" Cell", "") %>% 
-      str_trim() %>% 
+      str_replace(" Cell", "") %>%
+      str_trim() %>%
       str_replace_all("_", "/"),
 
     virus = if_else(str_detect(path, "egg"), paste0(virus, "e"), virus),
@@ -122,19 +122,19 @@ serology_all_tables_2021_fix_viruses <- serology_all_tables_2021 %>%
     ),
   )
 
-serology_all_tables_2021_fix_viruses %>% 
+serology_all_tables_2021_fix_viruses %>%
   count(virus, subtype, path)
 
-serology_all_tables_2021_fix_pids <- serology_all_tables_2021_fix_viruses %>% 
+serology_all_tables_2021_fix_pids <- serology_all_tables_2021_fix_viruses %>%
   mutate(pid = recode(
-    pid, "QCH-42-" = "QCH-042", "QCH-47-" = "QCH-047", 
+    pid, "QCH-42-" = "QCH-042", "QCH-47-" = "QCH-047",
     "WCH-26" = "WCH-026", "WCH-26_" = "WCH-026", "WCH-26-" = "WCH-026",
     "WCH-28" = "WCH-028", "WCH-28_" = "WCH-028", "WCH-28-" = "WCH-028",
   ))
 
 serology_all_tables <- bind_rows(
   serology_all_tables_2020_fix_pids, serology_all_tables_2021_fix_pids
-) %>% 
+) %>%
   mutate(virus_egg_cell = if_else(str_detect(virus, "e$"), "egg", "cell"))
 
 serology_all_tables %>%
@@ -190,10 +190,12 @@ redcap_participants_request <- function(project_year) {
 
 participants2020 <- redcap_participants_request(2020)
 participants2021 <- redcap_participants_request(2021)
+participants2022 <- redcap_participants_request(2022)
 
 participants <- bind_rows(
   participants2020,
   participants2021 %>% filter(!pid %in% participants2020$pid),
+  participants2022 %>% filter(!pid %in% participants2020$pid, !pid %in% participants2021$pid),
 ) %>%
   filter(!is.na(pid)) %>%
   # NOTE(sen) WCH-025 became WCH-818
@@ -258,6 +260,7 @@ redcap_yearly_changes_request <- function(year) {
 
 yearly_changes_raw <- redcap_yearly_changes_request(2020) %>%
   bind_rows(redcap_yearly_changes_request(2021)) %>%
+  bind_rows(redcap_yearly_changes_request(2022)) %>%
   select(record_id, pid, redcap_project_year) %>%
   # NOTE(sen) WCH-025 became WCH-818
   filter(pid != "WCH-025")
@@ -289,6 +292,7 @@ redcap_vaccination_history_request <- function(year) {
 
 vaccination_history_raw <- redcap_vaccination_history_request(2020) %>%
   bind_rows(redcap_vaccination_history_request(2021)) %>%
+  bind_rows(redcap_vaccination_history_request(2022)) %>%
   select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance) %>%
   inner_join(
     yearly_changes_fix_pids %>%
@@ -322,6 +326,7 @@ redcap_vaccination_instrument_request <- function(year) {
 
 vaccination_instrument_raw <- redcap_vaccination_instrument_request(2020) %>%
   bind_rows(redcap_vaccination_instrument_request(2021)) %>%
+  bind_rows(redcap_vaccination_instrument_request(2022)) %>%
   inner_join(
     yearly_changes_fix_pids %>%
       select(record_id, pid, redcap_project_year),
@@ -389,6 +394,8 @@ redcap_covax_request <- function(year) {
 
 covax_request_raw <- redcap_covax_request(2021)
 
+# TODO(sen) 2022?
+
 covax_request <- covax_request_raw %>%
   select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance) %>%
   rename(covid_vac_brand1 = covid_vac_brand, other_covax_brand1 = other_covax_brand) %>%
@@ -431,6 +438,7 @@ redcap_bleed_dates_request <- function(year) {
 
 bleed_dates_raw <- redcap_bleed_dates_request(2020) %>%
   bind_rows(redcap_bleed_dates_request(2021)) %>%
+  bind_rows(redcap_bleed_dates_request(2022)) %>%
   inner_join(
     yearly_changes_fix_pids %>%
       select(record_id, pid, redcap_project_year),
@@ -465,6 +473,7 @@ redcap_covid_bleed_dates_request <- function(year) {
 
 covid_bleed_dates_raw <- redcap_covid_bleed_dates_request(2020) %>%
   bind_rows(redcap_covid_bleed_dates_request(2021)) %>%
+  bind_rows(redcap_covid_bleed_dates_request(2022)) %>%
   inner_join(
     yearly_changes_fix_pids %>%
       select(record_id, pid, redcap_project_year),
@@ -495,7 +504,9 @@ redcap_consent_request <- function(year) {
   )
 }
 
-redcap_consent_raw <- redcap_consent_request(2020) %>% bind_rows(redcap_consent_request(2021))
+redcap_consent_raw <- redcap_consent_request(2020) %>%
+  bind_rows(redcap_consent_request(2021)) %>%
+  bind_rows(redcap_consent_request(2022))
 
 redcap_consent_long <- redcap_consent_raw %>%
   mutate(
@@ -586,6 +597,7 @@ redcap_swabs_request <- function(year) {
 
 swabs <- redcap_swabs_request(2020) %>%
   bind_rows(redcap_swabs_request(2021)) %>%
+  bind_rows(redcap_swabs_request(2022)) %>%
   inner_join(
     yearly_changes_fix_pids %>%
       select(record_id, pid, redcap_project_year),
@@ -620,8 +632,8 @@ swabs_long <- swabs_no_missing %>%
 swabs_long %>% count(swab_virus, swab_result) %>% print(n = 100)
 
 write_csv(
-  swabs_long %>% 
-    select(pid, year, samp_date, swab_collection, swab_virus, swab_result), 
+  swabs_long %>%
+    select(pid, year, samp_date, swab_collection, swab_virus, swab_result),
   "data/swabs.csv"
 )
 
@@ -633,7 +645,9 @@ redcap_withdrawn_request <- function(year) {
   redcap_request(year, "withdrawal_arm_1", "record_id,withdrawn,withdrawal_date,withdrawal_reason")
 }
 
-withdrawn_raw <- redcap_withdrawn_request(2020) %>% bind_rows(redcap_withdrawn_request(2021))
+withdrawn_raw <- redcap_withdrawn_request(2020) %>%
+  bind_rows(redcap_withdrawn_request(2021)) %>%
+  bind_rows(redcap_withdrawn_request(2022))
 
 withdrawn <- withdrawn_raw %>%
   inner_join(
@@ -645,3 +659,71 @@ withdrawn <- withdrawn_raw %>%
   select(pid, everything())
 
 write_csv(withdrawn, "data/withdrawn.csv")
+
+#
+# SECTION Weekly surveys
+#
+
+redcap_weekly_survey_req <- function(year) {
+  survey_events <- paste0("weekly_survey_", 1:52, "_arm_1", collapse = ",")
+  weekly_survey_fields <- c(
+    "record_id",
+    "date_symptom_survey",
+    # "recent_covax",
+    # "covax_rec",
+    # "covax_rec_other",
+    # "covax_dose",
+    # "covax_date",
+    # "covax_batch",
+    # "systemic",
+    # "respiratory",
+    # "fever",
+    # "chills",
+    # "headache",
+    # "myalgia",
+    # "malaise",
+    # "n_systemic",
+    # "cough",
+    # "sorethroat",
+    # "runnynose",
+    # "chestpain",
+    # "breathing",
+    # "n_respiratory",
+    "ari_definition",
+    # "symptom_duration",
+    # "pt_contact",
+    # "nonpt_contact",
+    # "absence",
+    # "duration_absent",
+    # "health_advice",
+    # "medical_service_v2", # NOTE(sen) Checkbox
+    # "diagnosis_v2",
+    # "new_illness",
+    # "new_illness_desc",
+    # "week_surv_gen_com",
+    "weekly_symptom_survey_complete"
+  )
+  redcap_request(year, survey_events, paste(weekly_survey_fields, collapse = ","))
+}
+
+weekly_surveys_raw <- redcap_weekly_survey_req(2020) %>%
+  bind_rows(redcap_weekly_survey_req(2021)) %>%
+  bind_rows(redcap_weekly_survey_req(2022))
+
+weekly_surveys <- weekly_surveys_raw %>%
+  inner_join(
+    yearly_changes_fix_pids %>%
+      select(record_id, pid, redcap_project_year),
+    c("record_id", "redcap_project_year")
+  ) %>%
+  mutate(survey_index = str_replace(redcap_event_name, "weekly_survey_(\\d+)_arm_1", "\\1")) %>%
+  select(
+    pid,
+    year = redcap_project_year,
+    survey_index,
+    date = date_symptom_survey,
+    ari = ari_definition,
+    complete = weekly_symptom_survey_complete
+  )
+
+write_csv(weekly_surveys, "data/weekly-surveys.csv")
