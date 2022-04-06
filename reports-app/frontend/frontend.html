@@ -641,6 +641,15 @@
       if (groups.length > 0) {
         addTextline(countsTableDesc, "all counts apply to the subset defined by (" + groups.join(", ") + ")")
       }
+
+      for (let group of groups) {
+        switch (group) {
+        case "recruited": {addTextline(countsTableDesc, "recruited - year the participant was recruited");} break
+        case "prior2020": {addTextline(countsTableDesc, "prior2020 - vaccination count between 2015-2019 inclusive");} break
+        case "prior2021": {addTextline(countsTableDesc, "prior2021 - vaccination count between 2016-2020 inclusive");} break
+        case "prior2022": {addTextline(countsTableDesc, "prior2022 - vaccination count between 2017-2021 inclusive");} break
+        }
+      }
       addTextline(countsTableDesc, "download by clicking on title below")
       
       let totalCountsTable = document.createElement("div")
@@ -1142,5 +1151,6 @@
     // TODO(sen) Table filtering
     // TODO(sen) Table with emails and sites
     // TODO(sen) Correct weekly survey dates for 2020 and 2021
+    // TODO(sen) Correct height for tables with descriptions
   </script>
 </html>
