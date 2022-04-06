@@ -622,7 +622,9 @@
       let totalCountsTable = document.createElement("div")
       totalCountsTableContainer.appendChild(totalCountsTable)
 
-      totalCountsTable.appendChild(createTableTitleElement("Record counts"))
+      let countsTableTitle = "Record counts"
+      globalState.downloadCsv[countsTableTitle] = Object.keys(totalCountsColWidthsPx).join(",") + "\n"
+      totalCountsTable.appendChild(createTableTitleElement(countsTableTitle))
       totalCountsTable.appendChild(createTableHeaderRowElement(totalCountsColWidthsPx))
 
       const flattenMap = (map, existing) => {
@@ -652,12 +654,20 @@
         rowsShown += 1
         totalCountsTable.appendChild(rowElement)
 
+        let rowCsv = ""
+
         for (let rowValIndex = 0; rowValIndex < rowVals.length; rowValIndex += 1) {
           let rowVal = rowVals[rowValIndex]
+          rowCsv += rowVal
+          if (rowValIndex < rowVals.length - 1) {
+            rowCsv += ","
+          }
           let colName = tableColNames[rowValIndex]
           let width = totalCountsColWidthsPx[colName]
           rowElement.appendChild(createTableCellStringElement(width, rowVal))
         }
+
+        globalState.downloadCsv[countsTableTitle] += rowCsv + "\n"
       }
 
       totalCountsTable.setAttribute("style", tableContentStyle(totalCountsWidthPx, rowsShown))
@@ -1103,7 +1113,7 @@
 
     // TODO(sen) Bleed counts
     // TODO(sen) Paths
-    // TODO(sen) Download all tables (current: bleed)
+    // TODO(sen) Download all tables (current: bleed, counts)
     // TODO(sen) Table filtering
     // TODO(sen) Table with emails and sites
     // TODO(sen) Correct weekly survey dates for 2020 and 2021
