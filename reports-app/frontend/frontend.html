@@ -692,7 +692,7 @@
 
         for (let rowValIndex = 0; rowValIndex < rowVals.length; rowValIndex += 1) {
           let rowVal = rowVals[rowValIndex]
-          rowCsv += rowVal
+          rowCsv += "\"" + rowVal + "\""
           if (rowValIndex < rowVals.length - 1) {
             rowCsv += ","
           }
