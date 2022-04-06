@@ -578,6 +578,9 @@
               case "gender": {key = row.gender;} break
               case "arm": {key = row.arm;} break
               case "age": {key = row.age_group;} break
+              case "prior2020": {key = row.prior2020;} break
+              case "prior2021": {key = row.prior2021;} break
+              case "prior2022": {key = row.prior2022;} break
               }
 
               if (groupIndex == groups.length - 1) {
@@ -996,7 +999,7 @@
 
       globalState.dom.data.countsSettingsContainer = createSwitch(
         globalState.countsSettings.groups,
-        ["site", "recruited", "arm", "gender", "age"],
+        ["site", "recruited", "arm", "gender", "age", "prior2020", "prior2021", "prior2022"],
         (groups) => {
           globalState.countsSettings.groups = groups
           updateCountsTable()
@@ -1097,7 +1100,7 @@
       }
     }
 
-    // TODO(sen) Summary splits (total counts, active counts, bleed counts) by prior vac
+    // TODO(sen) Bleed counts
     // TODO(sen) Paths
     // TODO(sen) Download all tables (current: bleed)
     // TODO(sen) Table filtering
