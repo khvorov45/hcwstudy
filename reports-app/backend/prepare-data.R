@@ -40,7 +40,7 @@ covid_arms <- consent %>%
 	filter(disease == "covid", !is.na(consent), consent != "no") %>%
 	group_by(pid) %>%
 	#filter(length(na.omit(consent)) == 1 | form == "electronic") %>%
-	summarise(covid_arm = paste(na.omit(consent), collapse = ",")) #%>%
+	summarise(covid_arm = paste(unique(na.omit(consent)), collapse = ",")) #%>%
 	#mutate(covid_arm = if_else(covid_arm == "", "no", covid_arm))
 
 weekly_surveys <- read_csv("../data/weekly-surveys.csv") %>%
