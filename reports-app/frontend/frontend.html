@@ -87,7 +87,7 @@
 
     let globalState = {
       scrollbarWidths: getScrollbarWidths(),
-      data: [],
+      data: {},
       downloadCsv: {},
       currentDataContainer: "countsContainer",
       weeklySurveysSettings: { year: 2022 },
@@ -401,7 +401,7 @@
       let allData = globalState.data.weekly_surveys
 
       let colWidthsPx = {
-        record_id: 100,
+        pid: 100,
         week: 100,
         completed: 100,
         ari: 100,
@@ -418,10 +418,10 @@
       let rowsShown = 0
       for (let row of allData) {
 
-        if (row.redcap_project_year == globalState.weeklySurveysSettings.year) {
+        if (row.year == globalState.weeklySurveysSettings.year) {
 
-          let completed = row.weekly_symptom_survey_complete
-          if (completed !== "0") {
+          let completed = row.complete
+          if (completed !== 0) {
 
             let week = row.survey_index
 
@@ -429,8 +429,8 @@
             rowsShown += 1
             table.appendChild(rowElement)
 
-            let recordIdCell = createTableCellStringElement(colWidthsPx.record_id, row.record_id)
-            rowElement.appendChild(recordIdCell)
+            let pidCell = createTableCellStringElement(colWidthsPx.pid, row.pid)
+            rowElement.appendChild(pidCell)
 
             let weekCell = createTableCellStringElement(colWidthsPx.week, week)
             rowElement.appendChild(weekCell)
@@ -438,14 +438,14 @@
             let completedCell = createTableCellStringElement(colWidthsPx.completed, completed)
             rowElement.appendChild(completedCell)
 
-            let ari = row.ari_definition
+            let ari = row.ari
             let ariCell = createTableCellStringElement(colWidthsPx.ari, ari)
             rowElement.appendChild(ariCell)
 
-            if (completions[row.record_id] === undefined) {
-              completions[row.record_id] = []
+            if (completions[row.pid] === undefined) {
+              completions[row.pid] = []
             }
-            completions[row.record_id].push(parseInt(week))
+            completions[row.pid].push(week)
 
           }
         }
@@ -464,7 +464,7 @@
       let rows = Object.entries(completions)
 
       let colWidthsPx = {
-        record_id: 100,
+        pid: 100,
         completions: 300,
       }
       let tableWidthPx = arrSum(Object.values(colWidthsPx))
@@ -482,7 +482,7 @@
         table.appendChild(rowElement)
         rowsShown += 1
 
-        rowElement.appendChild(createTableCellStringElement(colWidthsPx.record_id, record))
+        rowElement.appendChild(createTableCellStringElement(colWidthsPx.pid, record))
 
         let collapsedCompletions = ""
         if (completedSurveys.length > 0) {
@@ -534,42 +534,34 @@
       let countPage = document.createElement("div")
       globalState.dom.data.countsContainer.appendChild(countPage)
 
-      let withdrawalData = globalState.data.withdrawal
+      let withdrawalData = globalState.data.withdrawn
 
       let withdrawals = {}
       for (let row of withdrawalData) {
-        if (row.redcap_project_year === 2022) {
-          let withdrawn = row.withdrawn === "1"
-          if (withdrawn) {
-            withdrawals[row.record_id] = true
-          }
+        let withdrawn = row.withdrawn === 1
+        if (withdrawn) {
+          withdrawals[row.pid] = true
         }
       }
 
-      let baselineData = globalState.data.baseline
+      let participantData = globalState.data.participants
 
       let groups = globalState.countsSettings.groups
       let groupedCounts = {}
       if (groups.length === 0) {
         groupedCounts = {total: {total: 0, active: 0}}
       }
-      let pidsInTotalCounts = {}
 
-      for (let row of baselineData) {
+      for (let row of participantData) {
         if (row.pid !== undefined) {
 
           if (row.pid.length >= 3) {
 
-            let consent = row.consent === "1" || row.study_group_vacc === "1" ||
-              row.study_group_vacc === "2" || row.consent_unvacc === "1"
-            let withdrawn = withdrawals[row.record_id] === true
-            let active = consent && !withdrawn && row.redcap_project_year === 2022
+            let withdrawn = withdrawals[row.pid] === true
+            let active = !withdrawn
 
             if (groups.length === 0) {
-              if (pidsInTotalCounts[row.pid] === undefined) {
-                groupedCounts.total.total += 1
-                pidsInTotalCounts[row.pid] = true
-              }
+              groupedCounts.total.total += 1
               if (active) {
                 groupedCounts.total.active += 1
               }
@@ -581,18 +573,17 @@
               let key = null
 
               switch (group) {
-              case "site": {key = row.pid.slice(0, 3);} break
-              case "recruited": {key = row.recruit_year;} break
+              case "site": {key = row.site;} break
+              case "recruited": {key = row.recruitment_year;} break
+              case "gender": {key = row.gender;} break
+              case "arm": {key = row.arm;} break
               }
 
               if (groupIndex == groups.length - 1) {
                 if (currentGroupCount[key] === undefined) {
                   currentGroupCount[key] = {total: 0, active: 0}
                 }
-                if (pidsInTotalCounts[row.pid] === undefined) {
-                  currentGroupCount[key].total += 1
-                  pidsInTotalCounts[row.pid] = true
-                }
+                currentGroupCount[key].total += 1
                 if (active) {
                   currentGroupCount[key].active += 1
                 }
@@ -600,7 +591,7 @@
                 if (currentGroupCount[key] === undefined) {
                   currentGroupCount[key] = {}
                 }
-                currentGroupCount = groupedCounts[key]
+                currentGroupCount = currentGroupCount[key]
               }
             }
           }
@@ -620,8 +611,8 @@
       let totalCountsWidthPx = arrSum(Object.values(totalCountsColWidthsPx))
 
       let totalCountsTableContainer = document.createElement("div")
+      totalCountsTableContainer.setAttribute("style", tableContainerStyle(totalCountsWidthPx))
       countPage.appendChild(totalCountsTableContainer)
-      totalCountsTableContainer.setAttribute("style", tableContentStyle(totalCountsWidthPx))
 
       let totalCountsTable = document.createElement("div")
       totalCountsTableContainer.appendChild(totalCountsTable)
@@ -659,9 +650,12 @@
 
       let groupedCountsFlat = flattenMap(groupedCounts, [])
 
+      let rowsShown = 0
+
       let tableColNames = Object.keys(totalCountsColWidthsPx)
       for (let rowVals of groupedCountsFlat) {
         let rowElement = createTableRowElement("var(--color-background)")
+        rowsShown += 1
         totalCountsTable.appendChild(rowElement)
 
         for (let rowValIndex = 0; rowValIndex < rowVals.length; rowValIndex += 1) {
@@ -671,6 +665,8 @@
           rowElement.appendChild(createTableCellStringElement(width, rowVal))
         }
       }
+
+      totalCountsTable.setAttribute("style", tableContentStyle(totalCountsWidthPx, rowsShown))
     }
 
     const updateBleedsTable = () => {
@@ -678,10 +674,10 @@
       let bleedsTableContainer = document.createElement("div")
       globalState.dom.data.bleedsContainer.appendChild(bleedsTableContainer)
 
-      let allData = globalState.data.baseline
+      let allData = globalState.data.bleed_dates
 
       let colWidthsPx = {
-        record_id: 100,
+        //record_id: 100,
         pid: 100,
         baseline: 100,
         day7: 100,
@@ -704,7 +700,7 @@
       let rowsShown = 0
       for (let row of allData) {
 
-        if (row.redcap_project_year === globalState.bleedsSettings.year) {
+        if (row.year === globalState.bleedsSettings.year) {
           const toString = (str) => {
             let result = ""
             if (str !== undefined && str !== null) {
@@ -713,17 +709,19 @@
             return result
           }
 
-          let dateBaselineBlood = toString(row.date_baseline_blood)
-          let date7dBlood = toString(row.date_7d_blood)
-          let date14dBlood = toString(row.date_14d_blood)
-          let dateEndSeasonBlood = toString(row.date_end_season_blood)
-          let dateCovaxBaselineBlood = toString(row.covax_d0_sampdate)
-          let dateCovax7dBlood = toString(row.covax_d7_sampdate)
-          let dateCovax14dBlood = toString(row.covax_d14_sampdate)
+          let dateBaselineBlood = toString(row.flu_day_0)
+          let date7dBlood = toString(row.flu_day_7)
+          let date14dBlood = toString(row.flu_day_14)
+          let dateEndSeasonBlood = toString(row.flu_day_220)
+          let dateCovaxBaselineBlood = toString(row.covid_day_0)
+          let dateCovax7dBlood = toString(row.covid_day_7)
+          let dateCovax14dBlood = toString(row.covid_day_14)
 
-          let worthShowing = dateBaselineBlood !== "" || date7dBlood !== "" || date14dBlood !== "" || dateEndSeasonBlood !== ""
+          const notMissing = (val) => val !== "" && val !== undefined && val !== null
+
+          let worthShowing = notMissing(dateBaselineBlood) || notMissing(date7dBlood) || notMissing(date14dBlood) || notMissing(dateEndSeasonBlood)
           if (globalState.bleedsSettings.year > 2020) {
-            worthShowing = worthShowing || dateCovaxBaselineBlood !== "" || dateCovax7dBlood !== "" || dateCovax14dBlood !== ""
+            worthShowing = worthShowing || notMissing(dateCovaxBaselineBlood) || notMissing(dateCovax7dBlood) || notMissing(dateCovax14dBlood)
           }
 
           if (worthShowing) {
@@ -731,8 +729,8 @@
             rowsShown += 1
             bleedsTable.appendChild(rowElement)
 
-            let recordIdCell = createTableCellStringElement(colWidthsPx.record_id, row.record_id)
-            rowElement.appendChild(recordIdCell)
+            //let recordIdCell = createTableCellStringElement(colWidthsPx.record_id, row.record_id)
+            //rowElement.appendChild(recordIdCell)
 
             let pidCell = createTableCellStringElement(colWidthsPx.pid, row.pid)
             rowElement.appendChild(pidCell)
@@ -749,7 +747,7 @@
             let endCell = createTableCellStringElement(colWidthsPx.end, dateEndSeasonBlood)
             rowElement.appendChild(endCell)
 
-            let rowCsv = row.record_id + "," + row.pid + "," + dateBaselineBlood + "," + date7dBlood + "," + date14dBlood + "," + dateEndSeasonBlood
+            let rowCsv = row.pid + "," + dateBaselineBlood + "," + date7dBlood + "," + date14dBlood + "," + dateEndSeasonBlood
 
             if (globalState.bleedsSettings.year > 2020) {
               let day0CovidCell = createTableCellStringElement(colWidthsPx.day0Covid, dateCovaxBaselineBlood)
@@ -780,8 +778,8 @@
 
     const updateAllTables = () => {
       updateSurveyPage()
-      updateCountsTable()
       updateBleedsTable()
+      updateCountsTable()
     }
 
     const updateData = async (password) => {
@@ -799,15 +797,15 @@
       } else {
 
         let address =
-          "https://reports2.hcwflustudy.com/api/" +
+          "https://reports2.hcwflustudy.com/api2/" +
           password +
-          "/redcap.json"
+          "/data.json"
 
         //address = `/pull-redcap/redcap-all_data.json`
 
         try {
           let resp = await fetch(address)
-          globalState.data = []
+          globalState.data = {}
           globalState.data = await resp.json()
         } catch (e) {
           success = false
@@ -1008,7 +1006,7 @@
 
       globalState.dom.data.countsSettingsContainer = createSwitch(
         globalState.countsSettings.groups,
-        ["site", "recruited"],
+        ["site", "recruited", "gender", "arm"],
         (groups) => {
           globalState.countsSettings.groups = groups
           updateCountsTable()
@@ -1075,7 +1073,6 @@
       let countsContainer = dom.data.countsContainer
       countsContainer.setAttribute("style", mainContentStyle)
 
-
       // NOTE(sen) Bleeds
       let bleedsContainer = dom.data.bleedsContainer
       bleedsContainer.setAttribute("style", mainContentStyle)
@@ -1110,12 +1107,11 @@
       }
     }
 
+    // TODO(sen) Summary splits (total counts, active counts, bleed counts) by prior vac / age
     // TODO(sen) Paths
     // TODO(sen) Download all tables (current: bleed)
     // TODO(sen) Table filtering
     // TODO(sen) Table with emails and sites
     // TODO(sen) Correct weekly survey dates for 2020 and 2021
-    // TODO(sen) Summary splits by prior vac / age / sex
-    // TODO(sen) Retention across study years
   </script>
 </html>
