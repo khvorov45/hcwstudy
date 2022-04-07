@@ -119,18 +119,24 @@ redcap_pid_request <- function(project_year) {
 }
 
 pid2021 <- redcap_pid_request(2021)
+pid2022_current <- redcap_pid_request(2022)
+
+process_pid <- function(data) {
+  data %>%
+    mutate(
+      studygroup_y2 = case_when(
+        nested_naive == 1 | nested_infect == 1 ~ 3,
+        main_vacc == 1 ~ 1,
+        main_unvacc == 1 ~ 2,
+      ),
+      recruit_year = replace_na(recruit_year, 2021)
+    ) %>%
+    select(record_id, pid, recruit_year, studygroup_y1, studygroup_y2)
+}
 
 pid2022 <- pid2021 %>%
   filter(record_id %in% active2021$record_id) %>%
-  mutate(
-    studygroup_y2 = case_when(
-      nested_naive == 1 | nested_infect == 1 ~ 3,
-      main_vacc == 1 ~ 1,
-      main_unvacc == 1 ~ 2,
-    ),
-    recruit_year = replace_na(recruit_year, 2021)
-  ) %>%
-  select(record_id, pid, recruit_year, studygroup_y1, studygroup_y2)
+  process_pid()
 
 # NOTE(sen) Should be empty
 pid2022 %>% filter(is.na(studygroup_y2))
@@ -142,16 +148,11 @@ redcap_upload(
   2022, "baseline_arm_1", 
   pid2021 %>% 
     filter(pid == "JHH-060") %>% 
-    mutate(
-      studygroup_y2 = case_when(
-        nested_naive == 1 | nested_infect == 1 ~ 3,
-        main_vacc == 1 ~ 1,
-        main_unvacc == 1 ~ 2,
-      ),
-      recruit_year = replace_na(recruit_year, 2021)
-    ) %>%
-    select(record_id, pid, recruit_year, studygroup_y1, studygroup_y2)
+    process_pid()
 )
+
+jhh_806_2021_record_id <- pid2021 %>% filter(pid == "JHH-806") %>% pull(record_id)
+jhh_806_2022_record_id <- pid2022_current %>% filter(pid == "JHH-806") %>% pull(record_id)
 
 #
 # SECTION Screening
@@ -201,9 +202,14 @@ redcap_baseline_request <- function(project_year) {
 
 baseline2021 <- redcap_baseline_request(2021)
 
+process_baseline <- function(data) {
+  data %>%
+    select(-contains("redcap"))
+}
+
 baseline2022 <- baseline2021 %>%
-  select(-contains("redcap")) %>%
-  filter(record_id %in% active2021$record_id, !is.na(baseline_q_date))
+  filter(record_id %in% active2021$record_id, !is.na(baseline_q_date)) %>%
+  process_baseline()
 
 redcap_upload_spoonfed(10, 2022, "baseline_arm_1", baseline2022)
 
@@ -212,7 +218,16 @@ redcap_upload(
   "baseline_arm_1",
   baseline2021 %>%
     filter(record_id == "170-71") %>%
-    select(-contains("redcap"))
+    process_baseline()
+)
+
+redcap_upload(
+  2022,
+  "baseline_arm_1",
+  baseline2021 %>%
+    filter(record_id == jhh_806_2021_record_id) %>%
+    process_baseline() %>%
+    mutate(record_id = jhh_806_2022_record_id)
 )
 
 #
