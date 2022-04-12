@@ -254,25 +254,29 @@ const createTableRowElement = (color) => {
   return rowElement
 }
 
-const createTableTitleElement = (title) => {
+const createTableTitleElement = (title, downloadable) => {
   let titleElement = document.createElement("div")
   titleElement.setAttribute(
     "style",
-    "display: flex; align-items: center; justify-content: center; background-color: var(--color-background2); cursor: pointer;"
+    "display: flex; align-items: center; justify-content: center; background-color: var(--color-background2);"
   )
-  titleElement.innerHTML = title + " ⇓"
-  titleElement.addEventListener("click", (event) => {
-    let csv = globalState.downloadCsv[title]
-    if (csv) {
-      let hidden = document.createElement("a")
-      hidden.href = "data:text/csv;charset=utf-8," + encodeURI(csv)
-      hidden.target = "_blank"
-      hidden.download = title + ".csv"
-      hidden.click()
-    } else {
-      console.error(`table '${title}' does not have a csv to download`)
-    }
-  })
+  titleElement.innerHTML = title
+  if (downloadable) {
+    titleElement.style.cursor = "pointer"
+    titleElement.innerHTML += " ⇓ (download)"
+    titleElement.addEventListener("click", (event) => {
+      let csv = globalState.downloadCsv[title]
+      if (csv) {
+        let hidden = document.createElement("a")
+        hidden.href = "data:text/csv;charset=utf-8," + encodeURI(csv)
+        hidden.target = "_blank"
+        hidden.download = title + ".csv"
+        hidden.click()
+      } else {
+        console.error(`table '${title}' does not have a csv to download`)
+      }
+    })
+  }
   return titleElement
 }
 
@@ -650,7 +654,6 @@ const updateCountsTable = () => {
     case "prior2022": {addTextline(countsTableDesc, "prior2022 - vaccination count between 2017-2021 inclusive");} break
     }
   }
-  addTextline(countsTableDesc, "download by clicking on title below")
 
   let totalCountsTable = document.createElement("div")
   totalCountsTableContainer.appendChild(totalCountsTable)
@@ -658,7 +661,7 @@ const updateCountsTable = () => {
   let countsTableTitle = "Record counts"
   globalState.downloadCsv[countsTableTitle] = Object.keys(totalCountsColWidthsPx).join(",") + "\n"
   totalCountsTable.appendChild(countsTableDesc)
-  totalCountsTable.appendChild(createTableTitleElement(countsTableTitle))
+  totalCountsTable.appendChild(createTableTitleElement(countsTableTitle, true))
   totalCountsTable.appendChild(createTableHeaderRowElement(totalCountsColWidthsPx))
 
   const flattenMap = (map, existing) => {
@@ -731,7 +734,7 @@ const updateBleedsTable = () => {
   let bleedsTable = document.createElement("div")
   bleedsTableContainer.appendChild(bleedsTable)
   let bleedsTableTitle = "Bleed dates"
-  bleedsTable.appendChild(createTableTitleElement("Bleed dates"))
+  bleedsTable.appendChild(createTableTitleElement("Bleed dates", true))
   globalState.downloadCsv[bleedsTableTitle] = Object.keys(colWidthsPx).join(",") + "\n"
   bleedsTable.appendChild(createTableHeaderRowElement(colWidthsPx))
 
