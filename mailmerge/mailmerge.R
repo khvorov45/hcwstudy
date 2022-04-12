@@ -43,7 +43,10 @@ serology_and_bleed_dates %>%
 # SECTION Generate the PDFs
 #
 
-output_dirs <- paste0("mailmerge/", unique(serology_and_bleed_dates$site))
+site_names <- unique(serology_and_bleed_dates$site)
+site_names <- "PCH"
+
+output_dirs <- paste0("mailmerge/", site_names)
 walk(output_dirs, unlink, recursive = TRUE)
 walk(output_dirs, dir.create)
 
@@ -60,6 +63,7 @@ today_date <- as.character(Sys.Date())
 vaccine_year <- as.character(lubridate::year(Sys.Date()) - 1)
 
 serology_and_bleed_dates %>%
+	filter(site %in% site_names) %>%
 	#group_by(site) %>%
 	#filter(pid == first(pid)) %>%
 	group_by(pid) %>%
