@@ -642,7 +642,7 @@ write_csv(
 #
 
 redcap_withdrawn_request <- function(year) {
-  redcap_request(year, "withdrawal_arm_1", "record_id,withdrawn,withdrawal_date,withdrawal_reason")
+  redcap_request(year, "withdrawal_arm_1", "record_id,withdrawn,withdrawal_date,withdrawal_reason,withdrawn_reentered")
 }
 
 withdrawn_raw <- redcap_withdrawn_request(2020) %>%
@@ -656,7 +656,11 @@ withdrawn <- withdrawn_raw %>%
     c("record_id", "redcap_project_year")
   ) %>%
   select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance, -record_id) %>%
-  select(pid, everything())
+  select(pid, everything()) %>%
+  mutate(
+    withdrawn_reentered = replace_na(withdrawn_reentered, 0),
+    #withdrawn_reentered = if_else(redcap_project_year == 2022, 0, 1),
+  )
 
 write_csv(withdrawn, "data/withdrawn.csv")
 

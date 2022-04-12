@@ -558,8 +558,7 @@ const updateCountsTable = () => {
 
   let withdrawals = {}
   for (let row of withdrawalData) {
-    let withdrawn = row.withdrawn === 1
-    if (withdrawn) {
+    if (row.withdrawn === 1 && row.withdrawn_reentered !== 1) {
       withdrawals[row.pid] = true
     }
   }
@@ -1148,7 +1147,6 @@ const updateDataWithLoading = async (password) => {
   }
 }
 
-// TODO(sen) Account for reentry in active counts
 // TODO(sen) Bleed counts
 // TODO(sen) Paths
 // TODO(sen) Download all tables (current: bleed, counts)
