@@ -3,3 +3,6 @@
 *.accdb
 *.json
 .~lock*
+*.pdf
+*docx
+*.xlsx
