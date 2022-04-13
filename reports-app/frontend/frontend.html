@@ -1040,14 +1040,14 @@ let globalState = {
       INIT_YEAR, YEARS,
       (year) => {
         globalState.settings.weeklySurveys.year = year
-        updateSurveyPage()
+        updateSurveyTables()
       }
     ),
 
     bleedsSettings: createSwitch(
       INIT_YEAR, YEARS,
       (year) => {
-        globalState.bleedsSettings.year = year
+        globalState.settings.bleeds.year = year
         updateBleedsTable()
       }
     ),
