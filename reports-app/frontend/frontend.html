@@ -58,34 +58,37 @@
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     "
   >
-    <div id="main"></div>
+    <div id="main" style="display: flex;"></div>
   </body>
 
   <script type="module">
 
-const createEl = (name) => document.createElement(name)
-const createDiv = () => createEl("div")
+//
+// SECTION Utilities
+//
 
-const createTextline = (line) => {
-  let div = createDiv()
-  div.innerHTML = line
-  return div
+const formatDate = (date) => {
+  let result = date.toISOString().slice(0, 10)
+  return result
 }
 
-const addEl = (parent, el) => {
-  parent.appendChild(el)
-  return el
+const notNU = (val) => {
+  let reuslt = val !== null && val !== undefined
+  return result
 }
 
-const addTextline = (parent, line) => addEl(parent, createTextline(line))
+const isObject = (val) => {
+  let result = val && typeof val === 'object' && val.constructor === Object
+  return result
+}
 
 const getScrollbarWidths = () => {
-  let outer = document.createElement('div');
+  let outer = createEl('div');
   outer.style.visibility = "hidden";
   outer.style.overflowY = "scroll";
   document.body.appendChild(outer);
 
-  let inner = document.createElement('div');
+  let inner = createEl('div');
   outer.appendChild(inner);
 
   let scrollbarWidthV = (outer.offsetWidth - inner.offsetWidth);
@@ -99,46 +102,6 @@ const getScrollbarWidths = () => {
 
   outer.parentNode.removeChild(outer);
   return [scrollbarWidthH, scrollbarWidthV];
-}
-
-let globalState = {
-  scrollbarWidths: getScrollbarWidths(),
-  data: {},
-  downloadCsv: {},
-  currentDataContainer: "countsContainer",
-  weeklySurveysSettings: { year: 2022 },
-  bleedsSettings: { year: 2022 },
-  countsSettings: { groups: ["site"] },
-  dom: {
-    main: document.getElementById("main"),
-
-    passwordBox: document.createElement("div"),
-
-    data: {
-      container: document.createElement("div"),
-      sidebarSpecificSettingsContainer: document.createElement("div"),
-      mainPageContainer: document.createElement("div"),
-
-      weeklySurveysContainer: document.createElement("div"),
-      weeklySurveysSettingsContainer: document.createElement("div"),
-      bleedsContainer: document.createElement("div"),
-      bleedsSettingsContainer: document.createElement("div"),
-      countsContainer: document.createElement("div"),
-      countsSettingsContainer: document.createElement("div"),
-
-      surveyTableContainer: document.createElement("div"),
-      surveyCompletionsContainer: document.createElement("div"),
-    },
-
-    loading: document.createElement("div"),
-  },
-}
-
-const TABLE_ROW_HEIGHT_PX = 30
-
-const notNU = (val) => {
-  let reuslt = val !== null && val !== undefined
-  return result
 }
 
 const fieldsArePresent = (obj, colnames) => {
@@ -205,10 +168,26 @@ const dateSeq = (start, step, count) => {
   return result
 }
 
-const formatDate = (date) => {
-  let result = date.toISOString().slice(0, 10)
-  return result
+//
+// SECTION DOM
+//
+
+const createEl = (name) => document.createElement(name)
+const createDiv = () => createEl("div")
+
+const createTextline = (line) => {
+  let div = createDiv()
+  div.innerHTML = line
+  return div
 }
+
+const addEl = (parent, el) => {
+  parent.appendChild(el)
+  return el
+}
+
+const addDiv = (parent) => addEl(parent, createDiv())
+const addTextline = (parent, line) => addEl(parent, createTextline(line))
 
 const removeChildren = (element) => {
   while (element.lastChild) {
@@ -216,132 +195,13 @@ const removeChildren = (element) => {
   }
 }
 
-const tableContainerStyle = (widthPx) => {
-  let result = "height: calc(100vh - " + globalState.scrollbarWidths[0] +
-  "px); overflow-x: hidden; overflow-y: scroll; width: "
-  + (widthPx + globalState.scrollbarWidths[1]) +
-  "px; display: flex; justify-content: center; flex-shrink: 0;"
-  return result
-}
-
-const tableContentStyle = (widthPx, rowCount) => {
-  let result = "width: " + widthPx + "px; height: " + (rowCount * TABLE_ROW_HEIGHT_PX) + "px;"
-  return result
-}
-
-const createTableCellElement = (widthPx) => {
-  let cellElement = document.createElement("div")
-  cellElement.setAttribute(
-    "style",
-    "width: " + widthPx + "px; display: flex; align-items: center; justify-content: center;"
-  )
-  return cellElement
-}
-
-const createTableCellStringElement = (widthPx, string) => {
-  let cellElement = createTableCellElement(widthPx)
-  if (string !== undefined && string != null) {
-    cellElement.innerHTML = string
-  }
-  return cellElement
-}
-
-const createTableRowElement = (color) => {
-  let rowElement = document.createElement("div")
-  rowElement.setAttribute("style",
-    "display: flex; height: " + TABLE_ROW_HEIGHT_PX + "px;" + "background-color: " + color + ";"
-  )
-  return rowElement
-}
-
-const createTableTitleElement = (title, downloadable) => {
-  let titleElement = document.createElement("div")
-  titleElement.setAttribute(
-    "style",
-    "display: flex; align-items: center; justify-content: center; background-color: var(--color-background2);"
-  )
-  titleElement.innerHTML = title
-  if (downloadable) {
-    titleElement.style.cursor = "pointer"
-    titleElement.innerHTML += " ⇓ (download)"
-    titleElement.addEventListener("click", (event) => {
-      let csv = globalState.downloadCsv[title]
-      if (csv) {
-        let hidden = document.createElement("a")
-        hidden.href = "data:text/csv;charset=utf-8," + encodeURI(csv)
-        hidden.target = "_blank"
-        hidden.download = title + ".csv"
-        hidden.click()
-      } else {
-        console.error(`table '${title}' does not have a csv to download`)
-      }
-    })
-  }
-  return titleElement
-}
-
-const createTableHeaderRowElement = (colWidthsPx) => {
-  let headerRow = createTableRowElement("var(--color-border)")
-  headerRow.setAttribute("style", headerRow.getAttribute("style") + "position: sticky; top: 0;")
-  let colnames = Object.keys(colWidthsPx)
-
-  for (let colname of colnames) {
-    let colWidthPx = colWidthsPx[colname]
-    let headerElement = createTableCellElement(colWidthPx)
-    headerRow.appendChild(headerElement)
-    headerElement.innerHTML = colname
-  }
-
-  return headerRow
-}
-
-const createTableDataRowElement = (rowIndex) => {
-  let color = "var(--color-background)"
-  if (rowIndex % 2 == 1) {
-    color = "var(--color-background2)"
-  }
-  let rowElement = createTableRowElement(color)
-  return rowElement
-}
-
-const createTableElementFromSoa = (soa, formatters, colWidthsPx, title) => {
-
-  let tableWidthPx = arrSum(Object.values(colWidthsPx))
-
-  let table = document.createElement("div")
-  let colnames = Object.keys(soa)
-
-  let titleElement = createTableTitleElement(title)
-  table.appendChild(titleElement)
-
-  let headerRow = createTableHeaderRowElement(colWidthsPx)
-  table.appendChild(headerRow)
-
-  if (colnames.length > 0) {
-    let rowCount = soa[colnames[0]].length
-    table.setAttribute("style", tableContentStyle(tableWidthPx, rowCount))
-
-    for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
-      let rowElement = createTableDataRowElement(rowIndex)
-      table.appendChild(rowElement)
-
-      for (let colname of colnames) {
-        let colData = soa[colname][rowIndex]
-        let formatter = formatters[colname]
-        let colDataFormatted = formatter(colData)
-
-        let colWidthPx = colWidthsPx[colname]
-        let cellElement = createTableCellStringElement(colWidthPx, colDataFormatted)
-        rowElement.appendChild(cellElement)
-      }
-    }
-  }
-
-  return [table, tableWidthPx]
+const replaceChildren = (parent, newChild) => {
+  removeChildren(parent)
+  addEl(parent, newChild)
 }
 
 const createSwitch = (init, opts, onUpdate) => {
-  let switchElement = document.createElement("div")
+  let switchElement = createDiv()
   let currentSel = init
   let multiple = Array.isArray(init)
 
@@ -352,7 +212,7 @@ const createSwitch = (init, opts, onUpdate) => {
   }
 
   for (let opt of opts) {
-    let optElement = document.createElement("div")
+    let optElement = createDiv()
     switchElement.appendChild(optElement)
 
     let baseStyle = "padding-top: 5px; padding-bottom: 5px; cursor: pointer;"
@@ -407,154 +267,333 @@ const createSwitch = (init, opts, onUpdate) => {
   return switchElement
 }
 
-const isObject = (val) => {
-  let result = val && typeof val === 'object' && val.constructor === Object
+const TABLE_ROW_HEIGHT_PX = 30
+const SCROLLBAR_WIDTHS = getScrollbarWidths()
+
+const tableContainerStyle = (widthPx) => {
+  let result = "height: calc(100vh - " + SCROLLBAR_WIDTHS[0] +
+  "px); overflow-x: hidden; overflow-y: scroll; width: "
+  + (widthPx + SCROLLBAR_WIDTHS[1]) +
+  "px; display: flex; justify-content: center; flex-shrink: 0;"
   return result
 }
 
-const updateSurveyTable = () => {
+const tableContentStyle = (widthPx, rowCount) => {
+  let result = "width: " + widthPx + "px; height: " + (rowCount * TABLE_ROW_HEIGHT_PX) + "px;"
+  return result
+}
 
-  removeChildren(globalState.dom.data.surveyTableContainer)
-  let table = document.createElement("div")
-  globalState.dom.data.surveyTableContainer.appendChild(table)
-
-  let allData = globalState.data.weekly_surveys
-
-  let colWidthsPx = {
-    pid: 100,
-    week: 100,
-    completed: 100,
-    ari: 100,
-  }
-  let tableWidthPx = arrSum(Object.values(colWidthsPx))
-  globalState.dom.data.surveyTableContainer.setAttribute(
-    "style", tableContainerStyle(tableWidthPx)
+const createTableCellElement = (widthPx) => {
+  let cellElement = createDiv()
+  cellElement.setAttribute(
+    "style",
+    "width: " + widthPx + "px; display: flex; align-items: center; justify-content: center;"
   )
+  return cellElement
+}
 
-  table.appendChild(createTableTitleElement("Completed weekly surveys"))
-  table.appendChild(createTableHeaderRowElement(colWidthsPx))
+const createTableCellStringElement = (widthPx, string) => {
+  let cellElement = createTableCellElement(widthPx)
+  if (string !== undefined && string != null) {
+    cellElement.innerHTML = string
+  }
+  return cellElement
+}
 
-  let completions = {}
-  let rowsShown = 0
-  for (let row of allData) {
+const createTableRowElement = (color) => {
+  let rowElement = createDiv()
+  rowElement.setAttribute("style",
+    "display: flex; height: " + TABLE_ROW_HEIGHT_PX + "px;" + "background-color: " + color + ";"
+  )
+  return rowElement
+}
 
-    if (row.year == globalState.weeklySurveysSettings.year) {
+const createTableTitleElement = (title, downloadable) => {
+  let titleElement = createDiv()
+  titleElement.setAttribute(
+    "style",
+    "display: flex; align-items: center; justify-content: center; background-color: var(--color-background2);"
+  )
+  titleElement.innerHTML = title
+  if (downloadable) {
+    titleElement.style.cursor = "pointer"
+    titleElement.innerHTML += " ⇓ (download)"
+    titleElement.addEventListener("click", (event) => {
+      let csv = globalState.downloadCsv[title]
+      if (csv) {
+        let hidden = createEl("a")
+        hidden.href = "data:text/csv;charset=utf-8," + encodeURI(csv)
+        hidden.target = "_blank"
+        hidden.download = title + ".csv"
+        hidden.click()
+      } else {
+        console.error(`table '${title}' does not have a csv to download`)
+      }
+    })
+  }
+  return titleElement
+}
 
-      let completed = row.complete
-      if (completed !== 0) {
+const createTableHeaderRowElement = (colWidthsPx) => {
+  let headerRow = createTableRowElement("var(--color-border)")
+  headerRow.setAttribute("style", headerRow.getAttribute("style") + "position: sticky; top: 0;")
+  let colnames = Object.keys(colWidthsPx)
 
-        let week = row.survey_index
+  for (let colname of colnames) {
+    let colWidthPx = colWidthsPx[colname]
+    let headerElement = createTableCellElement(colWidthPx)
+    headerRow.appendChild(headerElement)
+    headerElement.innerHTML = colname
+  }
 
-        let rowElement = createTableDataRowElement(rowsShown)
-        rowsShown += 1
-        table.appendChild(rowElement)
+  return headerRow
+}
 
-        let pidCell = createTableCellStringElement(colWidthsPx.pid, row.pid)
-        rowElement.appendChild(pidCell)
+const createTableDataRowElement = (rowIndex) => {
+  let color = "var(--color-background)"
+  if (rowIndex % 2 == 1) {
+    color = "var(--color-background2)"
+  }
+  let rowElement = createTableRowElement(color)
+  return rowElement
+}
 
-        let weekCell = createTableCellStringElement(colWidthsPx.week, week)
-        rowElement.appendChild(weekCell)
+const createTableElementFromSoa = (soa, formatters, colWidthsPx, title) => {
 
-        let completedCell = createTableCellStringElement(colWidthsPx.completed, completed)
-        rowElement.appendChild(completedCell)
+  let tableWidthPx = arrSum(Object.values(colWidthsPx))
 
-        let ari = row.ari
-        let ariCell = createTableCellStringElement(colWidthsPx.ari, ari)
-        rowElement.appendChild(ariCell)
+  let table = createDiv()
+  let colnames = Object.keys(soa)
 
-        if (completions[row.pid] === undefined) {
-          completions[row.pid] = []
-        }
-        completions[row.pid].push(week)
+  let titleElement = createTableTitleElement(title)
+  table.appendChild(titleElement)
 
+  let headerRow = createTableHeaderRowElement(colWidthsPx)
+  table.appendChild(headerRow)
+
+  if (colnames.length > 0) {
+    let rowCount = soa[colnames[0]].length
+    table.setAttribute("style", tableContentStyle(tableWidthPx, rowCount))
+
+    for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+      let rowElement = createTableDataRowElement(rowIndex)
+      table.appendChild(rowElement)
+
+      for (let colname of colnames) {
+        let colData = soa[colname][rowIndex]
+        let formatter = formatters[colname]
+        let colDataFormatted = formatter(colData)
+
+        let colWidthPx = colWidthsPx[colname]
+        let cellElement = createTableCellStringElement(colWidthPx, colDataFormatted)
+        rowElement.appendChild(cellElement)
       }
     }
   }
-  table.setAttribute("style", tableContentStyle(tableWidthPx, rowsShown))
 
-  return completions
+  return [table, tableWidthPx]
 }
 
-const updateCompletionsTable = (completions) => {
+const initPassword = () => {
+  let container = createDiv()
+  let label = addDiv(container)
+  let input = addEl(container, createEl("input"))
+  let button = addDiv(container)
+  let buttonText = addDiv(button)
+  let errorText = addDiv(container)
 
-  removeChildren(globalState.dom.data.surveyCompletionsContainer)
-  let table = document.createElement("div")
-  globalState.dom.data.surveyCompletionsContainer.appendChild(table)
+  input.type = "password"
+  input.style.width = "75vw"
+  input.style.height = "2em"
 
-  let rows = Object.entries(completions)
+  label.innerHTML = "Password"
+  buttonText.innerHTML = "Submit"
 
-  let colWidthsPx = {
-    pid: 100,
-    completions: 300,
-  }
-  let tableWidthPx = arrSum(Object.values(colWidthsPx))
-  table.setAttribute("style", tableContentStyle(tableWidthPx, rows.length))
-  globalState.dom.data.surveyCompletionsContainer.setAttribute(
-    "style", tableContainerStyle(tableWidthPx)
-  )
+  container.style.width = "75vw"
+  container.style.margin = "auto"
+  container.style.marginTop = "5vh"
 
-  table.appendChild(createTableTitleElement("Weekly completions"))
-  table.appendChild(createTableHeaderRowElement(colWidthsPx))
+  button.style.cursor = "pointer"
+  button.style.border = "1px solid var(--color-border)"
+  button.style.height = "50px"
+  button.style.width = "50%"
+  button.style.margin = "auto"
+  button.style.marginTop = "10px"
+  button.style.display = "flex"
+  button.style.alignItems = "center"
+  button.style.justifyContent = "center"
 
-  let rowsShown = 0
-  for (let [record, completedSurveys] of rows) {
-    let rowElement = createTableDataRowElement(rowsShown)
-    table.appendChild(rowElement)
-    rowsShown += 1
+  errorText.style.color = "var(--color-error)"
+  errorText.style.textAlign = "center"
+  errorText.style.marginTop = "10px"
 
-    rowElement.appendChild(createTableCellStringElement(colWidthsPx.pid, record))
-
-    let collapsedCompletions = ""
-    if (completedSurveys.length > 0) {
-      collapsedCompletions += completedSurveys[0]
-      if (completedSurveys.length > 1) {
-
-        let prev = completedSurveys[0]
-        let currentStreak = 1
-        for (let completeIndex = 1; completeIndex < completedSurveys.length; completeIndex += 1) {
-          let compl = completedSurveys[completeIndex]
-
-          if (completeIndex == completedSurveys.length - 1) {
-
-            if (currentStreak > 1) {
-              collapsedCompletions += "-"
-            } else {
-              collapsedCompletions += ", "
-            }
-            collapsedCompletions += compl
-
-          } else if (compl - prev == currentStreak) {
-
-            currentStreak += 1
-
-          } else {
-
-            if (currentStreak > 1) {
-              let lastNotShown = prev + currentStreak - 1
-              collapsedCompletions += "-" + lastNotShown
-            }
-
-            collapsedCompletions += ", "
-            collapsedCompletions += compl
-            currentStreak = 1
-            prev = compl
-          }
-
+  button.addEventListener("click", async (e) => {
+    if (buttonText.innerHTML !== "...") {
+      errorText.innerHTML = ""
+      if (input.value === "") {
+        errorText.innerHTML = "Password is empty"
+      } else {
+        buttonText.innerHTML = "..."
+        let updateSuccess = await updateData(input.value)
+        if (!updateSuccess) {
+          errorText.innerHTML = "Not recognized"
+        } else {
+          localStorage.setItem("password", input.value)
+          switchToData(globalState.currentDataPage)
         }
+        buttonText.innerHTML = "Submit"
       }
     }
+  })
 
-    rowElement.appendChild(createTableCellStringElement(colWidthsPx.completions, collapsedCompletions))
-  }
+  return container
 }
 
-const updateCountsTable = () => {
+const initLoading = () => {
+  let loading = createDiv()
+  loading.style.fontSize = "40px"
+  loading.style.display = "flex"
+  loading.style.alignItems = "center"
+  loading.style.justifyContent = "center"
+  loading.style.height = "100vh"
+  loading.style.margin = "auto"
+  loading.innerHTML = "Loading..."
+  return loading
+}
 
-  removeChildren(globalState.dom.data.countsContainer)
-  let countPage = document.createElement("div")
-  globalState.dom.data.countsContainer.appendChild(countPage)
+const initSidebar = (widthPx, initSelected) => {
+  let sidebar = createDiv()
+  sidebar.style.width = widthPx + "px"
+  sidebar.style.height = "100vh"
+  sidebar.style.flexShrink = 0
+  sidebar.style.display = "flex"
+  sidebar.style.flexDirection = "column"
+  sidebar.style.justifyContent = "space-between"
+  sidebar.style.overflowX = "hidden"
 
-  let withdrawalData = globalState.data.withdrawn
+  let top = addDiv(sidebar)
+
+  let dataPages = {
+    weeklySurveys: {name: "Weekly surveys"},
+    bleeds: {name: "Bleeds"},
+    counts: {name: "Counts"},
+  }
+
+  let linksContainer = addDiv(top)
+
+  for (let [dest, props] of Object.entries(dataPages)) {
+    let name = props.name
+
+    let link = addDiv(linksContainer)
+    link.innerHTML = name
+
+    link.style.paddingTop = "5px"
+    link.style.paddingBottom = "5px"
+    link.style.cursor = "pointer"
+    link.style.backgroundColor = "var(--color-background)"
+
+    if (dest === initSelected) {
+      link.style.backgroundColor = "var(--color-selected)"
+    }
+
+    link.addEventListener("mouseover", (event) => {
+      if (dest !== globalState.currentDataPage) {
+        link.style.backgroundColor = "var(--color-background2)"
+      }
+    })
+
+    link.addEventListener("mouseout", (event) => {
+      if (dest !== globalState.currentDataPage) {
+        link.style.background = "var(--color-background)"
+      }
+    })
+
+    link.addEventListener("click", (event) => {
+      for (let child of linksContainer.childNodes) {
+        child.style.backgroundColor = "var(--color-background)"
+      }
+      link.style.backgroundColor = "var(--color-selected)"
+      switchDataPage(dest)
+    })
+  }
+
+  let pageSpecific = addDiv(top)
+  pageSpecific.style.marginTop = "20px"
+
+  let bottom = addDiv(sidebar)
+  let logout = addDiv(bottom)
+  logout.innerHTML = "Logout"
+  logout.style.cursor = "pointer"
+  logout.addEventListener("mouseover", (event) => logout.style.backgroundColor = "var(--color-selected)")
+  logout.addEventListener("mouseleave", (event) => logout.style.backgroundColor = "inherit")
+  logout.addEventListener("click", (event) => {
+    localStorage.removeItem("password")
+    switchToPassword()
+  })
+
+  return {sidebar: sidebar, pageSpecific: pageSpecific}
+}
+
+const initDataContainer = (sidebarWidthPx) => {
+  let container = createDiv()
+  container.style.display = "flex"
+  container.style.width = `calc(100vw - ${sidebarWidthPx}px)`
+  container.style.overflowX = "scroll"
+  return container
+}
+
+const initSurveys = () => {
+  let container = createDiv()
+  container.style.display = "flex"
+
+  let surveyDates2022 = {
+    week: seq(1, 1, 52),
+    start: dateSeq("2022-01-03", 7, 52),
+    end: dateSeq("2022-01-09", 7, 52),
+    send: dateSeq("2022-01-10", 7, 52),
+  }
+
+  let [weeklySurveyDates2022Table, tableWidth] = createTableElementFromSoa(
+    surveyDates2022,
+    {
+      week: (x) => x,
+      start: formatDate,
+      end: formatDate,
+      send: formatDate,
+    },
+    {
+      week: 50,
+      start: 100,
+      end: 100,
+      send: 100,
+    },
+    "Weekly survey dates 2022"
+  )
+
+  let dates = addDiv(container)
+  addEl(dates, weeklySurveyDates2022Table)
+  dates.setAttribute("style", tableContainerStyle(tableWidth))
+
+  let surveys = addDiv(container)
+  let completions = addDiv(container)
+  return {container: container, surveys: surveys, completions: completions}
+}
+
+const initBleeds = () => {
+  let bleeds = createDiv()
+  let table = addDiv(bleeds)
+  return {bleeds: bleeds, table: table}
+}
+
+const initCounts = () => {
+  let counts = createDiv()
+  let table = addDiv(counts)
+  return {counts: counts, table: table}
+}
+
+const createCountsTable = (data, groups) => {
+
+  let withdrawalData = data.withdrawn
 
   let withdrawals = {}
   for (let row of withdrawalData) {
@@ -563,9 +602,8 @@ const updateCountsTable = () => {
     }
   }
 
-  let participantData = globalState.data.participants
+  let participantData = data.participants
 
-  let groups = globalState.countsSettings.groups
   let groupedCounts = {}
   if (groups.length === 0) {
     groupedCounts = {total: {total: 0, active: 0}}
@@ -634,9 +672,8 @@ const updateCountsTable = () => {
 
   let totalCountsWidthPx = arrSum(Object.values(totalCountsColWidthsPx))
 
-  let totalCountsTableContainer = document.createElement("div")
+  let totalCountsTableContainer = createDiv()
   totalCountsTableContainer.setAttribute("style", tableContainerStyle(totalCountsWidthPx))
-  countPage.appendChild(totalCountsTableContainer)
 
   let countsTableDesc = createDiv()
   addTextline(countsTableDesc, "total - total records in redcap")
@@ -654,7 +691,7 @@ const updateCountsTable = () => {
     }
   }
 
-  let totalCountsTable = document.createElement("div")
+  let totalCountsTable = createDiv()
   totalCountsTableContainer.appendChild(totalCountsTable)
 
   let countsTableTitle = "Record counts"
@@ -707,14 +744,14 @@ const updateCountsTable = () => {
   }
 
   totalCountsTable.setAttribute("style", tableContentStyle(totalCountsWidthPx, rowsShown))
+
+  return totalCountsTableContainer
 }
 
-const updateBleedsTable = () => {
-  removeChildren(globalState.dom.data.bleedsContainer)
-  let bleedsTableContainer = document.createElement("div")
-  globalState.dom.data.bleedsContainer.appendChild(bleedsTableContainer)
+const createBleedsTable = (downloadCsv, data, year) => {
+  let bleedsTableContainer = createDiv()
 
-  let allData = globalState.data.bleed_dates
+  let allData = data.bleed_dates
 
   let colWidthsPx = {
     //record_id: 100,
@@ -730,17 +767,17 @@ const updateBleedsTable = () => {
   let tableWidthPx = arrSum(Object.values(colWidthsPx))
   bleedsTableContainer.setAttribute("style", tableContainerStyle(tableWidthPx))
 
-  let bleedsTable = document.createElement("div")
+  let bleedsTable = createDiv()
   bleedsTableContainer.appendChild(bleedsTable)
   let bleedsTableTitle = "Bleed dates"
   bleedsTable.appendChild(createTableTitleElement("Bleed dates", true))
-  globalState.downloadCsv[bleedsTableTitle] = Object.keys(colWidthsPx).join(",") + "\n"
+  downloadCsv[bleedsTableTitle] = Object.keys(colWidthsPx).join(",") + "\n"
   bleedsTable.appendChild(createTableHeaderRowElement(colWidthsPx))
 
   let rowsShown = 0
   for (let row of allData) {
 
-    if (row.year === globalState.bleedsSettings.year) {
+    if (row.year === year) {
       const toString = (str) => {
         let result = ""
         if (str !== undefined && str !== null) {
@@ -760,7 +797,7 @@ const updateBleedsTable = () => {
       const notMissing = (val) => val !== "" && val !== undefined && val !== null
 
       let worthShowing = notMissing(dateBaselineBlood) || notMissing(date7dBlood) || notMissing(date14dBlood) || notMissing(dateEndSeasonBlood)
-      if (globalState.bleedsSettings.year > 2020) {
+      if (year > 2020) {
         worthShowing = worthShowing || notMissing(dateCovaxBaselineBlood) || notMissing(dateCovax7dBlood) || notMissing(dateCovax14dBlood)
       }
 
@@ -789,7 +826,7 @@ const updateBleedsTable = () => {
 
         let rowCsv = row.pid + "," + dateBaselineBlood + "," + date7dBlood + "," + date14dBlood + "," + dateEndSeasonBlood
 
-        if (globalState.bleedsSettings.year > 2020) {
+        if (year > 2020) {
           let day0CovidCell = createTableCellStringElement(colWidthsPx.day0Covid, dateCovaxBaselineBlood)
           rowElement.appendChild(day0CovidCell)
 
@@ -803,27 +840,152 @@ const updateBleedsTable = () => {
         }
 
         rowCsv += "\n"
-        globalState.downloadCsv[bleedsTableTitle] += rowCsv
+        downloadCsv[bleedsTableTitle] += rowCsv
       }
     }
   }
 
   bleedsTable.setAttribute("style", tableContentStyle(tableWidthPx, rowsShown))
+  return bleedsTableContainer
 }
 
-const updateSurveyPage = () => {
-  let completions = updateSurveyTable()
-  updateCompletionsTable(completions)
+const createSurveyTable = (completions, data, year) => {
+  let tableContainer = createDiv()
+  let table = addDiv(tableContainer)
+
+  let allData = data.weekly_surveys
+
+  let colWidthsPx = {
+    pid: 100,
+    week: 100,
+    completed: 100,
+    ari: 100,
+  }
+  let tableWidthPx = arrSum(Object.values(colWidthsPx))
+  tableContainer.setAttribute(
+    "style", tableContainerStyle(tableWidthPx)
+  )
+
+  table.appendChild(createTableTitleElement("Completed weekly surveys"))
+  table.appendChild(createTableHeaderRowElement(colWidthsPx))
+
+  let rowsShown = 0
+  for (let row of allData) {
+
+    if (row.year == year) {
+
+      let completed = row.complete
+      if (completed !== 0) {
+
+        let week = row.survey_index
+
+        let rowElement = createTableDataRowElement(rowsShown)
+        rowsShown += 1
+        table.appendChild(rowElement)
+
+        let pidCell = createTableCellStringElement(colWidthsPx.pid, row.pid)
+        rowElement.appendChild(pidCell)
+
+        let weekCell = createTableCellStringElement(colWidthsPx.week, week)
+        rowElement.appendChild(weekCell)
+
+        let completedCell = createTableCellStringElement(colWidthsPx.completed, completed)
+        rowElement.appendChild(completedCell)
+
+        let ari = row.ari
+        let ariCell = createTableCellStringElement(colWidthsPx.ari, ari)
+        rowElement.appendChild(ariCell)
+
+        if (completions[row.pid] === undefined) {
+          completions[row.pid] = []
+        }
+        completions[row.pid].push(week)
+
+      }
+    }
+  }
+  table.setAttribute("style", tableContentStyle(tableWidthPx, rowsShown))
+
+  return tableContainer
 }
 
-const updateAllTables = () => {
-  updateSurveyPage()
-  updateBleedsTable()
-  updateCountsTable()
+const createCompletionsTable = (completions) => {
+
+  let tableContainer = createDiv()
+  let table = addDiv(tableContainer)
+
+  let rows = Object.entries(completions)
+
+  let colWidthsPx = {
+    pid: 100,
+    completions: 300,
+  }
+  let tableWidthPx = arrSum(Object.values(colWidthsPx))
+  table.setAttribute("style", tableContentStyle(tableWidthPx, rows.length))
+  tableContainer.setAttribute(
+    "style", tableContainerStyle(tableWidthPx)
+  )
+
+  table.appendChild(createTableTitleElement("Weekly completions"))
+  table.appendChild(createTableHeaderRowElement(colWidthsPx))
+
+  let rowsShown = 0
+  for (let [record, completedSurveys] of rows) {
+    let rowElement = createTableDataRowElement(rowsShown)
+    table.appendChild(rowElement)
+    rowsShown += 1
+
+    rowElement.appendChild(createTableCellStringElement(colWidthsPx.pid, record))
+
+    let collapsedCompletions = ""
+    if (completedSurveys.length > 0) {
+      collapsedCompletions += completedSurveys[0]
+      if (completedSurveys.length > 1) {
+
+        let prev = completedSurveys[0]
+        let currentStreak = 1
+        for (let completeIndex = 1; completeIndex < completedSurveys.length; completeIndex += 1) {
+          let compl = completedSurveys[completeIndex]
+
+          if (completeIndex == completedSurveys.length - 1) {
+
+            if (currentStreak > 1) {
+              collapsedCompletions += "-"
+            } else {
+              collapsedCompletions += ", "
+            }
+            collapsedCompletions += compl
+
+          } else if (compl - prev == currentStreak) {
+
+            currentStreak += 1
+
+          } else {
+
+            if (currentStreak > 1) {
+              let lastNotShown = prev + currentStreak - 1
+              collapsedCompletions += "-" + lastNotShown
+            }
+
+            collapsedCompletions += ", "
+            collapsedCompletions += compl
+            currentStreak = 1
+            prev = compl
+          }
+
+        }
+      }
+    }
+
+    rowElement.appendChild(createTableCellStringElement(colWidthsPx.completions, collapsedCompletions))
+  }
+
+  return tableContainer
 }
 
-const updateData = async (password) => {
+const fetchData = async (password) => {
   let success = true
+  let data = {}
 
   if (
     password === "" ||
@@ -845,305 +1007,144 @@ const updateData = async (password) => {
 
     try {
       let resp = await fetch(address)
-      globalState.data = {}
-      globalState.data = await resp.json()
+      data = await resp.json()
     } catch (e) {
       success = false
       console.error(e)
     }
-
-    if (success) {
-      updateAllTables()
-    }
   }
 
-  return success
+  return {success: success, data: data}
 }
 
-const updateDataWithLoading = async (password) => {
-  let dom = globalState.dom
-  removeChildren(dom.main)
-  dom.main.appendChild(dom.loading)
-  let updateSuccess = await updateData(password)
-  dom.main.removeChild(dom.loading)
+const SIDEBAR_WIDTH_PX = 80
+const INIT_DATA_PAGE = "counts"
+const INIT_YEAR = 2022
+const YEARS = [2020, 2021, 2022]
+const INIT_GROUPS = ["site"]
 
-  if (!updateSuccess) {
-    //localStorage.removeItem("password")
-    dom.main.appendChild(dom.passwordBox)
-  } else {
-    dom.main.appendChild(dom.data.container)
+let globalState = {
+  data: {},
+  downloadCsv: {},
+
+  domMain: document.getElementById("main"),
+  currentDataPage: INIT_DATA_PAGE,
+
+  elements: {
+    loading: initLoading(),
+    password: initPassword(),
+
+    sidebar: initSidebar(SIDEBAR_WIDTH_PX, INIT_DATA_PAGE),
+
+    weeklySurveySettings: createSwitch(
+      INIT_YEAR, YEARS,
+      (year) => {
+        globalState.settings.weeklySurveys.year = year
+        updateSurveyPage()
+      }
+    ),
+
+    bleedsSettings: createSwitch(
+      INIT_YEAR, YEARS,
+      (year) => {
+        globalState.bleedsSettings.year = year
+        updateBleedsTable()
+      }
+    ),
+
+    countsSettings: createSwitch(
+      INIT_GROUPS,
+      ["site", "recruited", "arm", "armCovid", "gender", "age", "prior2020", "prior2021", "prior2022"],
+      (groups) => {
+        globalState.settings.counts.groups = groups
+        updateCountsTable()
+      }
+    ),
+
+    dataContainer: initDataContainer(SIDEBAR_WIDTH_PX),
+    weeklySurveys: initSurveys(),
+    bleeds: initBleeds(),
+    counts: initCounts(),
+  },
+
+  settings: {
+    weeklySurveys: { year: 2022 },
+    bleeds: { year: 2022 },
+    counts: { groups: INIT_GROUPS },
+  },
+}
+
+const switchDataPage = (name) => {
+  let oldDataPage = globalState.currentDataPage
+  globalState.currentDataPage = name
+  switch (name) {
+  case "weeklySurveys": {
+    replaceChildren(globalState.elements.sidebar.pageSpecific, globalState.elements.weeklySurveySettings)
+    replaceChildren(globalState.elements.dataContainer, globalState.elements.weeklySurveys.container)
+  } break
+  case "bleeds": {
+    replaceChildren(globalState.elements.sidebar.pageSpecific, globalState.elements.bleedsSettings)
+    replaceChildren(globalState.elements.dataContainer, globalState.elements.bleeds.bleeds)
+  } break
+  case "counts": {
+    replaceChildren(globalState.elements.sidebar.pageSpecific, globalState.elements.countsSettings)
+    replaceChildren(globalState.elements.dataContainer, globalState.elements.counts.counts)
+  } break
+  default: {
+    console.error("data page", name, "does not exist")
+    globalState.currentDataPage = oldDataPage
+  }
   }
 }
 
-//
-// NOTE(sen) DOM secton
-//
-
-// NOTE(sen) Init password box
-{
-  let dom = globalState.dom
-
-  let container = dom.passwordBox
-  let input = document.createElement("input")
-  let label = document.createElement("div")
-  let button = document.createElement("div")
-  let buttonText = document.createElement("div")
-  let errorText = document.createElement("div")
-  container.appendChild(label)
-  container.appendChild(input)
-  container.appendChild(button)
-  container.appendChild(errorText)
-  button.appendChild(buttonText)
-
-  input.setAttribute("type", "password")
-  input.setAttribute("style", "width: 75vw; height: 2em;")
-
-  label.innerHTML = "Password"
-  buttonText.innerHTML = "Submit"
-
-  container.setAttribute(
-    "style",
-    "width: 75vw; margin: auto; margin-top: 5vh"
-  )
-
-  button.setAttribute(
-    "style",
-    "cursor: pointer; border: 1px solid var(--color-border); height: 50px; width: 50%; margin: auto; margin-top: 10px; display: flex; align-items: center; justify-content: center;"
-  )
-
-  errorText.setAttribute(
-    "style",
-    "color: var(--color-error); text-align: center; margin-top: 10px"
-  )
-
-  button.addEventListener("click", async (e) => {
-    if (buttonText.innerHTML !== "...") {
-      errorText.innerHTML = ""
-      if (input.value === "") {
-        errorText.innerHTML = "Password is empty"
-      } else {
-        buttonText.innerHTML = "..."
-        let updateSuccess = await updateData(input.value, [2022])
-        if (!updateSuccess) {
-          errorText.innerHTML = "Not recognized"
-        } else {
-          localStorage.setItem("password", input.value)
-          dom.main.removeChild(container)
-          dom.main.appendChild(dom.data.container)
-        }
-        buttonText.innerHTML = "Submit"
-      }
-    }
-  })
+const switchToPassword = () => replaceChildren(globalState.domMain, globalState.elements.password)
+const switchToLoading = () => replaceChildren(globalState.domMain, globalState.elements.loading)
+const switchToData = (dataPageName) => {
+  removeChildren(globalState.domMain)
+  addEl(globalState.domMain, globalState.elements.sidebar.sidebar)
+  addEl(globalState.domMain, globalState.elements.dataContainer)
+  switchDataPage(dataPageName)
 }
 
-// NOTE(sen) Init data page
-{
-  let dom = globalState.dom
-  let container = dom.data.container
-  container.setAttribute("id", "dom-data-container")
-  container.setAttribute("style", "display: flex")
+const updateCountsTable = () => replaceChildren(
+  globalState.elements.counts.table,
+  createCountsTable(globalState.data, globalState.settings.counts.groups)
+)
 
-  // NOTE(sen) Sidebar
-  let sidebar = document.createElement("div")
-  container.appendChild(sidebar)
-  let sidebarWidthPx = 80
-  sidebar.setAttribute(
-    "style",
-    "width: " + sidebarWidthPx +
-    "px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: space-between; height: 100vh; overflow-x: hidden;"
+const updateBleedsTable = () => replaceChildren(
+  globalState.elements.bleeds.table,
+  createBleedsTable(globalState.downloadCsv, globalState.data, globalState.settings.bleeds.year)
+)
+
+const updateSurveyTables = () => {
+  let completions = {}
+  replaceChildren(
+    globalState.elements.weeklySurveys.surveys,
+    createSurveyTable(completions, globalState.data, globalState.settings.weeklySurveys.year)
   )
-
-  let sidebarTopContainer = document.createElement("div")
-  sidebar.appendChild(sidebarTopContainer)
-  sidebarTopContainer.setAttribute("style", "display: flex; flex-direction: column; row-gap: 20px;")
-
-  // NOTE(sen) Data table switch
-  let sidebarLinksContainer = document.createElement("div")
-  sidebarTopContainer.appendChild(sidebarLinksContainer)
-
-  let sidebarLinks = {
-    "weeklySurveysContainer": {name: "Weekly surveys", settings: "weeklySurveysSettingsContainer"},
-    "bleedsContainer": {name: "Bleeds", settings: "bleedsSettingsContainer"},
-    "countsContainer": {name: "Counts", settings: "countsSettingsContainer"},
-  }
-
-  for (let [dest, other] of Object.entries(sidebarLinks)) {
-    let name = other.name
-
-    let link = document.createElement("div")
-    sidebarLinksContainer.appendChild(link)
-
-    let baseStyle = "padding-top: 5px; padding-bottom: 5px; cursor: pointer;"
-    let hoverStyle = baseStyle + "background-color: var(--color-background2);"
-    let selectedStyle = baseStyle + "background-color: var(--color-selected);"
-
-    if (dest === globalState.currentDataContainer) {
-      link.setAttribute("style", selectedStyle)
-    } else {
-      link.setAttribute("style", baseStyle)
-    }
-
-    link.innerHTML = name
-
-    link.addEventListener("mouseover", (event) => {
-      if (dest !== globalState.currentDataContainer) {
-        link.setAttribute("style", hoverStyle)
-      }
-    })
-    link.addEventListener("mouseout", (event) => {
-      if (dest !== globalState.currentDataContainer) {
-        link.setAttribute("style", baseStyle)
-      }
-    })
-
-    link.addEventListener("click", (event) => {
-      if (globalState.currentDataContainer !== dest) {
-
-        for (let child of sidebarLinksContainer.childNodes) {
-          child.setAttribute("style", baseStyle)
-        }
-
-        link.setAttribute("style", selectedStyle)
-
-        // NOTE(sen) Data page container has 2 children - sidebar and content
-        container.removeChild(container.lastChild)
-        let destContainer = globalState.dom.data[dest]
-        container.appendChild(destContainer)
-        globalState.currentDataContainer = dest
-
-        // NOTE(sen) Replace page-specific settings
-        removeChildren(globalState.dom.data.sidebarSpecificSettingsContainer)
-        globalState.dom.data.sidebarSpecificSettingsContainer.appendChild(
-          globalState.dom.data[other.settings]
-        )
-      }
-    })
-  }
-
-  // NOTE(sen) Page-specific settings
-  sidebarTopContainer.appendChild(globalState.dom.data.sidebarSpecificSettingsContainer)
-
-  let years = [2020, 2021, 2022]
-
-  globalState.dom.data.weeklySurveysSettingsContainer = createSwitch(
-    globalState.weeklySurveysSettings.year,
-    years,
-    (year) => {
-      globalState.weeklySurveysSettings.year = year
-      updateSurveyPage()
-    }
+  replaceChildren(
+    globalState.elements.weeklySurveys.completions,
+    createCompletionsTable(completions)
   )
-
-  globalState.dom.data.bleedsSettingsContainer = createSwitch(
-    globalState.bleedsSettings.year,
-    years,
-    (year) => {
-      globalState.bleedsSettings.year = year
-      updateBleedsTable()
-    }
-  )
-
-  globalState.dom.data.countsSettingsContainer = createSwitch(
-    globalState.countsSettings.groups,
-    ["site", "recruited", "arm", "armCovid", "gender", "age", "prior2020", "prior2021", "prior2022"],
-    (groups) => {
-      globalState.countsSettings.groups = groups
-      updateCountsTable()
-    }
-  )
-
-  // NOTE(sen) Logout button
-  let logoutButton = document.createElement("div")
-  sidebar.appendChild(logoutButton)
-  logoutButton.setAttribute("style", "cursor: pointer;")
-  logoutButton.innerHTML = "Logout"
-  logoutButton.addEventListener("mouseover", (event) => logoutButton.style.backgroundColor = "var(--color-selected)")
-  logoutButton.addEventListener("mouseleave", (event) => logoutButton.style.backgroundColor = "inherit")
-  logoutButton.addEventListener("click", (event) => {
-    localStorage.removeItem("password")
-    globalState.dom.main.removeChild(globalState.dom.data.container)
-    globalState.dom.main.appendChild(globalState.dom.passwordBox)
-  })
-
-  let mainContentStyle = `display: flex; width: calc(100vw - ${sidebarWidthPx}px); overflow-x: scroll;`
-
-  // NOTE(sen) Weekly surveys
-  let weeklySurveysContainer = dom.data.weeklySurveysContainer
-  weeklySurveysContainer.setAttribute("style", mainContentStyle)
-
-  let datesTableContainer = document.createElement("div")
-  let surveyTableContainer = dom.data.surveyTableContainer
-  let surveyCompletionsContainer = dom.data.surveyCompletionsContainer
-
-  weeklySurveysContainer.appendChild(datesTableContainer)
-  weeklySurveysContainer.appendChild(surveyTableContainer)
-  weeklySurveysContainer.appendChild(surveyCompletionsContainer)
-
-  // NOTE(sen) Dates of weekly surveys only since we know them in advance
-
-  let weeklySurveyDates2022 = {
-    week: seq(1, 1, 52),
-    start: dateSeq("2022-01-03", 7, 52),
-    end: dateSeq("2022-01-09", 7, 52),
-    send: dateSeq("2022-01-10", 7, 52),
-  }
-
-  let [weeklySurveyDates2022Table, tableWidth] = createTableElementFromSoa(
-      weeklySurveyDates2022,
-      {
-        week: (x) => x,
-        start: formatDate,
-        end: formatDate,
-        send: formatDate,
-      },
-      {
-        week: 50,
-        start: 100,
-        end: 100,
-        send: 100,
-      },
-      "Weekly survey dates 2022"
-    )
-
-  datesTableContainer.appendChild(weeklySurveyDates2022Table)
-  datesTableContainer.setAttribute("style", tableContainerStyle(tableWidth))
-
-  // NOTE(sen) Counts
-  let countsContainer = dom.data.countsContainer
-  countsContainer.setAttribute("style", mainContentStyle)
-
-  // NOTE(sen) Bleeds
-  let bleedsContainer = dom.data.bleedsContainer
-  bleedsContainer.setAttribute("style", mainContentStyle)
-
-  // NOTE(sen) Init the correct table and settings
-  container.appendChild(globalState.dom.data[globalState.currentDataContainer])
-  globalState.dom.data.sidebarSpecificSettingsContainer.appendChild(
-    globalState.dom.data[sidebarLinks[globalState.currentDataContainer].settings]
-  )
-}
-
-// NOTE(sen) Init loading indicator
-{
-  let dom = globalState.dom
-  let loading = dom.loading
-  loading.setAttribute(
-    "style",
-    "font-size: 40px; display: flex; align-items: center; justify-content: center; height: 100vh"
-  )
-  loading.innerHTML = "Loading..."
 }
 
 // NOTE(sen) Attempt to login from local storage
 {
-  let dom = globalState.dom
   let password = localStorage.getItem("password")
-
   if (password === null) {
-    dom.main.appendChild(dom.passwordBox)
+    switchToPassword()
   } else {
-    updateDataWithLoading(password)
+    switchToLoading()
+    let fetchResult = await fetchData(password)
+    if (!fetchResult.success) {
+      switchToPassword()
+    } else {
+      globalState.data = fetchResult.data
+      updateCountsTable()
+      updateBleedsTable()
+      updateSurveyTables()
+      switchToData(globalState.currentDataPage)
+    }
   }
 }
 
