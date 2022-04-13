@@ -102,6 +102,9 @@ data_access_groups2021 <- consent2021 %>%
   select(record_id, redcap_data_access_group) %>%
   filter(record_id %in% active2021$record_id)
 
+# NOTE(sen) If data access group doesn't get assigned, the record will be invisible
+# unless you have full access.
+
 redcap_upload_spoonfed(20, 2022, "", data_access_groups2021)
 
 #
