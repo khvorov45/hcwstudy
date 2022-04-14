@@ -168,6 +168,60 @@ const dateSeq = (start, step, count) => {
   return result
 }
 
+const summarise = (data, groups, defaultCounts, filter, getKey, addRow) => {
+  let groupedCounts = {}
+  if (groups.length === 0) {
+    groupedCounts = {total: {...defaultCounts}}
+  }
+
+  for (let row of data) {
+    if (filter(row)) {
+
+      if (groups.length === 0) {
+        addRow(row, groupedCounts.total)
+      }
+
+      let currentGroupCount = groupedCounts
+      for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
+        let group = groups[groupIndex]
+        let key = getKey(row, group)
+
+        if (groupIndex == groups.length - 1) {
+          if (currentGroupCount[key] === undefined) {
+            currentGroupCount[key] = {...defaultCounts}
+          }
+          addRow(row, currentGroupCount[key])
+        } else {
+          if (currentGroupCount[key] === undefined) {
+            currentGroupCount[key] = {}
+          }
+          currentGroupCount = currentGroupCount[key]
+        }
+      }
+    }
+  }
+
+  return groupedCounts
+}
+
+const flattenMap = (map, existing) => {
+  let result = []
+  for (let key of Object.keys(map)) {
+    let nested = map[key]
+    let newExisting = [...existing]
+    newExisting.push(key)
+    if (isObject(nested) && isObject(Object.values(nested)[0])) {
+      result = result.concat(flattenMap(nested, newExisting))
+    } else {
+      for (let val of Object.values(nested)) {
+        newExisting.push(val)
+      }
+      result.push(newExisting)
+    }
+  }
+  return result
+}
+
 //
 // SECTION DOM
 //
@@ -591,7 +645,31 @@ const initCounts = () => {
   return {counts: counts, table: table}
 }
 
-const createCountsTable = (data, groups) => {
+const initCountsSettings = (initGroups, initTable) => {
+  let container = createDiv()
+
+  let tableSwitch = addEl(container, createSwitch(
+    initTable, ["records", "bleeds"],
+    (table) => {
+      globalState.settings.counts.table = table
+      updateCountsTable()
+    }
+  ))
+
+  let groupSwitch = addEl(container, createSwitch(
+    initGroups,
+    ["site", "recruited", "arm", "armCovid", "gender", "age", "prior2020", "prior2021", "prior2022"],
+    (groups) => {
+      globalState.settings.counts.groups = groups
+      updateCountsTable()
+    }
+  ))
+  groupSwitch.style.marginTop = "20px"
+
+  return container
+}
+
+const createCountsRecordsTable = (data, groups) => {
 
   let withdrawalData = data.withdrawn
 
@@ -604,61 +682,33 @@ const createCountsTable = (data, groups) => {
 
   let participantData = data.participants
 
-  let groupedCounts = {}
-  if (groups.length === 0) {
-    groupedCounts = {total: {total: 0, active: 0}}
-  }
-
-  for (let row of participantData) {
-    if (row.pid !== undefined) {
-
-      if (row.pid.length >= 3) {
-
-        let withdrawn = withdrawals[row.pid] === true
-        let active = !withdrawn
-
-        if (groups.length === 0) {
-          groupedCounts.total.total += 1
-          if (active) {
-            groupedCounts.total.active += 1
-          }
-        }
-
-        let currentGroupCount = groupedCounts
-        for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
-          let group = groups[groupIndex]
-          let key = null
-
-          switch (group) {
-          case "site": {key = row.site;} break
-          case "recruited": {key = row.recruitment_year;} break
-          case "gender": {key = row.gender;} break
-          case "arm": {key = row.arm;} break
-          case "armCovid": {key = row.covid_arm;} break
-          case "age": {key = row.age_group;} break
-          case "prior2020": {key = row.prior2020;} break
-          case "prior2021": {key = row.prior2021;} break
-          case "prior2022": {key = row.prior2022;} break
-          }
-
-          if (groupIndex == groups.length - 1) {
-            if (currentGroupCount[key] === undefined) {
-              currentGroupCount[key] = {total: 0, active: 0}
-            }
-            currentGroupCount[key].total += 1
-            if (active) {
-              currentGroupCount[key].active += 1
-            }
-          } else {
-            if (currentGroupCount[key] === undefined) {
-              currentGroupCount[key] = {}
-            }
-            currentGroupCount = currentGroupCount[key]
-          }
-        }
+  let groupedCounts = summarise(
+    participantData, groups, {total: 0, active: 0},
+    (row) => row.pid !== undefined && row.pid.length >= 3,
+    (row, group) => {
+      let key = null
+      switch (group) {
+      case "site": {key = row.site;} break
+      case "recruited": {key = row.recruitment_year;} break
+      case "gender": {key = row.gender;} break
+      case "arm": {key = row.arm;} break
+      case "armCovid": {key = row.covid_arm;} break
+      case "age": {key = row.age_group;} break
+      case "prior2020": {key = row.prior2020;} break
+      case "prior2021": {key = row.prior2021;} break
+      case "prior2022": {key = row.prior2022;} break
+      }
+      return key
+    },
+    (row, counts) => {
+      let withdrawn = withdrawals[row.pid] === true
+      let active = !withdrawn
+      counts.total += 1
+      if (active) {
+        counts.active += 1
       }
     }
-  }
+  )
 
   let totalCountsColWidthsPx = {}
   if (groups.length === 0) {
@@ -700,23 +750,6 @@ const createCountsTable = (data, groups) => {
   totalCountsTable.appendChild(createTableTitleElement(countsTableTitle, true))
   totalCountsTable.appendChild(createTableHeaderRowElement(totalCountsColWidthsPx))
 
-  const flattenMap = (map, existing) => {
-    let result = []
-    for (let key of Object.keys(map)) {
-      let nested = map[key]
-      let newExisting = [...existing]
-      newExisting.push(key)
-      if (isObject(nested) && nested.total === undefined) {
-        result = result.concat(flattenMap(nested, newExisting))
-      } else {
-        newExisting.push(nested.total)
-        newExisting.push(nested.active)
-        result.push(newExisting)
-      }
-    }
-    return result
-  }
-
   let groupedCountsFlat = flattenMap(groupedCounts, [])
 
   let rowsShown = 0
@@ -744,6 +777,114 @@ const createCountsTable = (data, groups) => {
   }
 
   totalCountsTable.setAttribute("style", tableContentStyle(totalCountsWidthPx, rowsShown))
+
+  return totalCountsTableContainer
+}
+
+const createCountsBleedsTable = (data, groups) => {
+
+  let groupedCounts = summarise(
+    data.bleed_dates, groups,
+    {fluDay0: 0, fluDay7: 0, fluDay14: 0, fluDay220: 0, covDay0: 0, covDay7: 0, covDay14: 0},
+    (row) => true,
+    (row, group) => {
+      let key = null
+      switch (group) {
+      case "site": {key = row.site;} break
+      case "recruited": {key = row.recruitment_year;} break
+      case "gender": {key = row.gender;} break
+      case "arm": {key = row.arm;} break
+      case "armCovid": {key = row.covid_arm;} break
+      case "age": {key = row.age_group;} break
+      case "prior2020": {key = row.prior2020;} break
+      case "prior2021": {key = row.prior2021;} break
+      case "prior2022": {key = row.prior2022;} break
+      }
+      return key
+    },
+    (row, counts) => {
+      const isPresent = (val) => val !== null && val !== undefined && val !== ""
+      if (isPresent(row.flu_day_0)) {counts.fluDay0 += 1}
+      if (isPresent(row.flu_day_7)) {counts.fluDay7 += 1}
+      if (isPresent(row.flu_day_14)) {counts.fluDay14 += 1}
+      if (isPresent(row.flu_day_220)) {counts.fluDay220 += 1}
+      if (isPresent(row.covid_day_0)) {counts.covDay0 += 1}
+      if (isPresent(row.covid_day_7)) {counts.covDay7 += 1}
+      if (isPresent(row.covid_day_14)) {counts.covDay14 += 1}
+    }
+  )
+
+  let totalCountsColWidthsPx = {}
+  if (groups.length === 0) {
+    totalCountsColWidthsPx.Total = 100
+  }
+  for (let group of groups) {
+    totalCountsColWidthsPx[group] = 100
+  }
+  totalCountsColWidthsPx.fluDay0 = 100
+  totalCountsColWidthsPx.fluDay7 = 100
+  totalCountsColWidthsPx.fluDay14 = 100
+  totalCountsColWidthsPx.fluDay220 = 100
+  totalCountsColWidthsPx.covDay0 = 100
+  totalCountsColWidthsPx.covDay7 = 100
+  totalCountsColWidthsPx.covDay14 = 100
+
+  let totalCountsWidthPx = arrSum(Object.values(totalCountsColWidthsPx))
+
+  let totalCountsTableContainer = createDiv()
+  totalCountsTableContainer.setAttribute("style", tableContainerStyle(totalCountsWidthPx))
+
+  let countsTableDesc = createDiv()
+  addTextline(countsTableDesc, "Bleeds that have a date in redcap")
+  if (groups.length > 0) {
+    addTextline(countsTableDesc, "all counts apply to the subset defined by (" + groups.join(", ") + ")")
+  }
+
+  for (let group of groups) {
+    switch (group) {
+    case "recruited": {addTextline(countsTableDesc, "recruited - year the participant was recruited");} break
+    case "prior2020": {addTextline(countsTableDesc, "prior2020 - vaccination count between 2015-2019 inclusive");} break
+    case "prior2021": {addTextline(countsTableDesc, "prior2021 - vaccination count between 2016-2020 inclusive");} break
+    case "prior2022": {addTextline(countsTableDesc, "prior2022 - vaccination count between 2017-2021 inclusive");} break
+    }
+  }
+
+  let totalCountsTable = createDiv()
+  totalCountsTableContainer.appendChild(totalCountsTable)
+
+  let countsTableTitle = "Bleed counts"
+  globalState.downloadCsv[countsTableTitle] = Object.keys(totalCountsColWidthsPx).join(",") + "\n"
+  totalCountsTable.appendChild(countsTableDesc)
+  totalCountsTable.appendChild(createTableTitleElement(countsTableTitle, true))
+  totalCountsTable.appendChild(createTableHeaderRowElement(totalCountsColWidthsPx))
+
+  let groupedCountsFlat = flattenMap(groupedCounts, [])
+
+  let rowsShown = 0
+
+  let tableColNames = Object.keys(totalCountsColWidthsPx)
+  for (let rowVals of groupedCountsFlat) {
+    let rowElement = createTableRowElement("var(--color-background)")
+    rowsShown += 1
+    totalCountsTable.appendChild(rowElement)
+
+    let rowCsv = ""
+
+    for (let rowValIndex = 0; rowValIndex < rowVals.length; rowValIndex += 1) {
+      let rowVal = rowVals[rowValIndex]
+      rowCsv += "\"" + rowVal + "\""
+      if (rowValIndex < rowVals.length - 1) {
+        rowCsv += ","
+      }
+      let colName = tableColNames[rowValIndex]
+      let width = totalCountsColWidthsPx[colName]
+      rowElement.appendChild(createTableCellStringElement(width, rowVal))
+    }
+
+    globalState.downloadCsv[countsTableTitle] += rowCsv + "\n"
+  }
+
+  totalCountsTableContainer.setAttribute("style", tableContentStyle(totalCountsWidthPx, rowsShown))
 
   return totalCountsTableContainer
 }
@@ -1022,6 +1163,7 @@ const INIT_DATA_PAGE = "counts"
 const INIT_YEAR = 2022
 const YEARS = [2020, 2021, 2022]
 const INIT_GROUPS = ["site"]
+const INIT_COUNT_TABLE = "records"
 
 let globalState = {
   data: {},
@@ -1052,14 +1194,7 @@ let globalState = {
       }
     ),
 
-    countsSettings: createSwitch(
-      INIT_GROUPS,
-      ["site", "recruited", "arm", "armCovid", "gender", "age", "prior2020", "prior2021", "prior2022"],
-      (groups) => {
-        globalState.settings.counts.groups = groups
-        updateCountsTable()
-      }
-    ),
+    countsSettings: initCountsSettings(INIT_GROUPS, INIT_COUNT_TABLE),
 
     dataContainer: initDataContainer(SIDEBAR_WIDTH_PX),
     weeklySurveys: initSurveys(),
@@ -1070,7 +1205,7 @@ let globalState = {
   settings: {
     weeklySurveys: { year: 2022 },
     bleeds: { year: 2022 },
-    counts: { groups: INIT_GROUPS },
+    counts: { groups: INIT_GROUPS, table: INIT_COUNT_TABLE },
   },
 }
 
@@ -1106,11 +1241,24 @@ const switchToData = (dataPageName) => {
   switchDataPage(dataPageName)
 }
 
-const updateCountsTable = () => replaceChildren(
-  globalState.elements.counts.table,
-  createCountsTable(globalState.data, globalState.settings.counts.groups)
-)
+const updateCountsTable = () => {
+  let tableEl = createDiv()
 
+  switch (globalState.settings.counts.table) {
+  case "records": {
+      tableEl = createCountsRecordsTable(globalState.data, globalState.settings.counts.groups)
+  } break;
+  case "bleeds": {
+      tableEl = createCountsBleedsTable(globalState.data, globalState.settings.counts.groups)
+  } break;
+  default: console.error("undexpect counts table name", globalState.settings.counts.table)
+  }
+
+  replaceChildren(
+    globalState.elements.counts.table,
+    tableEl
+  )
+}
 const updateBleedsTable = () => replaceChildren(
   globalState.elements.bleeds.table,
   createBleedsTable(globalState.downloadCsv, globalState.data, globalState.settings.bleeds.year)
@@ -1148,7 +1296,6 @@ const updateSurveyTables = () => {
   }
 }
 
-// TODO(sen) Bleed counts
 // TODO(sen) Paths
 // TODO(sen) Download all tables (current: bleed, counts)
 // TODO(sen) Table filtering

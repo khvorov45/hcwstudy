@@ -31,7 +31,8 @@ bleed_dates_covid_wide <- bleed_dates_covid %>%
 	mutate(day = paste0("covid_day_", day)) %>%
 	pivot_wider(names_from = "day", values_from = "date")
 
-bleed_dates_wide <- full_join(bleed_dates_flu_wide, bleed_dates_covid_wide, c("pid", "year"))
+bleed_dates_wide <- full_join(bleed_dates_flu_wide, bleed_dates_covid_wide, c("pid", "year")) %>%
+	left_join(participants, c("pid", "site"))
 
 consent <- read_csv("../data/consent.csv") %>%
 	left_join(participants %>% select(pid, site), "pid")
