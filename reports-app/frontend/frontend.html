@@ -645,7 +645,7 @@ const initCounts = () => {
   return {counts: counts, table: table}
 }
 
-const initCountsSettings = (initGroups, initTable) => {
+const initCountsSettings = (initGroupsRecords, initGroupsBleeds, initTable) => {
   let container = createDiv()
 
   let tableSwitch = addEl(container, createSwitch(
@@ -656,17 +656,32 @@ const initCountsSettings = (initGroups, initTable) => {
     }
   ))
 
-  let groupSwitch = addEl(container, createSwitch(
-    initGroups,
-    ["site", "recruited", "arm", "armCovid", "gender", "age", "prior2020", "prior2021", "prior2022"],
+  let groupSwitchContainer = addDiv(container)
+
+  let recordsSwitch = createSwitch(
+    initGroupsRecords,
+    ["site", "recruited", "arm", "armCovid",
+      "gender", "age", "prior2020", "prior2021", "prior2022"],
     (groups) => {
-      globalState.settings.counts.groups = groups
+      globalState.settings.counts.groups_records = groups
       updateCountsTable()
     }
-  ))
-  groupSwitch.style.marginTop = "20px"
+  )
+  recordsSwitch.style.marginTop = "20px"
 
-  return container
+  let bleedsSwitch = createSwitch(
+    initGroupsBleeds,
+    ["year", "site", "recruited", "arm", "armCovid",
+      "gender", "age", "prior2020", "prior2021", "prior2022"],
+    (groups) => {
+      globalState.settings.counts.groups_bleeds = groups
+      updateCountsTable()
+    }
+  )
+  bleedsSwitch.style.marginTop = "20px"
+
+  return {container: container, groupSwitchContainer: groupSwitchContainer, 
+    recordsSwitch: recordsSwitch, bleedsSwitch: bleedsSwitch}
 }
 
 const createCountsRecordsTable = (data, groups) => {
@@ -790,6 +805,7 @@ const createCountsBleedsTable = (data, groups) => {
     (row, group) => {
       let key = null
       switch (group) {
+      case "year": {key = row.year;} break
       case "site": {key = row.site;} break
       case "recruited": {key = row.recruitment_year;} break
       case "gender": {key = row.gender;} break
@@ -1162,7 +1178,8 @@ const SIDEBAR_WIDTH_PX = 80
 const INIT_DATA_PAGE = "counts"
 const INIT_YEAR = 2022
 const YEARS = [2020, 2021, 2022]
-const INIT_GROUPS = ["site"]
+const INIT_GROUPS_RECORDS = ["site"]
+const INIT_GROUPS_BLEEDS = ["year"]
 const INIT_COUNT_TABLE = "records"
 
 let globalState = {
@@ -1194,7 +1211,7 @@ let globalState = {
       }
     ),
 
-    countsSettings: initCountsSettings(INIT_GROUPS, INIT_COUNT_TABLE),
+    countsSettings: initCountsSettings(INIT_GROUPS_RECORDS, INIT_GROUPS_BLEEDS, INIT_COUNT_TABLE),
 
     dataContainer: initDataContainer(SIDEBAR_WIDTH_PX),
     weeklySurveys: initSurveys(),
@@ -1205,7 +1222,8 @@ let globalState = {
   settings: {
     weeklySurveys: { year: 2022 },
     bleeds: { year: 2022 },
-    counts: { groups: INIT_GROUPS, table: INIT_COUNT_TABLE },
+    counts: { groups_records: INIT_GROUPS_RECORDS, groups_bleeds: INIT_GROUPS_BLEEDS, 
+      table: INIT_COUNT_TABLE },
   },
 }
 
@@ -1222,7 +1240,7 @@ const switchDataPage = (name) => {
     replaceChildren(globalState.elements.dataContainer, globalState.elements.bleeds.bleeds)
   } break
   case "counts": {
-    replaceChildren(globalState.elements.sidebar.pageSpecific, globalState.elements.countsSettings)
+    replaceChildren(globalState.elements.sidebar.pageSpecific, globalState.elements.countsSettings.container)
     replaceChildren(globalState.elements.dataContainer, globalState.elements.counts.counts)
   } break
   default: {
@@ -1243,22 +1261,24 @@ const switchToData = (dataPageName) => {
 
 const updateCountsTable = () => {
   let tableEl = createDiv()
+  let switchEl = createDiv()
 
   switch (globalState.settings.counts.table) {
   case "records": {
-      tableEl = createCountsRecordsTable(globalState.data, globalState.settings.counts.groups)
+      tableEl = createCountsRecordsTable(globalState.data, globalState.settings.counts.groups_records)
+      switchEl = globalState.elements.countsSettings.recordsSwitch
   } break;
   case "bleeds": {
-      tableEl = createCountsBleedsTable(globalState.data, globalState.settings.counts.groups)
+      tableEl = createCountsBleedsTable(globalState.data, globalState.settings.counts.groups_bleeds)
+      switchEl = globalState.elements.countsSettings.bleedsSwitch
   } break;
   default: console.error("undexpect counts table name", globalState.settings.counts.table)
   }
 
-  replaceChildren(
-    globalState.elements.counts.table,
-    tableEl
-  )
+  replaceChildren(globalState.elements.counts.table, tableEl)
+  replaceChildren(globalState.elements.countsSettings.groupSwitchContainer, switchEl)
 }
+
 const updateBleedsTable = () => replaceChildren(
   globalState.elements.bleeds.table,
   createBleedsTable(globalState.downloadCsv, globalState.data, globalState.settings.bleeds.year)
