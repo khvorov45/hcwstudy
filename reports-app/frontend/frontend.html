@@ -680,7 +680,7 @@ const initCountsSettings = (initGroupsRecords, initGroupsBleeds, initTable) => {
   )
   bleedsSwitch.style.marginTop = "20px"
 
-  return {container: container, groupSwitchContainer: groupSwitchContainer, 
+  return {container: container, groupSwitchContainer: groupSwitchContainer,
     recordsSwitch: recordsSwitch, bleedsSwitch: bleedsSwitch}
 }
 
@@ -1222,7 +1222,7 @@ let globalState = {
   settings: {
     weeklySurveys: { year: 2022 },
     bleeds: { year: 2022 },
-    counts: { groups_records: INIT_GROUPS_RECORDS, groups_bleeds: INIT_GROUPS_BLEEDS, 
+    counts: { groups_records: INIT_GROUPS_RECORDS, groups_bleeds: INIT_GROUPS_BLEEDS,
       table: INIT_COUNT_TABLE },
   },
 }
@@ -1272,7 +1272,7 @@ const updateCountsTable = () => {
       tableEl = createCountsBleedsTable(globalState.data, globalState.settings.counts.groups_bleeds)
       switchEl = globalState.elements.countsSettings.bleedsSwitch
   } break;
-  default: console.error("undexpect counts table name", globalState.settings.counts.table)
+  default: console.error("unexpected counts table name", globalState.settings.counts.table)
   }
 
   replaceChildren(globalState.elements.counts.table, tableEl)
