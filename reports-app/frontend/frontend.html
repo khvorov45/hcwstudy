@@ -339,10 +339,10 @@ const tableContentStyle = (widthPx, rowCount) => {
 
 const createTableCellElement = (widthPx) => {
   let cellElement = createDiv()
-  cellElement.setAttribute(
-    "style",
-    "width: " + widthPx + "px; display: flex; align-items: center; justify-content: center;"
-  )
+  cellElement.style.display = "flex"
+  cellElement.style.width = widthPx + "px"
+  cellElement.style.alignItems = "center"
+  cellElement.style.justifyContent = "center"
   return cellElement
 }
 
@@ -354,26 +354,27 @@ const createTableCellStringElement = (widthPx, string) => {
   return cellElement
 }
 
-const createTableRowElement = (color) => {
+const createTableRowElement = () => {
   let rowElement = createDiv()
-  rowElement.setAttribute("style",
-    "display: flex; height: " + TABLE_ROW_HEIGHT_PX + "px;" + "background-color: " + color + ";"
-  )
+  rowElement.style.display = "flex"
+  rowElement.style.height = TABLE_ROW_HEIGHT_PX + "px"
   return rowElement
 }
 
 const createTableTitleElement = (title, downloadable) => {
   let titleElement = createDiv()
-  titleElement.setAttribute(
-    "style",
-    "display: flex; align-items: center; justify-content: center; background-color: var(--color-background2);"
-  )
+  titleElement.style.display = "flex"
+  titleElement.style.alignItems = "center"
+  titleElement.style.justifyContent = "center"
+  titleElement.style.backgroundColor = "var(--color-background2)"
   titleElement.innerHTML = title
+
   if (downloadable) {
     titleElement.style.cursor = "pointer"
     titleElement.innerHTML += " ⇓ (download)"
+
     titleElement.addEventListener("click", (event) => {
-      let csv = globalState.downloadCsv[title]
+      let csv = DOWNLOAD_CSV[title]
       if (csv) {
         let hidden = createEl("a")
         hidden.href = "data:text/csv;charset=utf-8," + encodeURI(csv)
@@ -385,16 +386,21 @@ const createTableTitleElement = (title, downloadable) => {
       }
     })
   }
+
   return titleElement
 }
 
-const createTableHeaderRowElement = (colWidthsPx) => {
-  let headerRow = createTableRowElement("var(--color-border)")
-  headerRow.setAttribute("style", headerRow.getAttribute("style") + "position: sticky; top: 0;")
-  let colnames = Object.keys(colWidthsPx)
+const createTableHeaderRowElement = (colnames, colWidthsPx) => {
+  let headerRow = createTableRowElement()
+  headerRow.style.backgroundColor = "var(--color-border)"
+  headerRow.style.position = "sticky"
+  headerRow.style.top = "0"
 
   for (let colname of colnames) {
     let colWidthPx = colWidthsPx[colname]
+    if (colWidthPx === undefined) {
+      colWidthPx = colWidthsPx.default
+    }
     let headerElement = createTableCellElement(colWidthPx)
     headerRow.appendChild(headerElement)
     headerElement.innerHTML = colname
@@ -404,28 +410,39 @@ const createTableHeaderRowElement = (colWidthsPx) => {
 }
 
 const createTableDataRowElement = (rowIndex) => {
-  let color = "var(--color-background)"
+  let rowElement = createTableRowElement()
+  rowElement.style.backgroundColor = "var(--color-background)"
   if (rowIndex % 2 == 1) {
-    color = "var(--color-background2)"
+    rowElement.style.backgroundColor = "var(--color-background2)"
   }
-  let rowElement = createTableRowElement(color)
   return rowElement
 }
 
 const createTableElementFromSoa = (soa, formatters, colWidthsPx, title) => {
 
-  let tableWidthPx = arrSum(Object.values(colWidthsPx))
-
   let table = createDiv()
+  let titleElement = addEl(table, createTableTitleElement(title, true))
+  DOWNLOAD_CSV[title] = ""
+
   let colnames = Object.keys(soa)
+  for (let colname of colnames) {
+    DOWNLOAD_CSV[title] += colname + ","
+  }
+  DOWNLOAD_CSV[title] += "\n"
 
-  let titleElement = createTableTitleElement(title)
-  table.appendChild(titleElement)
-
-  let headerRow = createTableHeaderRowElement(colWidthsPx)
-  table.appendChild(headerRow)
+  let tableWidthPx = 0
+  for (let colname of colnames) {
+    if (colWidthsPx[colname] !== undefined) {
+      tableWidthPx += colWidthsPx[colname]
+    } else {
+      tableWidthPx += colWidthsPx.default
+    }
+  }
 
   if (colnames.length > 0) {
+
+    let headerRow = addEl(table, createTableHeaderRowElement(colnames, colWidthsPx))
+
     let rowCount = soa[colnames[0]].length
     table.setAttribute("style", tableContentStyle(tableWidthPx, rowCount))
 
@@ -436,16 +453,26 @@ const createTableElementFromSoa = (soa, formatters, colWidthsPx, title) => {
       for (let colname of colnames) {
         let colData = soa[colname][rowIndex]
         let formatter = formatters[colname]
+        if (formatter === undefined) {
+          formatter = formatters.default
+        }
         let colDataFormatted = formatter(colData)
 
         let colWidthPx = colWidthsPx[colname]
+        if (colWidthPx === undefined) {
+          colWidthPx = colWidthsPx.default
+        }
         let cellElement = createTableCellStringElement(colWidthPx, colDataFormatted)
         rowElement.appendChild(cellElement)
+
+        DOWNLOAD_CSV[title] += colDataFormatted + ","
       }
+
+      DOWNLOAD_CSV[title] += "\n"
     }
   }
 
-  return [table, tableWidthPx]
+  return {table: table, width: tableWidthPx}
 }
 
 const initPassword = () => {
@@ -600,37 +627,53 @@ const initSurveys = () => {
   let container = createDiv()
   container.style.display = "flex"
 
-  let surveyDates2022 = {
-    week: seq(1, 1, 52),
-    start: dateSeq("2022-01-03", 7, 52),
-    end: dateSeq("2022-01-09", 7, 52),
-    send: dateSeq("2022-01-10", 7, 52),
-  }
+  let surveyDatesFormatters = {default: formatDate, week: (x) => x}
+  let surveyDatesColWidths = {default: 100, week: 50}
 
-  let [weeklySurveyDates2022Table, tableWidth] = createTableElementFromSoa(
-    surveyDates2022,
+  let surveyDates2020 = createTableElementFromSoa(
     {
-      week: (x) => x,
-      start: formatDate,
-      end: formatDate,
-      send: formatDate,
+      week: seq(1, 1, 32),
+      start: dateSeq("2020-04-06", 7, 32),
+      end: dateSeq("2020-04-12", 7, 32),
+      send: dateSeq("2020-04-13", 7, 32),
     },
+    surveyDatesFormatters,
+    surveyDatesColWidths,
+    "Weekly survey dates 2020"
+  )
+
+  let surveyDates2021 = createTableElementFromSoa(
     {
-      week: 50,
-      start: 100,
-      end: 100,
-      send: 100,
+      week: seq(1, 1, 52),
+      start: dateSeq("2021-01-04", 7, 52),
+      end: dateSeq("2021-01-10", 7, 52),
+      send: dateSeq("2021-01-11", 7, 52),
     },
+    surveyDatesFormatters,
+    surveyDatesColWidths,
+    "Weekly survey dates 2021"
+  )
+
+  let surveyDates2022 = createTableElementFromSoa(
+    {
+      week: seq(1, 1, 52),
+      start: dateSeq("2022-01-03", 7, 52),
+      end: dateSeq("2022-01-09", 7, 52),
+      send: dateSeq("2022-01-10", 7, 52),
+    },
+    surveyDatesFormatters,
+    surveyDatesColWidths,
     "Weekly survey dates 2022"
   )
 
-  let dates = addDiv(container)
-  addEl(dates, weeklySurveyDates2022Table)
-  dates.setAttribute("style", tableContainerStyle(tableWidth))
+  let datesContainer = addDiv(container)
+  datesContainer.setAttribute("style", tableContainerStyle(surveyDates2022.width))
 
   let surveys = addDiv(container)
   let completions = addDiv(container)
-  return {container: container, surveys: surveys, completions: completions}
+  return {container: container, surveys: surveys, completions: completions,
+    datesContainer: datesContainer,
+    datesTables: {2020: surveyDates2020.table, 2021: surveyDates2021.table, 2022: surveyDates2022.table}}
 }
 
 const initBleeds = () => {
@@ -760,10 +803,10 @@ const createCountsRecordsTable = (data, groups) => {
   totalCountsTableContainer.appendChild(totalCountsTable)
 
   let countsTableTitle = "Record counts"
-  globalState.downloadCsv[countsTableTitle] = Object.keys(totalCountsColWidthsPx).join(",") + "\n"
+  DOWNLOAD_CSV[countsTableTitle] = Object.keys(totalCountsColWidthsPx).join(",") + "\n"
   totalCountsTable.appendChild(countsTableDesc)
   totalCountsTable.appendChild(createTableTitleElement(countsTableTitle, true))
-  totalCountsTable.appendChild(createTableHeaderRowElement(totalCountsColWidthsPx))
+  totalCountsTable.appendChild(createTableHeaderRowElement(Object.keys(totalCountsColWidthsPx), totalCountsColWidthsPx))
 
   let groupedCountsFlat = flattenMap(groupedCounts, [])
 
@@ -771,7 +814,7 @@ const createCountsRecordsTable = (data, groups) => {
 
   let tableColNames = Object.keys(totalCountsColWidthsPx)
   for (let rowVals of groupedCountsFlat) {
-    let rowElement = createTableRowElement("var(--color-background)")
+    let rowElement = createTableRowElement()
     rowsShown += 1
     totalCountsTable.appendChild(rowElement)
 
@@ -788,7 +831,7 @@ const createCountsRecordsTable = (data, groups) => {
       rowElement.appendChild(createTableCellStringElement(width, rowVal))
     }
 
-    globalState.downloadCsv[countsTableTitle] += rowCsv + "\n"
+    DOWNLOAD_CSV[countsTableTitle] += rowCsv + "\n"
   }
 
   totalCountsTable.setAttribute("style", tableContentStyle(totalCountsWidthPx, rowsShown))
@@ -869,10 +912,10 @@ const createCountsBleedsTable = (data, groups) => {
   totalCountsTableContainer.appendChild(totalCountsTable)
 
   let countsTableTitle = "Bleed counts"
-  globalState.downloadCsv[countsTableTitle] = Object.keys(totalCountsColWidthsPx).join(",") + "\n"
+  DOWNLOAD_CSV[countsTableTitle] = Object.keys(totalCountsColWidthsPx).join(",") + "\n"
   totalCountsTable.appendChild(countsTableDesc)
   totalCountsTable.appendChild(createTableTitleElement(countsTableTitle, true))
-  totalCountsTable.appendChild(createTableHeaderRowElement(totalCountsColWidthsPx))
+  totalCountsTable.appendChild(createTableHeaderRowElement(Object.keys(totalCountsColWidthsPx), totalCountsColWidthsPx))
 
   let groupedCountsFlat = flattenMap(groupedCounts, [])
 
@@ -880,7 +923,7 @@ const createCountsBleedsTable = (data, groups) => {
 
   let tableColNames = Object.keys(totalCountsColWidthsPx)
   for (let rowVals of groupedCountsFlat) {
-    let rowElement = createTableRowElement("var(--color-background)")
+    let rowElement = createTableRowElement()
     rowsShown += 1
     totalCountsTable.appendChild(rowElement)
 
@@ -897,7 +940,7 @@ const createCountsBleedsTable = (data, groups) => {
       rowElement.appendChild(createTableCellStringElement(width, rowVal))
     }
 
-    globalState.downloadCsv[countsTableTitle] += rowCsv + "\n"
+    DOWNLOAD_CSV[countsTableTitle] += rowCsv + "\n"
   }
 
   totalCountsTableContainer.setAttribute("style", tableContentStyle(totalCountsWidthPx, rowsShown))
@@ -929,7 +972,7 @@ const createBleedsTable = (downloadCsv, data, year) => {
   let bleedsTableTitle = "Bleed dates"
   bleedsTable.appendChild(createTableTitleElement("Bleed dates", true))
   downloadCsv[bleedsTableTitle] = Object.keys(colWidthsPx).join(",") + "\n"
-  bleedsTable.appendChild(createTableHeaderRowElement(colWidthsPx))
+  bleedsTable.appendChild(createTableHeaderRowElement(Object.keys(colWidthsPx), colWidthsPx))
 
   let rowsShown = 0
   for (let row of allData) {
@@ -1024,7 +1067,7 @@ const createSurveyTable = (completions, data, year) => {
   )
 
   table.appendChild(createTableTitleElement("Completed weekly surveys"))
-  table.appendChild(createTableHeaderRowElement(colWidthsPx))
+  table.appendChild(createTableHeaderRowElement(Object.keys(colWidthsPx), colWidthsPx))
 
   let rowsShown = 0
   for (let row of allData) {
@@ -1084,7 +1127,7 @@ const createCompletionsTable = (completions) => {
   )
 
   table.appendChild(createTableTitleElement("Weekly completions"))
-  table.appendChild(createTableHeaderRowElement(colWidthsPx))
+  table.appendChild(createTableHeaderRowElement(Object.keys(colWidthsPx), colWidthsPx))
 
   let rowsShown = 0
   for (let [record, completedSurveys] of rows) {
@@ -1175,16 +1218,16 @@ const fetchData = async (password) => {
 }
 
 const SIDEBAR_WIDTH_PX = 80
-const INIT_DATA_PAGE = "counts"
+const INIT_DATA_PAGE = "weeklySurveys"
 const INIT_YEAR = 2022
 const YEARS = [2020, 2021, 2022]
 const INIT_GROUPS_RECORDS = ["site"]
 const INIT_GROUPS_BLEEDS = ["year"]
 const INIT_COUNT_TABLE = "records"
+const DOWNLOAD_CSV = {}
 
 let globalState = {
   data: {},
-  downloadCsv: {},
 
   domMain: document.getElementById("main"),
   currentDataPage: INIT_DATA_PAGE,
@@ -1281,10 +1324,14 @@ const updateCountsTable = () => {
 
 const updateBleedsTable = () => replaceChildren(
   globalState.elements.bleeds.table,
-  createBleedsTable(globalState.downloadCsv, globalState.data, globalState.settings.bleeds.year)
+  createBleedsTable(DOWNLOAD_CSV, globalState.data, globalState.settings.bleeds.year)
 )
 
 const updateSurveyTables = () => {
+  replaceChildren(
+    globalState.elements.weeklySurveys.datesContainer,
+    globalState.elements.weeklySurveys.datesTables[globalState.settings.weeklySurveys.year]
+  )
   let completions = {}
   replaceChildren(
     globalState.elements.weeklySurveys.surveys,
@@ -1317,10 +1364,9 @@ const updateSurveyTables = () => {
 }
 
 // TODO(sen) Paths
-// TODO(sen) Download all tables (current: bleed, counts)
+// TODO(sen) Download all tables (current: bleed, counts, survey dates)
 // TODO(sen) Table filtering
 // TODO(sen) Table with emails and sites
-// TODO(sen) Correct weekly survey dates for 2020 and 2021
 // TODO(sen) Correct height for tables with descriptions
   </script>
 </html>
