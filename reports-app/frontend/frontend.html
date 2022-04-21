@@ -67,6 +67,8 @@
 // SECTION Utilities
 //
 
+const isString = (val) => (typeof val === "string" || val instanceof String)
+
 const formatDate = (date) => {
   let result = date.toISOString().slice(0, 10)
   return result
@@ -221,6 +223,16 @@ const flattenMap = (map, existing) => {
   }
   return result
 }
+
+const getNameOrDefault = (map, name) => {
+  let result = map[name]
+  if (result === undefined) {
+    result = map.default
+  }
+  return result
+}
+
+const valueOr = (val, or) => val === undefined ? or : val
 
 //
 // SECTION DOM
@@ -425,45 +437,30 @@ const createTableElementFromSoa = (soa, formatters, colWidthsPx, title) => {
   DOWNLOAD_CSV[title] = ""
 
   let colnames = Object.keys(soa)
-  for (let colname of colnames) {
-    DOWNLOAD_CSV[title] += colname + ","
-  }
-  DOWNLOAD_CSV[title] += "\n"
+  DOWNLOAD_CSV[title] += colnames.join(",") + "\n"
 
   let tableWidthPx = 0
   for (let colname of colnames) {
-    if (colWidthsPx[colname] !== undefined) {
-      tableWidthPx += colWidthsPx[colname]
-    } else {
-      tableWidthPx += colWidthsPx.default
-    }
+    tableWidthPx += getNameOrDefault(colWidthsPx, colname)
   }
 
   if (colnames.length > 0) {
 
-    let headerRow = addEl(table, createTableHeaderRowElement(colnames, colWidthsPx))
-
     let rowCount = soa[colnames[0]].length
     table.setAttribute("style", tableContentStyle(tableWidthPx, rowCount))
+    
+    let headerRow = addEl(table, createTableHeaderRowElement(colnames, colWidthsPx))
 
     for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
-      let rowElement = createTableDataRowElement(rowIndex)
-      table.appendChild(rowElement)
+      let rowElement = addEl(table, createTableDataRowElement(rowIndex))
 
       for (let colname of colnames) {
         let colData = soa[colname][rowIndex]
-        let formatter = formatters[colname]
-        if (formatter === undefined) {
-          formatter = formatters.default
-        }
+        let formatter = getNameOrDefault(formatters, colname)
         let colDataFormatted = formatter(colData)
 
-        let colWidthPx = colWidthsPx[colname]
-        if (colWidthPx === undefined) {
-          colWidthPx = colWidthsPx.default
-        }
-        let cellElement = createTableCellStringElement(colWidthPx, colDataFormatted)
-        rowElement.appendChild(cellElement)
+        let colWidthPx = getNameOrDefault(colWidthsPx, colname)
+        addEl(rowElement, createTableCellStringElement(colWidthPx, colDataFormatted))
 
         DOWNLOAD_CSV[title] += colDataFormatted + ","
       }
@@ -472,6 +469,68 @@ const createTableElementFromSoa = (soa, formatters, colWidthsPx, title) => {
     }
   }
 
+  return {table: table, width: tableWidthPx}
+}
+
+const createTableElementFromAos = (aos, colSpec, defaults, title, filter, forRow) => {
+
+  let table = createDiv()
+  let titleElement = addEl(table, createTableTitleElement(title, true))
+  DOWNLOAD_CSV[title] = ""
+  
+  let colnames = Object.keys(colSpec)
+  DOWNLOAD_CSV[title] += colnames.join(",") + "\n"
+
+  let tableWidthPx = 0
+  for (let colname of colnames) {
+    tableWidthPx += valueOr(colSpec[colname].width, defaults.width)
+  }
+
+  let rowsShown = 0;
+  if (aos.length > 0) {
+
+    let colWidthsPx = {default: defaults.width}
+    for (let colname of colnames) {
+      if (colSpec[colname].width !== undefined) {
+        colWidthsPx[colname] = colSpec[colname].width
+      }
+    }
+
+    let headerRow = addEl(table, createTableHeaderRowElement(colnames, colWidthsPx))
+
+    for (let rowIndex = 0; rowIndex < aos.length; rowIndex += 1) {
+      let rowData = aos[rowIndex]
+      if (filter(rowData)) {
+        let rowElement = addEl(table, createTableDataRowElement(rowsShown))
+        rowsShown += 1
+
+        for (let colname of colnames) {
+          let spec = colSpec[colname]
+
+          let accessor = valueOr(spec.access, colname)
+          let colData
+          if (isString(accessor)) {
+            colData = rowData[accessor]
+          } else {
+            colData = accessor(rowData)
+          }
+          
+          let formatter = valueOr(spec.format, defaults.format)
+          let colDataFormatted = formatter(colData)
+
+          let colWidthPx = valueOr(spec.width, defaults.width)
+          addEl(rowElement, createTableCellStringElement(colWidthPx, colDataFormatted))
+
+          DOWNLOAD_CSV[title] += "\"" + colDataFormatted + "\","
+        }
+
+        DOWNLOAD_CSV[title] += "\n"
+        forRow(rowData)
+      }
+    }
+  }
+  
+  table.setAttribute("style", tableContentStyle(tableWidthPx, rowsShown))
   return {table: table, width: tableWidthPx}
 }
 
@@ -1051,92 +1110,31 @@ const createBleedsTable = (downloadCsv, data, year) => {
 
 const createSurveyTable = (completions, data, year) => {
   let tableContainer = createDiv()
-  let table = addDiv(tableContainer)
 
-  let allData = data.weekly_surveys
-
-  let colWidthsPx = {
-    pid: 100,
-    week: 100,
-    completed: 100,
-    ari: 100,
-  }
-  let tableWidthPx = arrSum(Object.values(colWidthsPx))
-  tableContainer.setAttribute(
-    "style", tableContainerStyle(tableWidthPx)
+  let tableResult = createTableElementFromAos(
+    data.weekly_surveys,
+    {pid: {}, site: {}, week: {access: "survey_index"}, date: {}, ari: {}},
+    {format: (x) => x, width: 100},
+    "Completed weekly surveys",
+    (row) => row.year === year && row.complete !== 0,
+    (row) => {
+      if (completions[row.pid] === undefined) {
+        completions[row.pid] = []
+      }
+      completions[row.pid].push(row.survey_index)
+    }
   )
 
-  table.appendChild(createTableTitleElement("Completed weekly surveys"))
-  table.appendChild(createTableHeaderRowElement(Object.keys(colWidthsPx), colWidthsPx))
-
-  let rowsShown = 0
-  for (let row of allData) {
-
-    if (row.year == year) {
-
-      let completed = row.complete
-      if (completed !== 0) {
-
-        let week = row.survey_index
-
-        let rowElement = createTableDataRowElement(rowsShown)
-        rowsShown += 1
-        table.appendChild(rowElement)
-
-        let pidCell = createTableCellStringElement(colWidthsPx.pid, row.pid)
-        rowElement.appendChild(pidCell)
-
-        let weekCell = createTableCellStringElement(colWidthsPx.week, week)
-        rowElement.appendChild(weekCell)
-
-        let completedCell = createTableCellStringElement(colWidthsPx.completed, completed)
-        rowElement.appendChild(completedCell)
-
-        let ari = row.ari
-        let ariCell = createTableCellStringElement(colWidthsPx.ari, ari)
-        rowElement.appendChild(ariCell)
-
-        if (completions[row.pid] === undefined) {
-          completions[row.pid] = []
-        }
-        completions[row.pid].push(week)
-
-      }
-    }
-  }
-  table.setAttribute("style", tableContentStyle(tableWidthPx, rowsShown))
+  addEl(tableContainer, tableResult.table)
+  tableContainer.setAttribute("style", tableContainerStyle(tableResult.width))
 
   return tableContainer
 }
 
 const createCompletionsTable = (completions) => {
 
-  let tableContainer = createDiv()
-  let table = addDiv(tableContainer)
-
-  let rows = Object.entries(completions)
-
-  let colWidthsPx = {
-    pid: 100,
-    completions: 300,
-  }
-  let tableWidthPx = arrSum(Object.values(colWidthsPx))
-  table.setAttribute("style", tableContentStyle(tableWidthPx, rows.length))
-  tableContainer.setAttribute(
-    "style", tableContainerStyle(tableWidthPx)
-  )
-
-  table.appendChild(createTableTitleElement("Weekly completions"))
-  table.appendChild(createTableHeaderRowElement(Object.keys(colWidthsPx), colWidthsPx))
-
-  let rowsShown = 0
-  for (let [record, completedSurveys] of rows) {
-    let rowElement = createTableDataRowElement(rowsShown)
-    table.appendChild(rowElement)
-    rowsShown += 1
-
-    rowElement.appendChild(createTableCellStringElement(colWidthsPx.pid, record))
-
+  let collapsed = []
+  for (let [pid, completedSurveys] of Object.entries(completions)) {
     let collapsedCompletions = ""
     if (completedSurveys.length > 0) {
       collapsedCompletions += completedSurveys[0]
@@ -1176,9 +1174,22 @@ const createCompletionsTable = (completions) => {
         }
       }
     }
-
-    rowElement.appendChild(createTableCellStringElement(colWidthsPx.completions, collapsedCompletions))
+    collapsed.push({pid: pid, completions: collapsedCompletions})
   }
+
+  let tableResult = createTableElementFromAos(
+    collapsed,
+    {pid: {}, completions: {width: 300}},
+    {format: (x) => x, width: 100},
+    "Collapsed completions",
+    (row) => true,
+    (row) => {}
+  )
+
+  let tableContainer = createDiv()
+
+  addEl(tableContainer, tableResult.table)
+  tableContainer.setAttribute("style", tableContainerStyle(tableResult.width))
 
   return tableContainer
 }
@@ -1191,7 +1202,7 @@ const fetchData = async (password) => {
     password === "" ||
     password === null ||
     password === undefined ||
-    !(typeof password === "string" || password instanceof String)
+    !isString(password)
   ) {
 
     success = false
@@ -1364,7 +1375,6 @@ const updateSurveyTables = () => {
 }
 
 // TODO(sen) Paths
-// TODO(sen) Download all tables (current: bleed, counts, survey dates)
 // TODO(sen) Table filtering
 // TODO(sen) Table with emails and sites
 // TODO(sen) Correct height for tables with descriptions
