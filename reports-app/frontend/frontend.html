@@ -449,7 +449,7 @@ const createTableElementFromSoa = (soa, formatters, colWidthsPx, title) => {
 
     let rowCount = soa[colnames[0]].length
     table.setAttribute("style", tableContentStyle(tableWidthPx, rowCount))
-    
+
     let headerRow = addEl(table, createTableHeaderRowElement(colnames, colWidthsPx))
 
     for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
@@ -478,7 +478,7 @@ const createTableElementFromAos = (aos, colSpec, defaults, title, filter, forRow
   let table = createDiv()
   let titleElement = addEl(table, createTableTitleElement(title, true))
   DOWNLOAD_CSV[title] = ""
-  
+
   let colnames = Object.keys(colSpec)
   DOWNLOAD_CSV[title] += colnames.join(",") + "\n"
 
@@ -515,7 +515,7 @@ const createTableElementFromAos = (aos, colSpec, defaults, title, filter, forRow
           } else {
             colData = accessor(rowData)
           }
-          
+
           let formatter = valueOr(spec.format, defaults.format)
           let colDataFormatted = formatter(colData)
 
@@ -530,7 +530,7 @@ const createTableElementFromAos = (aos, colSpec, defaults, title, filter, forRow
       }
     }
   }
-  
+
   table.setAttribute("style", tableContentStyle(tableWidthPx, rowsShown))
   return {table: table, width: tableWidthPx}
 }
@@ -764,7 +764,7 @@ const initCountsSettings = (initGroupsRecords, initGroupsBleeds, initTable) => {
   let recordsSwitch = createSwitch(
     initGroupsRecords,
     ["site", "recruited", "arm", "armCovid",
-      "gender", "age", "prior2020", "prior2021", "prior2022"],
+      "gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"],
     (groups) => {
       globalState.settings.counts.groups_records = groups
       updateCountsTable()
@@ -775,7 +775,7 @@ const initCountsSettings = (initGroupsRecords, initGroupsBleeds, initTable) => {
   let bleedsSwitch = createSwitch(
     initGroupsBleeds,
     ["year", "site", "recruited", "arm", "armCovid",
-      "gender", "age", "prior2020", "prior2021", "prior2022"],
+      "gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"],
     (groups) => {
       globalState.settings.counts.groups_bleeds = groups
       updateCountsTable()
@@ -809,6 +809,7 @@ const createCountsRecordsTable = (data, groups) => {
       case "site": {key = row.site;} break
       case "recruited": {key = row.recruitment_year;} break
       case "gender": {key = row.gender;} break
+      case "aboriginal": {key = row.atsi;} break
       case "arm": {key = row.arm;} break
       case "armCovid": {key = row.covid_arm;} break
       case "age": {key = row.age_group;} break
@@ -912,6 +913,7 @@ const createCountsBleedsTable = (data, groups) => {
       case "site": {key = row.site;} break
       case "recruited": {key = row.recruitment_year;} break
       case "gender": {key = row.gender;} break
+      case "aboriginal": {key = row.atsi;} break
       case "arm": {key = row.arm;} break
       case "armCovid": {key = row.covid_arm;} break
       case "age": {key = row.age_group;} break

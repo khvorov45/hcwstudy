@@ -181,7 +181,7 @@ redcap_participants_request <- function(project_year) {
   redcap_request(
     project_year,
     "baseline_arm_1",
-    "record_id,pid,date_screening,a1_gender,a2_dob",
+    "record_id,pid,date_screening,a1_gender,a2_dob,a3_atsi",
     exportDataAccessGroups = "true",
     rawOrLabel = "label"
   ) %>%
@@ -202,11 +202,12 @@ participants <- bind_rows(
   filter(pid != "WCH-025") %>%
   select(
     pid,
-    site = redcap_data_access_group, gender = a1_gender, dob = a2_dob,
+    site = redcap_data_access_group, gender = a1_gender, dob = a2_dob, atsi = a3_atsi,
     date_screening
   ) %>%
   mutate(
-    recruitment_year = if_else(pid %in% participants2020$pid, 2020, 2021)
+    recruitment_year = if_else(pid %in% participants2020$pid, 2020, 2021),
+    atsi = if_else(atsi == "Yes", 1, 0)
   )
 
 # NOTE(sen) Some are missing baseline data
