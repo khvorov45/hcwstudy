@@ -320,27 +320,29 @@ const createSwitch = (init, opts, onUpdate, forOpt) => {
   }
 
   for (let opt of opts) {
-    let optElement = createDiv()
-    switchElement.appendChild(optElement)
+    let optElement = addDiv(switchElement)
+    optElement.style.paddingTop = "5px"
+    optElement.style.paddingBottom = "5px"
+    optElement.style.cursor = "pointer"
 
-    let baseStyle = "padding-top: 5px; padding-bottom: 5px; cursor: pointer;"
-    let hoverStyle = baseStyle + "background-color: var(--color-background2);"
-    let selectedStyle = baseStyle + "background-color: var(--color-selected);"
+    let normalCol = "var(--color-background)"
+    let hoverCol = "var(--color-background2)"
+    let selectedCol = "var(--color-selected)"
 
     if (isSelected(opt)) {
-      optElement.setAttribute("style", selectedStyle)
+      optElement.style.backgroundColor = selectedCol
     } else {
-      optElement.setAttribute("style", baseStyle)
+      optElement.style.backgroundColor = normalCol
     }
 
     optElement.addEventListener("mouseover", (event) => {
       if (!isSelected(opt)) {
-        optElement.setAttribute("style", hoverStyle)
+        optElement.style.backgroundColor = hoverCol
       }
     })
     optElement.addEventListener("mouseout", (event) => {
       if (!isSelected(opt)) {
-        optElement.setAttribute("style", baseStyle)
+        optElement.style.backgroundColor = normalCol
       }
     })
 
@@ -348,9 +350,9 @@ const createSwitch = (init, opts, onUpdate, forOpt) => {
       if (!multiple && opt !== currentSel) {
 
         for (let child of switchElement.childNodes) {
-          child.setAttribute("style", baseStyle)
+          child.style.backgroundColor = normalCol
         }
-        optElement.setAttribute("style", selectedStyle)
+        optElement.style.backgroundColor = selectedCol
         currentSel = opt
         onUpdate(opt)
 
@@ -358,10 +360,10 @@ const createSwitch = (init, opts, onUpdate, forOpt) => {
 
         let optIndex = arrLinSearch(currentSel, opt)
         if (optIndex !== -1) {
-          optElement.setAttribute("style", baseStyle)
+          optElement.style.backgroundColor = normalCol
           arrRemoveIndex(currentSel, optIndex)
         } else {
-          optElement.setAttribute("style", selectedStyle)
+          optElement.style.backgroundColor = selectedCol
           currentSel.push(opt)
         }
         onUpdate(currentSel)
