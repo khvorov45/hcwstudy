@@ -706,7 +706,17 @@ const initSidebar = (widthPx, initSelected) => {
         child.style.backgroundColor = "var(--color-background)"
       }
       link.style.backgroundColor = "var(--color-selected)"
+      window.history.pushState(null, "", getPathFromDataPage(dest))
       switchDataPage(dest)
+    })
+
+    window.addEventListener("popstate", () => {
+      let dataPage = getDataPageFromURL()
+      if (dataPage !== dest) {
+        link.style.background = "var(--color-background)"
+      } else {
+        link.style.background = "var(--color-selected)"
+      }
     })
   }
 
@@ -1167,8 +1177,30 @@ const setGlobalData = (data) => {
   updateSurveyTables()
 }
 
+const getDataPageFromURL = () => {
+  let result = "counts"
+  let path = window.location.pathname
+  switch (path) {
+  case "/weekly-surveys": { result = "weeklySurveys" } break
+  case "/bleeds": { result = "bleeds" } break
+  case "/counts": { result = "counts" } break
+  default: { window.history.replaceState(null, "", result) } break
+  }
+  return result
+}
+
+const getPathFromDataPage = (dataPage) => {
+  let result = "counts"
+  switch (dataPage) {
+  case "weeklySurveys": {result = "weekly-surveys"} break
+  case "bleeds": {result = "bleeds"} break
+  case "counts": {result = "counts"} break
+  }
+  return result
+}
+
 const SIDEBAR_WIDTH_PX = 100
-const INIT_DATA_PAGE = "counts"
+const INIT_DATA_PAGE = getDataPageFromURL()
 const INIT_YEAR = 2022
 const YEARS = [2020, 2021, 2022]
 const INIT_GROUPS_RECORDS = ["site"]
@@ -1292,6 +1324,11 @@ const updateSurveyTables = () => {
     createCompletionsTable(completions)
   )
 }
+
+window.addEventListener("popstate", (event) => {
+  globalState.currentDataPage = getDataPageFromURL(window.location.pathname)
+  switchToData(globalState.currentDataPage)
+})
 
 // NOTE(sen) Attempt to login from local storage
 {
