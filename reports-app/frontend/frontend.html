@@ -662,6 +662,7 @@ const initSidebar = (widthPx, initSelected) => {
   sidebar.style.flexDirection = "column"
   sidebar.style.justifyContent = "space-between"
   sidebar.style.overflowX = "hidden"
+  sidebar.style.overflowY = "scroll"
 
   let top = addDiv(sidebar)
 
@@ -1166,7 +1167,7 @@ const setGlobalData = (data) => {
   updateSurveyTables()
 }
 
-const SIDEBAR_WIDTH_PX = 80
+const SIDEBAR_WIDTH_PX = 100
 const INIT_DATA_PAGE = "counts"
 const INIT_YEAR = 2022
 const YEARS = [2020, 2021, 2022]
