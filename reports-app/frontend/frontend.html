@@ -308,7 +308,7 @@ const replaceChildren = (parent, newChild) => {
   addEl(parent, newChild)
 }
 
-const createSwitch = (init, opts, onUpdate) => {
+const createSwitch = (init, opts, onUpdate, forOpt) => {
   let switchElement = createDiv()
   let currentSel = init
   let multiple = Array.isArray(init)
@@ -370,6 +370,10 @@ const createSwitch = (init, opts, onUpdate) => {
     })
 
     optElement.textContent = opt
+
+    if (forOpt !== undefined) {
+      forOpt(opt, optElement)
+    }
   }
 
   return switchElement
@@ -456,7 +460,7 @@ const createTableBodyContainer = (heightAvailable) => {
   if (heightAvailable === undefined || heightAvailable === null) {
     heightAvailable = "100vh"
   }
-  tableBodyContainer.style.maxHeight = 
+  tableBodyContainer.style.maxHeight =
     `calc(${heightAvailable} - ${TABLE_ROW_HEIGHT_PX * 2 + SCROLLBAR_WIDTHS[0]}px`
   return tableBodyContainer
 }
@@ -816,7 +820,18 @@ const initCountsSettings = (initGroupsRecords, initGroupsBleeds, initTable) => {
     initTable, ["records", "bleeds"],
     (table) => {
       globalState.settings.counts.table = table
+      window.history.pushState(null, "", "/counts?table=" + table)
       updateCountsTable()
+    },
+    (table, el) => {
+      window.addEventListener("popstate", () => {
+        let urlTable = getCountTableFromURL(globalState.settings.counts.table)
+        if (urlTable === table) {
+          el.style.backgroundColor = "var(--color-selected)"
+        } else {
+          el.style.backgroundColor = "var(--color-background)"
+        }
+      })
     }
   ))
 
@@ -1002,7 +1017,7 @@ const createCountsBleedsTable = (data, groups) => {
     countsAos,
     colSpec,
     {format: (x) => x, width: Math.max(100, descDim[0] / Object.keys(colSpec).length)},
-    "Record counts",
+    "Bleed counts",
     (row) => true,
     (row) => {},
     `(100vh - ${descDim[1]}px)`
@@ -1020,10 +1035,10 @@ const createBleedsTable = (downloadCsv, data, year) => {
   let tableResult = createTableElementFromAos(
     data.bleed_dates,
     {
-      pid: {}, 
-      day0: {access: "flu_day_0"}, 
-      day7: {access: "flu_day_7"}, 
-      day220: {access: "flu_day_220"}, 
+      pid: {},
+      day0: {access: "flu_day_0"},
+      day7: {access: "flu_day_7"},
+      day220: {access: "flu_day_220"},
       day0Covid: {access: "covid_day_0"},
       day7Covid: {access: "covid_day_7"},
       day14Covid: {access: "covid_day_14"},
@@ -1035,14 +1050,14 @@ const createBleedsTable = (downloadCsv, data, year) => {
       let result = row.year === year
       if (result) {
         const notMissing = (val) => val !== "" && val !== undefined && val !== null
-        result = notMissing(row.flu_day_0) || 
-          notMissing(row.flu_day_7) || 
-          notMissing(row.flu_day_14) || 
+        result = notMissing(row.flu_day_0) ||
+          notMissing(row.flu_day_7) ||
+          notMissing(row.flu_day_14) ||
           notMissing(row.flu_day_220)
         if (year > 2020) {
-          result = result || 
-            notMissing(row.covid_day_0) || 
-            notMissing(row.covid_day_7) || 
+          result = result ||
+            notMissing(row.covid_day_0) ||
+            notMissing(row.covid_day_7) ||
             notMissing(row.covid_day_14)
         }
       }
@@ -1199,13 +1214,33 @@ const getPathFromDataPage = (dataPage) => {
   return result
 }
 
+const getCountTableFromURL = (defTable) => {
+  let result = defTable
+  if (window.location.pathname === "/counts") {
+    let params = new URLSearchParams(window.location.search)
+    if (params.has("table")) {
+      let tables = params.getAll("table")
+      let tableIsValid = tables[0] === "records" || tables[0] === "bleeds"
+      if (tableIsValid) {
+        result = tables[0]
+      } 
+      if (tables.length > 1 || !tableIsValid) {
+        window.history.replaceState(null, "", "/counts?table=" + result)
+      }
+    } else {
+      window.history.replaceState(null, "", "/counts?table=" + result)
+    }
+  }
+  return result
+}
+
 const SIDEBAR_WIDTH_PX = 100
 const INIT_DATA_PAGE = getDataPageFromURL()
 const INIT_YEAR = 2022
 const YEARS = [2020, 2021, 2022]
 const INIT_GROUPS_RECORDS = ["site"]
 const INIT_GROUPS_BLEEDS = ["year"]
-const INIT_COUNT_TABLE = "records"
+const INIT_COUNT_TABLE = getCountTableFromURL("records")
 const DOWNLOAD_CSV = {}
 
 let globalState = {
@@ -1327,6 +1362,11 @@ const updateSurveyTables = () => {
 
 window.addEventListener("popstate", (event) => {
   globalState.currentDataPage = getDataPageFromURL(window.location.pathname)
+  let newCountsTable = getCountTableFromURL(globalState.settings.counts.table)
+  if (newCountsTable !== globalState.settings.counts.table) {
+    globalState.settings.counts.table = newCountsTable
+    updateCountsTable()
+  }
   switchToData(globalState.currentDataPage)
 })
 
