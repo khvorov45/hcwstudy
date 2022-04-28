@@ -274,6 +274,26 @@ const getColSpecFromGroups = (groups) => {
   return colSpec
 }
 
+const twowayMapInit = (key1Name, key2Name) => {
+  let result = {key1Name_: key1Name, key2Name_: key2Name, map1_: {}, map2_: {}}
+  return result
+}
+
+const twowayMapInsert = (twowayMap, key1, key2) => {
+  twowayMap.map1_[key1] = key2
+  twowayMap.map2_[key2] = key1
+}
+
+const twowayMapGetByKey1 = (twowayMap, key1) => {
+  let result = twowayMap.map1_[key1]
+  return result
+}
+
+const twowayMapGetByKey2 = (twowayMap, key2) => {
+  let result = twowayMap.map2_[key2]
+  return result
+}
+
 //
 // SECTION DOM
 //
@@ -374,7 +394,7 @@ const createSwitch = (init, opts, onUpdate, forOpt) => {
     optElement.textContent = opt
 
     if (forOpt !== undefined) {
-      forOpt(opt, optElement)
+      forOpt(opt, optElement, (newSel) => {currentSel = newSel})
     }
   }
 
@@ -659,7 +679,7 @@ const initLoading = () => {
   return loading
 }
 
-const initSidebar = (widthPx, initSelected) => {
+const initSidebar = (widthPx, initDataPage) => {
   let sidebar = createDiv()
   sidebar.style.width = widthPx + "px"
   sidebar.style.height = "100vh"
@@ -672,43 +692,31 @@ const initSidebar = (widthPx, initSelected) => {
 
   let top = addDiv(sidebar)
 
-  let nameFromDatapage = (dataPage) => {
-    let result = dataPage
-    switch (dataPage) {
-    case "weeklySurveys": {result = "Weekly surveys"} break
-    case "bleeds": {result = "Bleeds"} break
-    case "counts": {result = "Counts"} break
-    default: {console.error("no name for datapage", dataPage)} break
-    }
-    return result
-  }
-
-  const dataPageFromName = (name) => {
-    let result = name
-    switch (name) {
-      case "Weekly surveys": {result = "weeklySurveys"} break
-      case "Bleeds": {result = "bleeds"} break
-      case "Counts": {result = "counts"} break
-      default: {console.error("no datapages for name", name)} break
-    }
-    return result
-  }
+  let nameDatapageMap = twowayMapInit("name", "data page")
+  twowayMapInsert(nameDatapageMap, "Weekly surveys", "weekly-surveys")
+  twowayMapInsert(nameDatapageMap, "Bleeds", "bleeds")
+  twowayMapInsert(nameDatapageMap, "Counts", "counts")
 
   let linksContainer = addEl(top, createSwitch(
-    nameFromDatapage(initSelected), ["Weekly surveys", "Bleeds", "Counts"],
+    twowayMapGetByKey2(nameDatapageMap, initDataPage), ["Weekly surveys", "Bleeds", "Counts"],
     (destName) => {
-      let dataPage = dataPageFromName(destName)
-      window.history.pushState(null, "", getPathFromDataPage(dataPage))
+      let dataPage = twowayMapGetByKey1(nameDatapageMap, destName)
+      let dest = dataPage
+      if (dataPage === "counts") {
+        dest = dataPage + "?table=" + globalState.settings.counts.table
+      }
+      window.history.pushState(null, "", dest)
       switchDataPage(dataPage)
     },
-    (destName, optEl) => {
+    (destName, optEl, updateSelected) => {
       window.addEventListener("popstate", () => {
         let dataPage = getDataPageFromURL()
-        if (dataPage !== dataPageFromName(destName)) {
+        if (dataPage !== twowayMapGetByKey1(nameDatapageMap, destName)) {
           optEl.style.background = "var(--color-background)"
         } else {
           optEl.style.background = "var(--color-selected)"
         }
+        updateSelected(twowayMapGetByKey2(nameDatapageMap, dataPage))
       })
     }
   ))
@@ -812,7 +820,7 @@ const initCountsSettings = (initGroupsRecords, initGroupsBleeds, initTable) => {
       window.history.pushState(null, "", "/counts?table=" + table)
       updateCountsTable()
     },
-    (table, el) => {
+    (table, el, updateSelected) => {
       window.addEventListener("popstate", () => {
         let urlTable = getCountTableFromURL(globalState.settings.counts.table)
         if (urlTable === table) {
@@ -820,6 +828,7 @@ const initCountsSettings = (initGroupsRecords, initGroupsBleeds, initTable) => {
         } else {
           el.style.backgroundColor = "var(--color-background)"
         }
+        updateSelected(urlTable)
       })
     }
   ))
@@ -1182,23 +1191,13 @@ const setGlobalData = (data) => {
 }
 
 const getDataPageFromURL = () => {
+  let path = window.location.pathname.slice(1)
+  let allowed = ["weekly-surveys", "bleeds", "counts"]
   let result = "counts"
-  let path = window.location.pathname
-  switch (path) {
-  case "/weekly-surveys": { result = "weeklySurveys" } break
-  case "/bleeds": { result = "bleeds" } break
-  case "/counts": { result = "counts" } break
-  default: { window.history.replaceState(null, "", result) } break
-  }
-  return result
-}
-
-const getPathFromDataPage = (dataPage) => {
-  let result = "counts"
-  switch (dataPage) {
-  case "weeklySurveys": {result = "weekly-surveys"} break
-  case "bleeds": {result = "bleeds"} break
-  case "counts": {result = "counts"} break
+  if (arrLinSearch(allowed, path) !== -1) {
+    result = path
+  } else {
+    window.history.replaceState(null, "", result)
   }
   return result
 }
@@ -1212,12 +1211,12 @@ const getCountTableFromURL = (defTable) => {
       let tableIsValid = tables[0] === "records" || tables[0] === "bleeds"
       if (tableIsValid) {
         result = tables[0]
-      } 
+      }
       if (tables.length > 1 || !tableIsValid) {
-        window.history.replaceState(null, "", "/counts?table=" + result)
+        window.history.replaceState(null, "", "counts?table=" + result)
       }
     } else {
-      window.history.replaceState(null, "", "/counts?table=" + result)
+      window.history.replaceState(null, "", "counts?table=" + result)
     }
   }
   return result
@@ -1280,7 +1279,7 @@ const switchDataPage = (name) => {
   let oldDataPage = globalState.currentDataPage
   globalState.currentDataPage = name
   switch (name) {
-  case "weeklySurveys": {
+  case "weekly-surveys": {
     replaceChildren(globalState.elements.sidebar.pageSpecific, globalState.elements.weeklySurveySettings)
     replaceChildren(globalState.elements.dataContainer, globalState.elements.weeklySurveys.container)
   } break
