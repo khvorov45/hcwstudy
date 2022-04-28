@@ -672,59 +672,46 @@ const initSidebar = (widthPx, initSelected) => {
 
   let top = addDiv(sidebar)
 
-  let dataPages = {
-    weeklySurveys: {name: "Weekly surveys"},
-    bleeds: {name: "Bleeds"},
-    counts: {name: "Counts"},
-  }
-
-  let linksContainer = addDiv(top)
-
-  for (let [dest, props] of Object.entries(dataPages)) {
-    let name = props.name
-
-    let link = addDiv(linksContainer)
-    link.textContent = name
-
-    link.style.paddingTop = "5px"
-    link.style.paddingBottom = "5px"
-    link.style.cursor = "pointer"
-    link.style.backgroundColor = "var(--color-background)"
-
-    if (dest === initSelected) {
-      link.style.backgroundColor = "var(--color-selected)"
+  let nameFromDatapage = (dataPage) => {
+    let result = dataPage
+    switch (dataPage) {
+    case "weeklySurveys": {result = "Weekly surveys"} break
+    case "bleeds": {result = "Bleeds"} break
+    case "counts": {result = "Counts"} break
+    default: {console.error("no name for datapage", dataPage)} break
     }
-
-    link.addEventListener("mouseover", (event) => {
-      if (dest !== globalState.currentDataPage) {
-        link.style.backgroundColor = "var(--color-background2)"
-      }
-    })
-
-    link.addEventListener("mouseout", (event) => {
-      if (dest !== globalState.currentDataPage) {
-        link.style.background = "var(--color-background)"
-      }
-    })
-
-    link.addEventListener("click", (event) => {
-      for (let child of linksContainer.childNodes) {
-        child.style.backgroundColor = "var(--color-background)"
-      }
-      link.style.backgroundColor = "var(--color-selected)"
-      window.history.pushState(null, "", getPathFromDataPage(dest))
-      switchDataPage(dest)
-    })
-
-    window.addEventListener("popstate", () => {
-      let dataPage = getDataPageFromURL()
-      if (dataPage !== dest) {
-        link.style.background = "var(--color-background)"
-      } else {
-        link.style.background = "var(--color-selected)"
-      }
-    })
+    return result
   }
+
+  const dataPageFromName = (name) => {
+    let result = name
+    switch (name) {
+      case "Weekly surveys": {result = "weeklySurveys"} break
+      case "Bleeds": {result = "bleeds"} break
+      case "Counts": {result = "counts"} break
+      default: {console.error("no datapages for name", name)} break
+    }
+    return result
+  }
+
+  let linksContainer = addEl(top, createSwitch(
+    nameFromDatapage(initSelected), ["Weekly surveys", "Bleeds", "Counts"],
+    (destName) => {
+      let dataPage = dataPageFromName(destName)
+      window.history.pushState(null, "", getPathFromDataPage(dataPage))
+      switchDataPage(dataPage)
+    },
+    (destName, optEl) => {
+      window.addEventListener("popstate", () => {
+        let dataPage = getDataPageFromURL()
+        if (dataPage !== dataPageFromName(destName)) {
+          optEl.style.background = "var(--color-background)"
+        } else {
+          optEl.style.background = "var(--color-selected)"
+        }
+      })
+    }
+  ))
 
   let pageSpecific = addDiv(top)
   pageSpecific.style.marginTop = "20px"
