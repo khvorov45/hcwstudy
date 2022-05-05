@@ -682,7 +682,7 @@ const initLoading = () => {
   return loading
 }
 
-const initSidebar = (widthPx, initDataPage) => {
+const initSidebar = (widthPx, initDataPage, nameDatapageMap) => {
   let sidebar = createDiv()
   sidebar.style.width = widthPx + "px"
   sidebar.style.height = "100vh"
@@ -695,13 +695,9 @@ const initSidebar = (widthPx, initDataPage) => {
 
   let top = addDiv(sidebar)
 
-  let nameDatapageMap = twowayMapInit("name", "data page")
-  twowayMapInsert(nameDatapageMap, "Weekly surveys", "weekly-surveys")
-  twowayMapInsert(nameDatapageMap, "Bleeds", "bleeds")
-  twowayMapInsert(nameDatapageMap, "Counts", "counts")
-
   let linksContainer = addEl(top, createSwitch(
-    twowayMapGetByKey2(nameDatapageMap, initDataPage), ["Weekly surveys", "Bleeds", "Counts"],
+    twowayMapGetByKey2(nameDatapageMap, initDataPage),
+    Object.keys(nameDatapageMap.map1_),
     (destName) => {
       let dataPage = twowayMapGetByKey1(nameDatapageMap, destName)
       let dest = dataPage
@@ -805,6 +801,12 @@ const initBleeds = () => {
   let bleeds = createDiv()
   let table = addDiv(bleeds)
   return {bleeds: bleeds, table: table}
+}
+
+const initContact = () => {
+  let contact = createDiv()
+  let table = addDiv(contact)
+  return {contact: contact, table: table}
 }
 
 const initCounts = () => {
@@ -1070,6 +1072,24 @@ const createBleedsTable = (downloadCsv, data, year) => {
   return tableResult.table
 }
 
+const createContactTable = (downloadCsv, data) => {
+
+  let tableResult = createTableElementFromAos(
+    data.participants,
+    {
+      pid: {},
+      email: {width: 450},
+      mobile: {width: 300},
+    },
+    {format: (x) => x, width: 100},
+    "Contact",
+    (row) => true,
+    (row) => {}
+  )
+
+  return tableResult.table
+}
+
 const createSurveyTable = (completions, data, year) => {
   let tableContainer = createDiv()
 
@@ -1191,11 +1211,12 @@ const setGlobalData = (data) => {
   updateCountsTable()
   updateBleedsTable()
   updateSurveyTables()
+  updateContactTable()
 }
 
-const getDataPageFromURL = () => {
+const getDataPageFromURL = (nameDatapageMap) => {
   let path = window.location.pathname.slice(1)
-  let allowed = ["weekly-surveys", "bleeds", "counts"]
+  let allowed = Object.keys(nameDatapageMap.map2_)
   let result = "counts"
   if (arrLinSearch(allowed, path) !== -1) {
     result = path
@@ -1225,8 +1246,14 @@ const getCountTableFromURL = (defTable) => {
   return result
 }
 
+const NAME_DATAPAGE_MAP = twowayMapInit("name", "data page")
+twowayMapInsert(NAME_DATAPAGE_MAP, "Contact", "contact")
+twowayMapInsert(NAME_DATAPAGE_MAP, "Weekly surveys", "weekly-surveys")
+twowayMapInsert(NAME_DATAPAGE_MAP, "Bleeds", "bleeds")
+twowayMapInsert(NAME_DATAPAGE_MAP, "Counts", "counts")
+
 const SIDEBAR_WIDTH_PX = 100
-const INIT_DATA_PAGE = getDataPageFromURL()
+const INIT_DATA_PAGE = getDataPageFromURL(NAME_DATAPAGE_MAP)
 const INIT_YEAR = 2022
 const YEARS = [2020, 2021, 2022]
 const INIT_GROUPS_RECORDS = ["site"]
@@ -1244,7 +1271,7 @@ let globalState = {
     loading: initLoading(),
     password: initPassword(),
 
-    sidebar: initSidebar(SIDEBAR_WIDTH_PX, INIT_DATA_PAGE),
+    sidebar: initSidebar(SIDEBAR_WIDTH_PX, INIT_DATA_PAGE, NAME_DATAPAGE_MAP),
 
     weeklySurveySettings: createSwitch(
       INIT_YEAR, YEARS,
@@ -1268,6 +1295,7 @@ let globalState = {
     weeklySurveys: initSurveys(),
     bleeds: initBleeds(),
     counts: initCounts(),
+    contact: initContact(),
   },
 
   settings: {
@@ -1293,6 +1321,10 @@ const switchDataPage = (name) => {
   case "counts": {
     replaceChildren(globalState.elements.sidebar.pageSpecific, globalState.elements.countsSettings.container)
     replaceChildren(globalState.elements.dataContainer, globalState.elements.counts.counts)
+  } break
+  case "contact": {
+    removeChildren(globalState.elements.sidebar.pageSpecific)
+    replaceChildren(globalState.elements.dataContainer, globalState.elements.contact.contact)
   } break
   default: {
     console.error("data page", name, "does not exist")
@@ -1351,6 +1383,11 @@ const updateSurveyTables = () => {
   )
 }
 
+const updateContactTable = () => replaceChildren(
+  globalState.elements.contact.table,
+  createContactTable(DOWNLOAD_CSV, globalState.data)
+)
+
 window.addEventListener("popstate", (event) => {
   globalState.currentDataPage = getDataPageFromURL(window.location.pathname)
   let newCountsTable = getCountTableFromURL(globalState.settings.counts.table)
@@ -1380,6 +1417,5 @@ window.addEventListener("popstate", (event) => {
 
 // TODO(sen) Paths
 // TODO(sen) Table filtering
-// TODO(sen) Table with emails and sites
   </script>
 </html>
