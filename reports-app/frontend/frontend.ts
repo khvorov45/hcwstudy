@@ -3,33 +3,33 @@
 // SECTION Utilities
 //
 
-const isString = (val) => (typeof val === "string" || val instanceof String)
+const isString = (val: any) => (typeof val === "string" || val instanceof String)
 
-const formatDate = (date) => {
+const formatDate = (date: Date) => {
   let result = date.toISOString().slice(0, 10)
   return result
 }
 
-const notNU = (val) => {
+const notNU = (val: any) => {
   let result = val !== null && val !== undefined
   return result
 }
 
-const isObject = (val) => {
+const isObject = (val: any) => {
   let result = val && typeof val === 'object' && val.constructor === Object
   return result
 }
 
 const getScrollbarWidths = () => {
-  let outer = createEl('div');
-  outer.style.visibility = "hidden";
-  outer.style.overflowY = "scroll";
-  document.body.appendChild(outer);
+  let outer = createEl('div')
+  outer.style.visibility = "hidden"
+  outer.style.overflowY = "scroll"
+  document.body.appendChild(outer)
 
-  let inner = createEl('div');
-  outer.appendChild(inner);
+  let inner = createEl('div')
+  outer.appendChild(inner)
 
-  let scrollbarWidthV = (outer.offsetWidth - inner.offsetWidth);
+  let scrollbarWidthV = (outer.offsetWidth - inner.offsetWidth)
   outer.removeChild(inner)
 
   outer.style.overflowY = "hidden"
@@ -38,11 +38,11 @@ const getScrollbarWidths = () => {
   outer.appendChild(inner)
   let scrollbarWidthH = outer.offsetHeight - inner.offsetHeight
 
-  outer.parentNode.removeChild(outer);
+  outer.parentNode!.removeChild(outer);
   return [scrollbarWidthH, scrollbarWidthV];
 }
 
-const measureEl = (el, availableWidth, availableHeight) => {
+const measureEl = (el: HTMLElement, availableWidth: number, availableHeight: number) => {
   let container = createEl("div")
   container.style.visibility = "hidden"
   container.style.position = "fixed"
@@ -60,7 +60,7 @@ const measureEl = (el, availableWidth, availableHeight) => {
   return dim
 }
 
-const fieldsArePresent = (obj, colnames) => {
+const fieldsArePresent = (obj: {[key: string]: any}, colnames: string[]) => {
   let result = true
   let missingColnames = []
   for (let colname of colnames) {
@@ -75,7 +75,7 @@ const fieldsArePresent = (obj, colnames) => {
   return result
 }
 
-const arrSum = (arr) => {
+const arrSum = (arr: number[]) => {
   let result = 0
   for (let val of arr) {
     result += val
@@ -83,7 +83,7 @@ const arrSum = (arr) => {
   return result
 }
 
-const arrLinSearch = (arr, item) => {
+const arrLinSearch = <T>(arr: T[], item: T) => {
   let result = -1
   for (let index = 0; index < arr.length; index += 1) {
     let elem = arr[index]
@@ -95,11 +95,11 @@ const arrLinSearch = (arr, item) => {
   return result
 }
 
-const arrRemoveIndex = (arr, index) => {
+const arrRemoveIndex = (arr: any[], index: number) => {
   arr.splice(index, 1)
 }
 
-const seq = (start, step, count) => {
+const seq = (start: number, step: number, count: number) => {
   let result = [start]
   for (let i = 1; i < count; i += 1) {
     result.push(start + i * step)
@@ -107,7 +107,7 @@ const seq = (start, step, count) => {
   return result
 }
 
-const dateSeq = (start, step, count) => {
+const dateSeq = (start: string, step: number, count: number) => {
 
   let result = []
 
@@ -124,7 +124,11 @@ const dateSeq = (start, step, count) => {
   return result
 }
 
-const summarise = (data, groups, defaultCounts, filter, getKey, addRow) => {
+const summarise = (
+	data: any, groups: string[], defaultCounts: any,
+	filter: (row: any) => boolean, getKey: (row: any, key: string) => any,
+	addRow: (row: any, counts: any) => void,
+) => {
   let groupedCounts: any = {}
   if (groups.length === 0) {
     groupedCounts = {total: {...defaultCounts}}
@@ -160,8 +164,8 @@ const summarise = (data, groups, defaultCounts, filter, getKey, addRow) => {
   return groupedCounts
 }
 
-const flattenMap = (map, existing) => {
-  let result = []
+const flattenMap = (map: any, existing: any[]) => {
+  let result: any[] = []
   for (let key of Object.keys(map)) {
     let nested = map[key]
     let newExisting = [...existing]
@@ -178,17 +182,17 @@ const flattenMap = (map, existing) => {
   return result
 }
 
-const arrayToMap = (arr, names) => {
-  let result = {}
+const arrayToMap = (arr: any[], names: string[]) => {
+  let result: any = {}
   for (let index = 0; index < arr.length; index += 1) {
     result[names[index]] = arr[index]
   }
   return result
 }
 
-const aoaToAos = (aoa, names) => aoa.map((arr) => arrayToMap(arr, names))
+const aoaToAos = (aoa: any[][], names: string[]) => aoa.map((arr) => arrayToMap(arr, names))
 
-const getNameOrDefault = (map, name) => {
+const getNameOrDefault = (map: any, name: string) => {
   let result = map[name]
   if (result === undefined) {
     result = map.default
@@ -196,9 +200,9 @@ const getNameOrDefault = (map, name) => {
   return result
 }
 
-const valueOr = (val, or) => val === undefined ? or : val
+const valueOr = <T>(val: T | undefined, or: T) => val === undefined ? or : val
 
-const getColSpecFromGroups = (groups) => {
+const getColSpecFromGroups = (groups: string[]) => {
   let colSpec: any = {}
   if (groups.length === 0) {
     colSpec.Total = {}
@@ -209,22 +213,29 @@ const getColSpecFromGroups = (groups) => {
   return colSpec
 }
 
-const twowayMapInit = (key1Name, key2Name) => {
-  let result = {key1Name_: key1Name, key2Name_: key2Name, map1_: {}, map2_: {}}
+type TwowayMap = {
+	key1Name_: string,
+	key2Name_: string,
+	map1_: {[key: string]: string},
+	map2_: {[key: string]: string},
+}
+
+const twowayMapInit = (key1Name: string, key2Name: string) => {
+  let result: TwowayMap = {key1Name_: key1Name, key2Name_: key2Name, map1_: {}, map2_: {}}
   return result
 }
 
-const twowayMapInsert = (twowayMap, key1, key2) => {
+const twowayMapInsert = (twowayMap: TwowayMap, key1: string, key2: string) => {
   twowayMap.map1_[key1] = key2
   twowayMap.map2_[key2] = key1
 }
 
-const twowayMapGetByKey1 = (twowayMap, key1) => {
+const twowayMapGetByKey1 = (twowayMap: TwowayMap, key1: string) => {
   let result = twowayMap.map1_[key1]
   return result
 }
 
-const twowayMapGetByKey2 = (twowayMap, key2) => {
+const twowayMapGetByKey2 = (twowayMap: TwowayMap, key2: string) => {
   let result = twowayMap.map2_[key2]
   return result
 }
@@ -233,47 +244,47 @@ const twowayMapGetByKey2 = (twowayMap, key2) => {
 // SECTION DOM
 //
 
-const createEl = (name) => document.createElement(name)
+const createEl = (name: string) => document.createElement(name)
 const createDiv = () => createEl("div")
 
-const setEl = (el, name, val) => el.setAttribute(name, val)
+const setEl = (el: HTMLElement, name: string, val: string) => el.setAttribute(name, val)
 
-const createTextline = (line) => {
+const createTextline = (line: string) => {
   let div = createDiv()
   div.textContent = line
   return div
 }
 
-const addEl = (parent, el) => {
+const addEl = (parent: HTMLElement, el: HTMLElement) => {
   parent.appendChild(el)
   return el
 }
 
-const addDiv = (parent) => addEl(parent, createDiv())
-const addTextline = (parent, line) => addEl(parent, createTextline(line))
+const addDiv = (parent: HTMLElement) => addEl(parent, createDiv())
+const addTextline = (parent: HTMLElement, line: string) => addEl(parent, createTextline(line))
 
-const removeChildren = (element) => {
+const removeChildren = (element: HTMLElement) => {
   while (element.lastChild) {
     element.removeChild(element.lastChild)
   }
 }
 
-const replaceChildren = (parent, newChild) => {
+const replaceChildren = (parent: HTMLElement, newChild: HTMLElement) => {
   removeChildren(parent)
   addEl(parent, newChild)
 }
 
-const createSwitch = (
-	init, opts, onUpdate,
-	forOpt?: (opt: any, optElement: any, setSel: any) => void,
+const createSwitch = <SingleOpt extends string | number, OptType extends SingleOpt | SingleOpt[]>(
+	init: OptType, opts: SingleOpt[], onUpdate: (opt: OptType) => void,
+	forOpt?: (opt: SingleOpt, optElement: HTMLElement, updateSelected: (newSel: OptType) => void) => void,
 ) => {
   let switchElement = createDiv()
   let currentSel = init
   let multiple = Array.isArray(init)
 
-  const isSelected = (opt) => {
+  const isSelected = (opt: SingleOpt) => {
     let result = (!multiple && opt === currentSel) ||
-      (multiple && arrLinSearch(currentSel, opt) !== -1)
+      (multiple && arrLinSearch(<SingleOpt[]>currentSel, opt) !== -1)
     return result
   }
 
@@ -308,31 +319,31 @@ const createSwitch = (
       if (!multiple && opt !== currentSel) {
 
         for (let child of switchElement.childNodes) {
-          child.style.backgroundColor = normalCol
+          (<HTMLElement>child).style.backgroundColor = normalCol
         }
         optElement.style.backgroundColor = selectedCol
-        currentSel = opt
-        onUpdate(opt)
+        currentSel = <OptType>opt
+        onUpdate(<OptType>opt)
 
       } else if (multiple) {
 
-        let optIndex = arrLinSearch(currentSel, opt)
+        let optIndex = arrLinSearch(<SingleOpt[]>currentSel, opt)
         if (optIndex !== -1) {
           optElement.style.backgroundColor = normalCol
-          arrRemoveIndex(currentSel, optIndex)
+          arrRemoveIndex(<SingleOpt[]>currentSel, optIndex)
         } else {
-          optElement.style.backgroundColor = selectedCol
-          currentSel.push(opt)
+          optElement.style.backgroundColor = selectedCol;
+          (<SingleOpt[]>currentSel).push(opt)
         }
         onUpdate(currentSel)
 
       }
     })
 
-    optElement.textContent = opt
+    optElement.textContent = `${opt}`
 
     if (forOpt !== undefined) {
-      forOpt(opt, optElement, (newSel) => {currentSel = newSel})
+      forOpt(opt, optElement, (newSel: OptType) => {currentSel = newSel})
     }
   }
 
@@ -342,14 +353,14 @@ const createSwitch = (
 const TABLE_ROW_HEIGHT_PX = 30
 const SCROLLBAR_WIDTHS = getScrollbarWidths()
 
-const createTableCell = (widthPx) => {
+const createTableCell = (widthPx: number) => {
   let cellElement = createEl("td")
   cellElement.style.width = widthPx + "px"
   cellElement.style.textAlign = "center"
   return cellElement
 }
 
-const createTableCellString = (widthPx, string) => {
+const createTableCellString = (widthPx: number, string: string) => {
   let cellElement = createTableCell(widthPx)
   if (string !== undefined && string != null) {
     cellElement.textContent = string
@@ -357,7 +368,7 @@ const createTableCellString = (widthPx, string) => {
   return cellElement
 }
 
-const createTableTitle = (title, downloadable) => {
+const createTableTitle = (title: string, downloadable: boolean) => {
   let titleElement = createDiv()
   titleElement.style.display = "flex"
   titleElement.style.alignItems = "center"
@@ -375,9 +386,10 @@ const createTableTitle = (title, downloadable) => {
     titleElement.addEventListener("click", (event) => {
       let csv = DOWNLOAD_CSV[title]
       if (csv) {
-        let hidden = createEl("a")
+        let hidden = <HTMLLinkElement>createEl("a")
         hidden.href = "data:text/csv;charset=utf-8," + encodeURI(csv)
         hidden.target = "_blank"
+        // @ts-ignore
         hidden.download = title + ".csv"
         hidden.click()
       } else {
@@ -389,7 +401,7 @@ const createTableTitle = (title, downloadable) => {
   return titleElement
 }
 
-const createTableHeaderRow = (colnames, colWidthsPx) => {
+const createTableHeaderRow = (colnames: string[], colWidthsPx: {[key: string]: number}) => {
   let headerRow = createDiv()
   headerRow.style.display = "flex"
   headerRow.style.height = TABLE_ROW_HEIGHT_PX + "px"
@@ -433,7 +445,7 @@ const createTableBody = () => {
   return tableBody
 }
 
-const createTableDataRow = (rowIndex) => {
+const createTableDataRow = (rowIndex: number) => {
   let rowElement = createEl("tr")
   rowElement.style.height = TABLE_ROW_HEIGHT_PX + "px"
   rowElement.style.backgroundColor = "var(--color-background)"
@@ -443,7 +455,12 @@ const createTableDataRow = (rowIndex) => {
   return rowElement
 }
 
-const createTableElementFromSoa = (soa, formatters, colWidthsPx, title) => {
+const createTableElementFromSoa = (
+	soa: {[key: string]: any[]},
+	formatters: {[key: string]: (val: any) => string},
+	colWidthsPx: {[key: string]: number},
+	title: string,
+) => {
 
   let table = createDiv()
   let titleElement = addEl(table, createTableTitle(title, true))
@@ -485,8 +502,24 @@ const createTableElementFromSoa = (soa, formatters, colWidthsPx, title) => {
   return {table: table, width: tableWidthPx}
 }
 
-const createTableElementFromAos = (
-	aos, colSpec, defaults, title, filter, forRow, heightAvailable?: string,
+type TableColSpec<RowType> = {
+	access?: ((row: RowType) => any) | string,
+	format?: (val: any) => string,
+	width?: number,
+}
+
+const createTableElementFromAos = <RowType extends {[key: string]: any}>(
+	aos: RowType[],
+	colSpec: {[key: string]: TableColSpec<RowType>},
+	defaults: {
+		access?: ((row: RowType) => any) | string,
+		format: (val: any) => string,
+		width: number,
+	},
+	title: string,
+	filter: (row: RowType) => boolean,
+	forRow: (row: RowType) => void,
+	heightAvailable?: string,
 ) => {
 
   let table = createDiv()
@@ -504,7 +537,7 @@ const createTableElementFromAos = (
   let rowsShown = 0;
   if (aos.length > 0) {
 
-    let colWidthsPx = {default: defaults.width}
+    let colWidthsPx: any = {default: defaults.width}
     for (let colname of colnames) {
       if (colSpec[colname].width !== undefined) {
         colWidthsPx[colname] = colSpec[colname].width
@@ -526,11 +559,11 @@ const createTableElementFromAos = (
           let spec = colSpec[colname]
 
           let accessor = valueOr(spec.access, colname)
-          let colData
+          let colData: any
           if (isString(accessor)) {
-            colData = rowData[accessor]
+            colData = rowData[<string>accessor]
           } else {
-            colData = accessor(rowData)
+            colData = (<(row: RowType) => any>accessor)(rowData)
           }
 
           let formatter = valueOr(spec.format, defaults.format)
@@ -554,7 +587,7 @@ const createTableElementFromAos = (
 const initPassword = () => {
   let container = createDiv()
   let label = addDiv(container)
-  let input = addEl(container, createEl("input"))
+  let input = <HTMLInputElement>addEl(container, createEl("input"))
   let button = addDiv(container)
   let buttonText = addDiv(button)
   let errorText = addDiv(container)
@@ -619,11 +652,11 @@ const initLoading = () => {
   return loading
 }
 
-const initSidebar = (widthPx, initDataPage, nameDatapageMap) => {
+const initSidebar = (widthPx: number, initDataPage: string, nameDatapageMap: TwowayMap) => {
   let sidebar = createDiv()
   sidebar.style.width = widthPx + "px"
   sidebar.style.height = "100vh"
-  sidebar.style.flexShrink = 0
+  sidebar.style.flexShrink = "0"
   sidebar.style.display = "flex"
   sidebar.style.flexDirection = "column"
   sidebar.style.justifyContent = "space-between"
@@ -636,8 +669,8 @@ const initSidebar = (widthPx, initDataPage, nameDatapageMap) => {
     twowayMapGetByKey2(nameDatapageMap, initDataPage),
     Object.keys(nameDatapageMap.map1_),
     (destName) => {
-      let dataPage = twowayMapGetByKey1(nameDatapageMap, destName)
-      let dest = dataPage
+      let dataPage = <DataPageID>twowayMapGetByKey1(nameDatapageMap, destName)
+      let dest: string = dataPage
       if (dataPage === "counts") {
         dest = dataPage + "?table=" + globalState.settings.counts.table
       }
@@ -674,7 +707,7 @@ const initSidebar = (widthPx, initDataPage, nameDatapageMap) => {
   return {sidebar: sidebar, pageSpecific: pageSpecific}
 }
 
-const initDataContainer = (sidebarWidthPx) => {
+const initDataContainer = (sidebarWidthPx: number) => {
   let container = createDiv()
   container.style.display = "flex"
   container.style.width = `calc(100vw - ${sidebarWidthPx}px)`
@@ -686,7 +719,7 @@ const initSurveys = () => {
   let container = createDiv()
   container.style.display = "flex"
 
-  let surveyDatesFormatters = {default: formatDate, week: (x) => x}
+  let surveyDatesFormatters = {default: formatDate, week: (x: any) => `${x}`}
   let surveyDatesColWidths = {default: 100, week: 50}
 
   let surveyDates2020 = createTableElementFromSoa(
@@ -752,7 +785,15 @@ const initCounts = () => {
   return {counts: counts, table: table}
 }
 
-const initCountsSettings = (initGroupsRecords, initGroupsBleeds, initTable) => {
+type CountTableID = "records" | "bleeds"
+type RecordGroups = "site" | "recruited" | "arm" | "armCovid" |
+      "gender" | "age" | "aboriginal" | "prior2020" | "prior2021" | "prior2022"
+type BleedsGroups = "year" | "site" | "recruited" | "arm" | "armCovid" |
+      "gender" | "age" | "aboriginal" | "prior2020" | "prior2021" | "prior2022"
+
+const initCountsSettings = (
+	initGroupsRecords: RecordGroups[], initGroupsBleeds: BleedsGroups[], initTable: CountTableID,
+) => {
   let container = createDiv()
 
   let tableSwitch = addEl(container, createSwitch(
@@ -807,11 +848,11 @@ const initCountsSettings = (initGroupsRecords, initGroupsBleeds, initTable) => {
     recordsSwitch: recordsSwitch, bleedsSwitch: bleedsSwitch}
 }
 
-const createCountsRecordsTable = (data, groups) => {
+const createCountsRecordsTable = (data: any, groups: string[]) => {
 
   let withdrawalData = data.withdrawn
 
-  let withdrawals = {}
+  let withdrawals: {[key: string]: boolean} = {}
   for (let row of withdrawalData) {
     if (row.withdrawn === 1 && row.withdrawn_reentered !== 1) {
       withdrawals[row.pid] = true
@@ -892,7 +933,7 @@ const createCountsRecordsTable = (data, groups) => {
   return countsTableContainer
 }
 
-const createCountsBleedsTable = (data, groups) => {
+const createCountsBleedsTable = (data: any, groups: string[]) => {
 
   let groupedCounts = summarise(
     data.bleed_dates, groups,
@@ -915,8 +956,9 @@ const createCountsBleedsTable = (data, groups) => {
       }
       return key
     },
+
     (row, counts) => {
-      const isPresent = (val) => val !== null && val !== undefined && val !== ""
+      const isPresent = (val: any) => val !== null && val !== undefined && val !== ""
       if (isPresent(row.flu_day_0)) {counts.fluDay0 += 1}
       if (isPresent(row.flu_day_7)) {counts.fluDay7 += 1}
       if (isPresent(row.flu_day_14)) {counts.fluDay14 += 1}
@@ -974,7 +1016,7 @@ const createCountsBleedsTable = (data, groups) => {
   return countsTableContainer
 }
 
-const createBleedsTable = (downloadCsv, data, year) => {
+const createBleedsTable = (downloadCsv: {[key: string]: string}, data: any, year: number) => {
 
   let tableResult = createTableElementFromAos(
     data.bleed_dates,
@@ -993,7 +1035,7 @@ const createBleedsTable = (downloadCsv, data, year) => {
     (row) => {
       let result = row.year === year
       if (result) {
-        const notMissing = (val) => val !== "" && val !== undefined && val !== null
+        const notMissing = (val: any) => val !== "" && val !== undefined && val !== null
         result = notMissing(row.flu_day_0) ||
           notMissing(row.flu_day_7) ||
           notMissing(row.flu_day_14) ||
@@ -1013,7 +1055,7 @@ const createBleedsTable = (downloadCsv, data, year) => {
   return tableResult.table
 }
 
-const createContactTable = (downloadCsv, data) => {
+const createContactTable = (downloadCsv: {[key: string]: string}, data: any) => {
 
   let tableResult = createTableElementFromAos(
     data.participants,
@@ -1031,7 +1073,7 @@ const createContactTable = (downloadCsv, data) => {
   return tableResult.table
 }
 
-const createSurveyTable = (completions, data, year) => {
+const createSurveyTable = (completions: {[key: string]: number[]}, data: any, year: number) => {
   let tableContainer = createDiv()
 
   let tableResult = createTableElementFromAos(
@@ -1113,7 +1155,7 @@ const createCompletionsTable = (completions: {[key: string]: number[]}) => {
   return tableContainer
 }
 
-const fetchData = async (password) => {
+const fetchData = async (password: string) => {
   let success = true
   let data = {}
 
@@ -1147,7 +1189,7 @@ const fetchData = async (password) => {
   return {success: success, data: data}
 }
 
-const setGlobalData = (data) => {
+const setGlobalData = (data: any) => {
   globalState.data = data
   updateCountsTable()
   updateBleedsTable()
@@ -1155,19 +1197,27 @@ const setGlobalData = (data) => {
   updateContactTable()
 }
 
-const getDataPageFromURL = (nameDatapageMap) => {
+const getDataPageFromURL = (nameDatapageMap: TwowayMap) => {
   let path = window.location.pathname.slice(1)
   let allowed = Object.keys(nameDatapageMap.map2_)
-  let result = "counts"
+  let result: DataPageID = "counts"
   if (arrLinSearch(allowed, path) !== -1) {
-    result = path
+    result = <DataPageID>path
   } else {
     window.history.replaceState(null, "", result)
   }
   return result
 }
 
-const getCountSettingsFromURL = (defTable, defGroupsRecords, defGroupsBleeds) => {
+type CountsSettings = {
+	table: CountTableID,
+	groupsRecords: RecordGroups[],
+	groupsBleeds: BleedsGroups[],
+}
+
+const getCountSettingsFromURL = (
+	defTable: CountTableID, defGroupsRecords: RecordGroups[], defGroupsBleeds: BleedsGroups[],
+) => {
   let urlTable = defTable
   let urlGroupsRecords = defGroupsRecords
   let urlGroupsBleeds = defGroupsBleeds
@@ -1178,7 +1228,7 @@ const getCountSettingsFromURL = (defTable, defGroupsRecords, defGroupsBleeds) =>
       let tables = params.getAll("table")
       let tableIsValid = tables[0] === "records" || tables[0] === "bleeds"
       if (tableIsValid) {
-        urlTable = tables[0]
+        urlTable = <CountTableID>tables[0]
       }
       if (tables.length > 1 || !tableIsValid) {
         window.history.replaceState(null, "", "counts?table=" + urlTable)
@@ -1188,7 +1238,8 @@ const getCountSettingsFromURL = (defTable, defGroupsRecords, defGroupsBleeds) =>
     }
   }
 
-  return {table: urlTable, groupsRecords: urlGroupsRecords, groupsBleeds: urlGroupsBleeds}
+  let result: CountsSettings = {table: urlTable, groupsRecords: urlGroupsRecords, groupsBleeds: urlGroupsBleeds}
+  return result
 }
 
 const NAME_DATAPAGE_MAP = twowayMapInit("name", "data page")
@@ -1197,17 +1248,19 @@ twowayMapInsert(NAME_DATAPAGE_MAP, "Weekly surveys", "weekly-surveys")
 twowayMapInsert(NAME_DATAPAGE_MAP, "Bleeds", "bleeds")
 twowayMapInsert(NAME_DATAPAGE_MAP, "Counts", "counts")
 
+type YearID = 2020 | 2021 | 2022
+
 const SIDEBAR_WIDTH_PX = 100
 const INIT_DATA_PAGE = getDataPageFromURL(NAME_DATAPAGE_MAP)
-const INIT_YEAR = 2022
+const INIT_YEAR: YearID = 2022
 const YEARS = [2020, 2021, 2022]
-const INIT_COUNT_SETTINGS = getCountSettingsFromURL("records", ["site"], ["year"])
-const DOWNLOAD_CSV = {}
+const INIT_COUNT_SETTINGS: CountsSettings = getCountSettingsFromURL("records", ["site"], ["year"])
+const DOWNLOAD_CSV: {[key: string]: string} = {}
 
 let globalState = {
   data: {},
 
-  domMain: document.getElementById("main"),
+  domMain: document.getElementById("main")!,
   currentDataPage: INIT_DATA_PAGE,
 
   elements: {
@@ -1244,8 +1297,8 @@ let globalState = {
   },
 
   settings: {
-    weeklySurveys: { year: 2022 },
-    bleeds: { year: 2022 },
+    weeklySurveys: { year: INIT_YEAR },
+    bleeds: { year: INIT_YEAR },
     counts: {
       groups_records: INIT_COUNT_SETTINGS.groupsRecords,
       groups_bleeds: INIT_COUNT_SETTINGS.groupsBleeds,
@@ -1254,7 +1307,9 @@ let globalState = {
   },
 }
 
-const switchDataPage = (name) => {
+type DataPageID = "weekly-surveys" | "bleeds" | "counts" | "contact"
+
+const switchDataPage = (name: DataPageID) => {
   let oldDataPage = globalState.currentDataPage
   globalState.currentDataPage = name
   switch (name) {
@@ -1283,7 +1338,7 @@ const switchDataPage = (name) => {
 
 const switchToPassword = () => replaceChildren(globalState.domMain, globalState.elements.password)
 const switchToLoading = () => replaceChildren(globalState.domMain, globalState.elements.loading)
-const switchToData = (dataPageName) => {
+const switchToData = (dataPageName: DataPageID) => {
   removeChildren(globalState.domMain)
   addEl(globalState.domMain, globalState.elements.sidebar.sidebar)
   addEl(globalState.domMain, globalState.elements.dataContainer)
@@ -1337,7 +1392,7 @@ const updateContactTable = () => replaceChildren(
 )
 
 window.addEventListener("popstate", (event) => {
-  globalState.currentDataPage = getDataPageFromURL(window.location.pathname)
+  globalState.currentDataPage = getDataPageFromURL(NAME_DATAPAGE_MAP)
   let newCountsTable = getCountSettingsFromURL(
   	globalState.settings.counts.table,
   	globalState.settings.counts.groups_records,
