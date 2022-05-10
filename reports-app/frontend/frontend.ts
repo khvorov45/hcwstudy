@@ -785,11 +785,19 @@ const initCounts = () => {
   return {counts: counts, table: table}
 }
 
-type CountTableID = "records" | "bleeds"
-type RecordGroups = "site" | "recruited" | "arm" | "armCovid" |
-      "gender" | "age" | "aboriginal" | "prior2020" | "prior2021" | "prior2022"
-type BleedsGroups = "year" | "site" | "recruited" | "arm" | "armCovid" |
-      "gender" | "age" | "aboriginal" | "prior2020" | "prior2021" | "prior2022"
+const ALL_COUNTS_TABLES_ = ["records", "bleeds"] as const
+const ALL_COUNTS_TABLES = ALL_COUNTS_TABLES_ as unknown as string[]
+type CountTableID = (typeof ALL_COUNTS_TABLES_)[number]
+
+const ALL_RECORD_GROUPS_ = ["site", "recruited", "arm", "armCovid",
+  "gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"] as const
+const ALL_RECORD_GROUPS = ALL_RECORD_GROUPS_ as unknown as string[]
+type RecordGroups = (typeof ALL_RECORD_GROUPS_)[number]
+
+const ALL_BLEEDS_GROUPS_ = ["year", "site", "recruited", "arm", "armCovid",
+  "gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"] as const
+const ALL_BLEEDS_GROUPS = ALL_BLEEDS_GROUPS_ as unknown as string[]
+type BleedsGroups = (typeof ALL_BLEEDS_GROUPS_)[number]
 
 const initCountsSettings = (
 	initGroupsRecords: RecordGroups[], initGroupsBleeds: BleedsGroups[], initTable: CountTableID,
@@ -824,8 +832,7 @@ const initCountsSettings = (
 
   let recordsSwitch = createSwitch(
     initGroupsRecords,
-    ["site", "recruited", "arm", "armCovid",
-      "gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"],
+    ALL_RECORD_GROUPS,
     (groups) => {
       globalState.settings.counts.groups_records = groups
       updateCountsTable()
@@ -835,8 +842,7 @@ const initCountsSettings = (
 
   let bleedsSwitch = createSwitch(
     initGroupsBleeds,
-    ["year", "site", "recruited", "arm", "armCovid",
-      "gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"],
+    ALL_BLEEDS_GROUPS,
     (groups) => {
       globalState.settings.counts.groups_bleeds = groups
       updateCountsTable()
@@ -1226,7 +1232,7 @@ const getCountSettingsFromURL = (
     let params = new URLSearchParams(window.location.search)
     if (params.has("table")) {
       let tables = params.getAll("table")
-      let tableIsValid = tables[0] === "records" || tables[0] === "bleeds"
+      let tableIsValid = ALL_COUNTS_TABLES.includes(tables[0])
       if (tableIsValid) {
         urlTable = <CountTableID>tables[0]
       }
