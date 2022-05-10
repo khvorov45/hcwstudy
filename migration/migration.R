@@ -107,6 +107,13 @@ data_access_groups2021 <- consent2021 %>%
 
 redcap_upload_spoonfed(20, 2022, "", data_access_groups2021)
 
+redcap_upload(
+  "2022", "baseline_arm_1",
+  consent2021 %>%
+    filter(record_id == "168-4") %>%
+    select(record_id, redcap_data_access_group)
+)
+
 #
 # SECTION PID, study group
 #
@@ -161,6 +168,14 @@ redcap_upload(
     process_pid()
 )
 
+redcap_upload(
+  2022, "baseline_arm_1", 
+  pid2021 %>% 
+    filter(pid == "ALF-804") %>% 
+    process_pid()
+)
+
+
 jhh_806_2021_record_id <- pid2021 %>% filter(pid == "JHH-806") %>% pull(record_id)
 jhh_806_2022_record_id <- pid2022_current %>% filter(pid == "JHH-806") %>% pull(record_id)
 
@@ -201,6 +216,15 @@ redcap_upload(
   "baseline_arm_1",
   screening2021 %>%
     filter(record_id == "170-31") %>%
+    filter(!is.na(date_screening) | !is.na(site_name)) %>%
+    select(-contains("redcap"))
+)
+
+redcap_upload(
+  2022,
+  "baseline_arm_1",
+  screening2021 %>%
+    filter(record_id == "168-4") %>%
     filter(!is.na(date_screening) | !is.na(site_name)) %>%
     select(-contains("redcap"))
 )
@@ -252,6 +276,14 @@ redcap_upload(
   2022,
   "baseline_arm_1",
   baseline2021 %>%
+    filter(record_id == "168-4") %>%
+    process_baseline()
+)
+
+redcap_upload(
+  2022,
+  "baseline_arm_1",
+  baseline2021 %>%
     filter(record_id == jhh_806_2021_record_id) %>%
     process_baseline() %>%
     mutate(record_id = jhh_806_2022_record_id)
@@ -293,4 +325,12 @@ redcap_upload(
   covax2021 %>%
     select(-contains("redcap")) %>%
     filter(record_id == "170-31")
+)
+
+redcap_upload(
+  2022,
+  "vaccination_arm_1",
+  covax2021 %>%
+    select(-contains("redcap")) %>%
+    filter(record_id == "168-4")
 )
