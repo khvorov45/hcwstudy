@@ -17,7 +17,7 @@ prior_vacs <- calc_prior_vacs(vaccinations, 2020) %>%
 hi <- read_csv("data/serology.csv", col_types = cols()) %>%
 	left_join(read_csv("data/participants.csv", col_types = cols()), "pid") %>%
 	left_join(prior_vacs, c("pid", "year")) %>%
-	left_join(vaccinations %>% rename(vac_status = status), c("pid", "year"))
+	left_join(vaccinations %>% rename(vac_status = status), c("pid", "year")) %>%
 	mutate(subtype = factor(subtype, c("H1", "H3", "BVic", "BYam")))
 
 # NOTE(sen) There is one virus per subtype/year/egg status
@@ -191,13 +191,13 @@ make_titre_plot <- function(hi, gmts, nonmissing_titre_counts, prior_counts) {
 }
 
 ggsave(
-	"h1-responses-year-1-2/titre_subset_plot_05.pdf",
+	"h1-responses-year-1-2/titre_subset_plot_05.png",
 	make_titre_plot(hi, gmts, nonmissing_titre_counts, c(0, 5)),
 	width = 20, height = 20, units = "cm",
 )
 
 ggsave(
-	"h1-responses-year-1-2/titre_subset_plot_035.pdf",
+	"h1-responses-year-1-2/titre_subset_plot_035.png",
 	make_titre_plot(hi, gmts, nonmissing_titre_counts, c(0, 3, 5)),
 	width = 20, height = 20, units = "cm",
 )
@@ -227,18 +227,16 @@ make_seroconv_plot <- function(seroconv, prior_counts) {
 }
 
 ggsave(
-	"h1-responses-year-1-2/seroconv_subset_plot_05.pdf",
+	"h1-responses-year-1-2/seroconv_subset_plot_05.png",
 	make_seroconv_plot(seroconv, c(0, 5)),
 	width = 18, height = 12, units = "cm",
 )
 
 ggsave(
-	"h1-responses-year-1-2/seroconv_subset_plot_035.pdf",
+	"h1-responses-year-1-2/seroconv_subset_plot_035.png",
 	make_seroconv_plot(seroconv, c(0, 3, 5)),
 	width = 18, height = 12, units = "cm",
 )
-
-
 
 seroconv %>%
 	filter(prior_count %in% prior_counts)
