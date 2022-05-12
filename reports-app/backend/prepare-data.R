@@ -12,7 +12,8 @@ prior_vac_counts <- vac_hist %>%
 
 participants <- read_csv("./data/participants.csv") %>%
 	mutate(age_group = cut(age_screening, c(-Inf, 18, 30, 50, 65), right = FALSE)) %>%
-	left_join(prior_vac_counts, "pid")
+	left_join(prior_vac_counts, "pid") %>%
+	left_join(covid_arms, "pid")
 
 withdrawn <- read_csv("./data/withdrawn.csv") %>%
 	left_join(participants %>% select(pid, site), "pid") %>%
@@ -48,7 +49,7 @@ weekly_surveys <- read_csv("./data/weekly-surveys.csv") %>%
 	left_join(participants %>% select(pid, site), "pid")
 
 all_data <- list(
-	participants = participants %>% left_join(covid_arms, "pid"),
+	participants = participants,
 	withdrawn = withdrawn,
 	bleed_dates = bleed_dates_wide,
 	consent = consent,
