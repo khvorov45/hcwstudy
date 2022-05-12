@@ -3,6 +3,17 @@
 // SECTION Utilities
 //
 
+const allAInB = <T>(arrA: T[], arrB: T[]) => {
+  let result = true
+  for (let entryA of arrA) {
+    if (!arrB.includes(entryA)) {
+      result = false
+      break
+    }
+  }
+  return result
+}
+
 const isString = (val: any) => (typeof val === "string" || val instanceof String)
 
 const formatDate = (date: Date) => {
@@ -671,9 +682,19 @@ const initSidebar = (widthPx: number, initDataPage: string, nameDatapageMap: Two
     (destName) => {
       let dataPage = <DataPageID>twowayMapGetByKey1(nameDatapageMap, destName)
       let dest: string = dataPage
-      if (dataPage === "counts") {
-        dest = dataPage + "?table=" + globalState.settings.counts.table
+
+      switch (dataPage) {
+      case "counts": {
+        dest = getCountsPageURL(globalState.settings.counts)
+      } break
+      case "bleeds": {
+        dest = dataPage + "?year=" + globalState.settings.bleeds.year
+      } break
+      case "weekly-surveys": {
+        dest = dataPage + "?year=" + globalState.settings.weeklySurveys.year
+      } break
       }
+
       window.history.pushState(null, "", dest)
       switchDataPage(dataPage)
     },
@@ -805,48 +826,69 @@ const initCountsSettings = (
   let container = createDiv()
 
   let tableSwitch = addEl(container, createSwitch(
-    initTable, ["records", "bleeds"],
+    initTable,
+    <CountTableID[]>["records", "bleeds"],
     (table) => {
       globalState.settings.counts.table = table
-      window.history.pushState(null, "", "/counts?table=" + table)
+      window.history.pushState(null, "", getCountsPageURL(globalState.settings.counts))
       updateCountsTable()
     },
     (table, el, updateSelected) => {
       window.addEventListener("popstate", () => {
-        let urlTable = getCountSettingsFromURL(
-        	globalState.settings.counts.table,
-        	globalState.settings.counts.groups_records,
-        	globalState.settings.counts.groups_bleeds,
-        ).table
-        if (urlTable === table) {
+        let settings = getCountSettingsFromURL(globalState.settings.counts)
+        if (settings.table === table) {
           el.style.backgroundColor = "var(--color-selected)"
         } else {
           el.style.backgroundColor = "var(--color-background)"
         }
-        updateSelected(urlTable)
+        updateSelected(settings.table)
       })
-    }
+    },
   ))
 
   let groupSwitchContainer = addDiv(container)
 
   let recordsSwitch = createSwitch(
     initGroupsRecords,
-    ALL_RECORD_GROUPS,
+    <RecordGroups[]>ALL_RECORD_GROUPS,
     (groups) => {
-      globalState.settings.counts.groups_records = groups
+      globalState.settings.counts.groupsRecords = groups
+      window.history.pushState(null, "", getCountsPageURL(globalState.settings.counts))
       updateCountsTable()
-    }
+    },
+    (group, el, updateSelected) => {
+      window.addEventListener("popstate", () => {
+        let settings = getCountSettingsFromURL(globalState.settings.counts)
+        if (settings.groupsRecords.includes(group)) {
+          el.style.backgroundColor = "var(--color-selected)"
+        } else {
+          el.style.backgroundColor = "var(--color-background)"
+        }
+        updateSelected(settings.groupsRecords)
+      })
+    },
   )
   recordsSwitch.style.marginTop = "20px"
 
   let bleedsSwitch = createSwitch(
     initGroupsBleeds,
-    ALL_BLEEDS_GROUPS,
+    <BleedsGroups[]>ALL_BLEEDS_GROUPS,
     (groups) => {
-      globalState.settings.counts.groups_bleeds = groups
+      globalState.settings.counts.groupsBleeds = groups
+      window.history.pushState(null, "", getCountsPageURL(globalState.settings.counts))
       updateCountsTable()
-    }
+    },
+    (group, el, updateSelected) => {
+      window.addEventListener("popstate", () => {
+        let settings = getCountSettingsFromURL(globalState.settings.counts)
+        if (settings.groupsBleeds.includes(group)) {
+          el.style.backgroundColor = "var(--color-selected)"
+        } else {
+          el.style.backgroundColor = "var(--color-background)"
+        }
+        updateSelected(settings.groupsBleeds)
+      })
+    },
   )
   bleedsSwitch.style.marginTop = "20px"
 
@@ -1207,7 +1249,7 @@ const getDataPageFromURL = (nameDatapageMap: TwowayMap) => {
   let path = window.location.pathname.slice(1)
   let allowed = Object.keys(nameDatapageMap.map2_)
   let result: DataPageID = "counts"
-  if (arrLinSearch(allowed, path) !== -1) {
+  if (allowed.includes(path)) {
     result = <DataPageID>path
   } else {
     window.history.replaceState(null, "", result)
@@ -1221,31 +1263,145 @@ type CountsSettings = {
 	groupsBleeds: BleedsGroups[],
 }
 
-const getCountSettingsFromURL = (
-	defTable: CountTableID, defGroupsRecords: RecordGroups[], defGroupsBleeds: BleedsGroups[],
-) => {
-  let urlTable = defTable
-  let urlGroupsRecords = defGroupsRecords
-  let urlGroupsBleeds = defGroupsBleeds
+const getCountsPageURL = (settings: CountsSettings) => {
+  let recordGroups = `record_groups=${settings.groupsRecords.join(",")}`
+  let bleedsGroups = `bleeds_groups=${settings.groupsBleeds.join(",")}`
+  let result = `counts?table=${settings.table}&${recordGroups}&${bleedsGroups}`
+  return result
+}
+
+const getCountSettingsFromURL = (def: CountsSettings) => {
+  let urlTable = def.table
+  let urlGroupsRecords = def.groupsRecords
+  let urlGroupsBleeds = def.groupsBleeds
 
   if (window.location.pathname === "/counts") {
     let params = new URLSearchParams(window.location.search)
+    let needToFixAddress = false
+
     if (params.has("table")) {
+
       let tables = params.getAll("table")
       let tableIsValid = ALL_COUNTS_TABLES.includes(tables[0])
       if (tableIsValid) {
         urlTable = <CountTableID>tables[0]
       }
+
       if (tables.length > 1 || !tableIsValid) {
-        window.history.replaceState(null, "", "counts?table=" + urlTable)
+        needToFixAddress = true
       }
+
     } else {
-      window.history.replaceState(null, "", "counts?table=" + urlTable)
+      needToFixAddress = true
+    }
+
+    if (params.has("record_groups")) {
+
+      let recordGroups = params.getAll("record_groups")
+      let recordGroupsFirst = recordGroups[0].split(",")
+      if (allAInB(recordGroupsFirst, ALL_RECORD_GROUPS)) {
+        urlGroupsRecords = <RecordGroups[]>recordGroupsFirst
+      } else {
+        needToFixAddress = true
+      }
+
+      if (recordGroups.length > 1) {
+        needToFixAddress = true
+      }
+
+    } else {
+      needToFixAddress = true
+    }
+
+    if (params.has("bleeds_groups")) {
+
+      let bleedsGroups = params.getAll("bleeds_groups")
+      let bleedsGroupsFirst = bleedsGroups[0].split(",")
+      if (allAInB(bleedsGroupsFirst, ALL_BLEEDS_GROUPS)) {
+        urlGroupsBleeds = <BleedsGroups[]>bleedsGroupsFirst
+      } else {
+        needToFixAddress = true
+      }
+
+      if (bleedsGroups.length > 1) {
+        needToFixAddress = true
+      }
+
+    } else {
+      needToFixAddress = true
+    }
+
+    if (needToFixAddress) {
+      window.history.replaceState(null, "", getCountsPageURL({
+        table: urlTable, groupsRecords: urlGroupsRecords, groupsBleeds: urlGroupsBleeds
+      }))
     }
   }
 
   let result: CountsSettings = {table: urlTable, groupsRecords: urlGroupsRecords, groupsBleeds: urlGroupsBleeds}
   return result
+}
+
+const getBleedsYearFromURL = (def: YearID) => {
+  let urlYear = def
+
+  if (window.location.pathname === "/bleeds") {
+
+    let params = new URLSearchParams(window.location.search)
+    let needToFixAddress = false
+
+    if (params.has("year")) {
+      let years = params.getAll("year")
+
+      let yearFirst = parseInt(years[0])
+      if (YEARS.includes(yearFirst)) {
+        urlYear = <YearID>yearFirst
+      }
+
+      if (years.length > 1) {
+        needToFixAddress = true
+      }
+    } else {
+      needToFixAddress = true
+    }
+
+    if (needToFixAddress) {
+      window.history.replaceState(null, "", `bleeds?year=${urlYear}`)
+    }
+  }
+
+  return urlYear
+}
+
+const getSurveysYearFromURL = (def: YearID) => {
+  let urlYear = def
+
+  if (window.location.pathname === "/weekly-surveys") {
+
+    let params = new URLSearchParams(window.location.search)
+    let needToFixAddress = false
+
+    if (params.has("year")) {
+      let years = params.getAll("year")
+
+      let yearFirst = parseInt(years[0])
+      if (YEARS.includes(yearFirst)) {
+        urlYear = <YearID>yearFirst
+      }
+
+      if (years.length > 1) {
+        needToFixAddress = true
+      }
+    } else {
+      needToFixAddress = true
+    }
+
+    if (needToFixAddress) {
+      window.history.replaceState(null, "", `weekly-surveys?year=${urlYear}`)
+    }
+  }
+
+  return urlYear
 }
 
 const NAME_DATAPAGE_MAP = twowayMapInit("name", "data page")
@@ -1254,13 +1410,17 @@ twowayMapInsert(NAME_DATAPAGE_MAP, "Weekly surveys", "weekly-surveys")
 twowayMapInsert(NAME_DATAPAGE_MAP, "Bleeds", "bleeds")
 twowayMapInsert(NAME_DATAPAGE_MAP, "Counts", "counts")
 
+const YEARS = [2020, 2021, 2022]
 type YearID = 2020 | 2021 | 2022
 
 const SIDEBAR_WIDTH_PX = 100
 const INIT_DATA_PAGE = getDataPageFromURL(NAME_DATAPAGE_MAP)
 const INIT_YEAR: YearID = 2022
-const YEARS = [2020, 2021, 2022]
-const INIT_COUNT_SETTINGS: CountsSettings = getCountSettingsFromURL("records", ["site"], ["year"])
+const INIT_YEAR_BLEEDS: YearID = getBleedsYearFromURL(INIT_YEAR)
+const INIT_YEAR_SURVEYS: YearID = getSurveysYearFromURL(INIT_YEAR)
+const INIT_COUNT_SETTINGS: CountsSettings = getCountSettingsFromURL({
+  table: "records", groupsRecords: ["site"], groupsBleeds: ["year"]
+})
 const DOWNLOAD_CSV: {[key: string]: string} = {}
 
 let globalState = {
@@ -1276,19 +1436,44 @@ let globalState = {
     sidebar: initSidebar(SIDEBAR_WIDTH_PX, INIT_DATA_PAGE, NAME_DATAPAGE_MAP),
 
     weeklySurveySettings: createSwitch(
-      INIT_YEAR, YEARS,
+      INIT_YEAR_SURVEYS,
+      <YearID[]>YEARS,
       (year) => {
         globalState.settings.weeklySurveys.year = year
+        window.history.pushState(null, "", `weekly-surveys?year=${year}`)
         updateSurveyTables()
-      }
+      },
+      (year, el, updateSelected) => {
+        window.addEventListener("popstate", () => {
+          let urlYear = getSurveysYearFromURL(globalState.settings.weeklySurveys.year)
+          if (urlYear == year) {
+            el.style.backgroundColor = "var(--color-selected)"
+          } else {
+            el.style.backgroundColor = "var(--color-background)"
+          }
+          updateSelected(urlYear)
+        })
+      },
     ),
 
     bleedsSettings: createSwitch(
-      INIT_YEAR, YEARS,
+      INIT_YEAR_BLEEDS, YEARS,
       (year) => {
         globalState.settings.bleeds.year = year
+        window.history.pushState(null, "", `bleeds?year=${year}`)
         updateBleedsTable()
-      }
+      },
+      (year, el, updateSelected) => {
+        window.addEventListener("popstate", () => {
+          let urlYear = getBleedsYearFromURL(globalState.settings.bleeds.year)
+          if (urlYear == year) {
+            el.style.backgroundColor = "var(--color-selected)"
+          } else {
+            el.style.backgroundColor = "var(--color-background)"
+          }
+          updateSelected(urlYear)
+        })
+      },
     ),
 
     countsSettings: initCountsSettings(
@@ -1303,13 +1488,9 @@ let globalState = {
   },
 
   settings: {
-    weeklySurveys: { year: INIT_YEAR },
-    bleeds: { year: INIT_YEAR },
-    counts: {
-      groups_records: INIT_COUNT_SETTINGS.groupsRecords,
-      groups_bleeds: INIT_COUNT_SETTINGS.groupsBleeds,
-      table: INIT_COUNT_SETTINGS.table
-    },
+    weeklySurveys: { year: INIT_YEAR_SURVEYS },
+    bleeds: { year: INIT_YEAR_BLEEDS },
+    counts: INIT_COUNT_SETTINGS,
   },
 }
 
@@ -1357,11 +1538,11 @@ const updateCountsTable = () => {
 
   switch (globalState.settings.counts.table) {
   case "records": {
-      tableEl = createCountsRecordsTable(globalState.data, globalState.settings.counts.groups_records)
+      tableEl = createCountsRecordsTable(globalState.data, globalState.settings.counts.groupsRecords)
       switchEl = globalState.elements.countsSettings.recordsSwitch
   } break;
   case "bleeds": {
-      tableEl = createCountsBleedsTable(globalState.data, globalState.settings.counts.groups_bleeds)
+      tableEl = createCountsBleedsTable(globalState.data, globalState.settings.counts.groupsBleeds)
       switchEl = globalState.elements.countsSettings.bleedsSwitch
   } break;
   default: console.error("unexpected counts table name", globalState.settings.counts.table)
@@ -1399,14 +1580,22 @@ const updateContactTable = () => replaceChildren(
 
 window.addEventListener("popstate", (event) => {
   globalState.currentDataPage = getDataPageFromURL(NAME_DATAPAGE_MAP)
-  let newCountsTable = getCountSettingsFromURL(
-  	globalState.settings.counts.table,
-  	globalState.settings.counts.groups_records,
-  	globalState.settings.counts.groups_bleeds,
-  ).table
-  if (newCountsTable !== globalState.settings.counts.table) {
-    globalState.settings.counts.table = newCountsTable
+
+  switch (globalState.currentDataPage) {
+  case "counts": {
+    globalState.settings.counts = getCountSettingsFromURL(globalState.settings.counts)
     updateCountsTable()
+  } break
+
+  case "bleeds": {
+    globalState.settings.bleeds.year = getBleedsYearFromURL(globalState.settings.bleeds.year)
+    updateBleedsTable()
+  } break
+
+  case "weekly-surveys": {
+    globalState.settings.weeklySurveys.year = getSurveysYearFromURL(globalState.settings.weeklySurveys.year)
+    updateSurveyTables()
+  } break
   }
   switchToData(globalState.currentDataPage)
 })
@@ -1431,5 +1620,5 @@ window.addEventListener("popstate", (event) => {
 // NOTE(sen) To make this a "module"
 export {}
 
-// TODO(sen) Paths
 // TODO(sen) Table filtering
+// TODO(sen) Titre plots
