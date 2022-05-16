@@ -249,8 +249,6 @@ participants_fix_pid %>%
 setdiff(serology_all_tables$pid, participants_fix_pid$pid) %>% sort()
 setdiff(participants_fix_pid$pid, serology_all_tables$pid) %>% sort()
 
-write_csv(participants_fix_pid, "data/participants.csv")
-
 #
 # SECTION Participant information that changes yearly
 #
@@ -556,6 +554,16 @@ redcap_consent_long_extra <- redcap_consent_long %>%
   select(pid, year = redcap_project_year, disease, form, consent)
 
 write_csv(redcap_consent_long_extra, "data/consent.csv")
+
+covid_arms <- redcap_consent_long_extra %>%
+  filter(disease == "covid", !is.na(consent), consent != "no") %>%
+  group_by(pid) %>%
+  summarise(covid_arm = paste(unique(na.omit(consent)), collapse = ","))
+
+
+participants_with_covid_arms <- participants_fix_pid %>% left_join(covid_arms, "pid")
+
+write_csv(participants_with_covid_arms, "data/participants.csv")
 
 redcap_consent_use_long <- redcap_consent_raw %>%
   select(record_id, redcap_project_year, contains("___")) %>%

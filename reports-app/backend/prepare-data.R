@@ -12,8 +12,7 @@ prior_vac_counts <- vac_hist %>%
 
 participants <- read_csv("./data/participants.csv") %>%
 	mutate(age_group = cut(age_screening, c(-Inf, 18, 30, 50, 65), right = FALSE)) %>%
-	left_join(prior_vac_counts, "pid") %>%
-	left_join(covid_arms, "pid")
+	left_join(prior_vac_counts, "pid")
 
 withdrawn <- read_csv("./data/withdrawn.csv") %>%
 	left_join(participants %>% select(pid, site), "pid") %>%
@@ -37,13 +36,6 @@ bleed_dates_wide <- full_join(bleed_dates_flu_wide, bleed_dates_covid_wide, c("p
 
 consent <- read_csv("./data/consent.csv") %>%
 	left_join(participants %>% select(pid, site), "pid")
-
-covid_arms <- consent %>%
-	filter(disease == "covid", !is.na(consent), consent != "no") %>%
-	group_by(pid) %>%
-	#filter(length(na.omit(consent)) == 1 | form == "electronic") %>%
-	summarise(covid_arm = paste(unique(na.omit(consent)), collapse = ",")) #%>%
-	#mutate(covid_arm = if_else(covid_arm == "", "no", covid_arm))
 
 weekly_surveys <- read_csv("./data/weekly-surveys.csv") %>%
 	left_join(participants %>% select(pid, site), "pid")
