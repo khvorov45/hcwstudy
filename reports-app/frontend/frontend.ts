@@ -595,7 +595,7 @@ const createTableElementFromAos = <RowType extends {[key: string]: any}>(
   return {table: table, width: tableWidthPx}
 }
 
-const initPassword = () => {
+const initPassword = (state: State) => {
   let container = createDiv()
   let label = addDiv(container)
   let input = <HTMLInputElement>addEl(container, createEl("input"))
@@ -640,8 +640,8 @@ const initPassword = () => {
           errorText.textContent = "Not recognized"
         } else {
           localStorage.setItem("password", input.value)
-          setGlobalData(fetchResult.data)
-          switchToData(globalState.currentDataPage)
+          setGlobalData(state, fetchResult.data)
+          switchToData(state, state.currentDataPage)
         }
         buttonText.textContent = "Submit"
       }
@@ -663,7 +663,7 @@ const initLoading = () => {
   return loading
 }
 
-const initSidebar = (widthPx: number, initDataPage: string, nameDatapageMap: TwowayMap) => {
+const initSidebar = (state: State, widthPx: number, initDataPage: string, nameDatapageMap: TwowayMap) => {
   let sidebar = createDiv()
   sidebar.style.width = widthPx + "px"
   sidebar.style.height = "100vh"
@@ -685,18 +685,18 @@ const initSidebar = (widthPx: number, initDataPage: string, nameDatapageMap: Two
 
       switch (dataPage) {
       case "counts": {
-        dest = getCountsPageURL(globalState.settings.counts)
+        dest = getCountsPageURL(state.settings.counts)
       } break
       case "bleeds": {
-        dest = dataPage + "?year=" + globalState.settings.bleeds.year
+        dest = dataPage + "?year=" + state.settings.bleeds.year
       } break
       case "weekly-surveys": {
-        dest = dataPage + "?year=" + globalState.settings.weeklySurveys.year
+        dest = dataPage + "?year=" + state.settings.weeklySurveys.year
       } break
       }
 
       window.history.pushState(null, "", dest)
-      switchDataPage(dataPage)
+      switchDataPage(state, dataPage)
     },
     (destName, optEl, updateSelected) => {
       window.addEventListener("popstate", () => {
@@ -722,7 +722,7 @@ const initSidebar = (widthPx: number, initDataPage: string, nameDatapageMap: Two
   logout.addEventListener("mouseleave", (event) => logout.style.backgroundColor = "inherit")
   logout.addEventListener("click", (event) => {
     localStorage.removeItem("password")
-    switchToPassword()
+    switchToPassword(state)
   })
 
   return {sidebar: sidebar, pageSpecific: pageSpecific}
@@ -821,7 +821,8 @@ const ALL_BLEEDS_GROUPS = ALL_BLEEDS_GROUPS_ as unknown as string[]
 type BleedsGroups = (typeof ALL_BLEEDS_GROUPS_)[number]
 
 const initCountsSettings = (
-	initGroupsRecords: RecordGroups[], initGroupsBleeds: BleedsGroups[], initTable: CountTableID,
+	state: State,
+  initGroupsRecords: RecordGroups[], initGroupsBleeds: BleedsGroups[], initTable: CountTableID,
 ) => {
   let container = createDiv()
 
@@ -829,13 +830,13 @@ const initCountsSettings = (
     initTable,
     <CountTableID[]>["records", "bleeds"],
     (table) => {
-      globalState.settings.counts.table = table
-      window.history.pushState(null, "", getCountsPageURL(globalState.settings.counts))
-      updateCountsTable()
+      state.settings.counts.table = table
+      window.history.pushState(null, "", getCountsPageURL(state.settings.counts))
+      updateCountsTable(state)
     },
     (table, el, updateSelected) => {
       window.addEventListener("popstate", () => {
-        let settings = getCountSettingsFromURL(globalState.settings.counts)
+        let settings = getCountSettingsFromURL(state.settings.counts)
         if (settings.table === table) {
           el.style.backgroundColor = "var(--color-selected)"
         } else {
@@ -852,13 +853,13 @@ const initCountsSettings = (
     initGroupsRecords,
     <RecordGroups[]>ALL_RECORD_GROUPS,
     (groups) => {
-      globalState.settings.counts.groupsRecords = groups
-      window.history.pushState(null, "", getCountsPageURL(globalState.settings.counts))
-      updateCountsTable()
+      state.settings.counts.groupsRecords = groups
+      window.history.pushState(null, "", getCountsPageURL(state.settings.counts))
+      updateCountsTable(state)
     },
     (group, el, updateSelected) => {
       window.addEventListener("popstate", () => {
-        let settings = getCountSettingsFromURL(globalState.settings.counts)
+        let settings = getCountSettingsFromURL(state.settings.counts)
         if (settings.groupsRecords.includes(group)) {
           el.style.backgroundColor = "var(--color-selected)"
         } else {
@@ -874,13 +875,13 @@ const initCountsSettings = (
     initGroupsBleeds,
     <BleedsGroups[]>ALL_BLEEDS_GROUPS,
     (groups) => {
-      globalState.settings.counts.groupsBleeds = groups
-      window.history.pushState(null, "", getCountsPageURL(globalState.settings.counts))
-      updateCountsTable()
+      state.settings.counts.groupsBleeds = groups
+      window.history.pushState(null, "", getCountsPageURL(state.settings.counts))
+      updateCountsTable(state)
     },
     (group, el, updateSelected) => {
       window.addEventListener("popstate", () => {
-        let settings = getCountSettingsFromURL(globalState.settings.counts)
+        let settings = getCountSettingsFromURL(state.settings.counts)
         if (settings.groupsBleeds.includes(group)) {
           el.style.backgroundColor = "var(--color-selected)"
         } else {
@@ -1237,12 +1238,12 @@ const fetchData = async (password: string) => {
   return {success: success, data: data}
 }
 
-const setGlobalData = (data: any) => {
-  globalState.data = data
-  updateCountsTable()
-  updateBleedsTable()
-  updateSurveyTables()
-  updateContactTable()
+const setGlobalData = (state: State, data: any) => {
+  state.data = data
+  updateCountsTable(state)
+  updateBleedsTable(state)
+  updateSurveyTables(state)
+  updateContactTable(state)
 }
 
 const getDataPageFromURL = (nameDatapageMap: TwowayMap) => {
@@ -1423,29 +1424,164 @@ const INIT_COUNT_SETTINGS: CountsSettings = getCountSettingsFromURL({
 })
 const DOWNLOAD_CSV: {[key: string]: string} = {}
 
-let globalState = {
-  data: {},
+type DataPageID = "weekly-surveys" | "bleeds" | "counts" | "contact"
 
-  domMain: document.getElementById("main")!,
-  currentDataPage: INIT_DATA_PAGE,
+const switchDataPage = (state: State, name: DataPageID) => {
+  let oldDataPage = state.currentDataPage
+  state.currentDataPage = name
+  switch (name) {
+  case "weekly-surveys": {
+    replaceChildren(state.elements.sidebar.pageSpecific, state.elements.weeklySurveySettings)
+    replaceChildren(state.elements.dataContainer, state.elements.weeklySurveys.container)
+  } break
+  case "bleeds": {
+    replaceChildren(state.elements.sidebar.pageSpecific, state.elements.bleedsSettings)
+    replaceChildren(state.elements.dataContainer, state.elements.bleeds.bleeds)
+  } break
+  case "counts": {
+    replaceChildren(state.elements.sidebar.pageSpecific, state.elements.countsSettings.container)
+    replaceChildren(state.elements.dataContainer, state.elements.counts.counts)
+  } break
+  case "contact": {
+    removeChildren(state.elements.sidebar.pageSpecific)
+    replaceChildren(state.elements.dataContainer, state.elements.contact.contact)
+  } break
+  default: {
+    console.error("data page", name, "does not exist")
+    state.currentDataPage = oldDataPage
+  }
+  }
+}
 
+const switchToPassword = (state: State) => replaceChildren(state.domMain, state.elements.password)
+const switchToLoading = (state: State) => replaceChildren(state.domMain, state.elements.loading)
+const switchToData = (state: State, dataPageName: DataPageID) => {
+  removeChildren(state.domMain)
+  addEl(state.domMain, state.elements.sidebar.sidebar)
+  addEl(state.domMain, state.elements.dataContainer)
+  switchDataPage(state, dataPageName)
+}
+
+const updateCountsTable = (state: State) => {
+  let tableEl = createDiv()
+  let switchEl = createDiv()
+
+  switch (state.settings.counts.table) {
+  case "records": {
+      tableEl = createCountsRecordsTable(state.data, state.settings.counts.groupsRecords)
+      switchEl = state.elements.countsSettings.recordsSwitch
+  } break;
+  case "bleeds": {
+      tableEl = createCountsBleedsTable(state.data, state.settings.counts.groupsBleeds)
+      switchEl = state.elements.countsSettings.bleedsSwitch
+  } break;
+  default: console.error("unexpected counts table name", state.settings.counts.table)
+  }
+
+  replaceChildren(state.elements.counts.table, tableEl)
+  replaceChildren(state.elements.countsSettings.groupSwitchContainer, switchEl)
+}
+
+const updateBleedsTable = (state: State) => replaceChildren(
+  state.elements.bleeds.table,
+  createBleedsTable(DOWNLOAD_CSV, state.data, state.settings.bleeds.year)
+)
+
+const updateSurveyTables = (state: State) => {
+  replaceChildren(
+    state.elements.weeklySurveys.datesContainer,
+    state.elements.weeklySurveys.datesTables[state.settings.weeklySurveys.year]
+  )
+  let completions = {}
+  replaceChildren(
+    state.elements.weeklySurveys.surveys,
+    createSurveyTable(completions, state.data, state.settings.weeklySurveys.year)
+  )
+  replaceChildren(
+    state.elements.weeklySurveys.completions,
+    createCompletionsTable(completions)
+  )
+}
+
+const updateContactTable = (state: State) => replaceChildren(
+  state.elements.contact.table,
+  createContactTable(DOWNLOAD_CSV, state.data)
+)
+
+type State = {
+  data: any,
+  domMain: HTMLElement,
+  currentDataPage: DataPageID,
   elements: {
-    loading: initLoading(),
-    password: initPassword(),
+    loading: HTMLElement,
+    password: HTMLElement,
+    sidebar: {
+      sidebar: HTMLElement,
+      pageSpecific: HTMLElement,
+    },
+    weeklySurveySettings: HTMLElement,
+    bleedsSettings: HTMLElement,
+    countsSettings: {
+      container: HTMLElement,
+      groupSwitchContainer: HTMLElement,
+      recordsSwitch: HTMLElement,
+      bleedsSwitch: HTMLElement,
+    },
+    dataContainer: HTMLElement,
+    weeklySurveys: {
+      container: HTMLElement,
+      surveys: HTMLElement,
+      completions: HTMLElement,
+      datesContainer: HTMLElement,
+      datesTables: {
+        2020: HTMLElement
+        2021: HTMLElement
+        2022: HTMLElement
+      },
+    },
+    bleeds: {
+      bleeds: HTMLElement,
+      table: HTMLElement,
+    }
+    counts: {
+      counts: HTMLElement,
+      table: HTMLElement,
+    }
+    contact: {
+      contact: HTMLElement,
+      table: HTMLElement,
+    }
+  },
+  settings: {
+    weeklySurveys: {year: YearID},
+    bleeds: {year: YearID},
+    counts: CountsSettings,
+  }
+}
 
-    sidebar: initSidebar(SIDEBAR_WIDTH_PX, INIT_DATA_PAGE, NAME_DATAPAGE_MAP),
+const initState = (state: State) => {
+  state.data = {}
+
+  state.domMain = document.getElementById("main")!
+  state.currentDataPage = INIT_DATA_PAGE
+
+  state.elements = {
+    loading: initLoading(),
+    password: initPassword(state),
+
+    sidebar: initSidebar(state, SIDEBAR_WIDTH_PX, INIT_DATA_PAGE, NAME_DATAPAGE_MAP),
 
     weeklySurveySettings: createSwitch(
       INIT_YEAR_SURVEYS,
       <YearID[]>YEARS,
       (year) => {
-        globalState.settings.weeklySurveys.year = year
+        state.settings.weeklySurveys.year = year
         window.history.pushState(null, "", `weekly-surveys?year=${year}`)
-        updateSurveyTables()
+        updateSurveyTables(state)
       },
       (year, el, updateSelected) => {
         window.addEventListener("popstate", () => {
-          let urlYear = getSurveysYearFromURL(globalState.settings.weeklySurveys.year)
+          let urlYear = getSurveysYearFromURL(state.settings.weeklySurveys.year)
           if (urlYear == year) {
             el.style.backgroundColor = "var(--color-selected)"
           } else {
@@ -1459,13 +1595,13 @@ let globalState = {
     bleedsSettings: createSwitch(
       INIT_YEAR_BLEEDS, YEARS,
       (year) => {
-        globalState.settings.bleeds.year = year
+        state.settings.bleeds.year = year
         window.history.pushState(null, "", `bleeds?year=${year}`)
-        updateBleedsTable()
+        updateBleedsTable(state)
       },
       (year, el, updateSelected) => {
         window.addEventListener("popstate", () => {
-          let urlYear = getBleedsYearFromURL(globalState.settings.bleeds.year)
+          let urlYear = getBleedsYearFromURL(state.settings.bleeds.year)
           if (urlYear == year) {
             el.style.backgroundColor = "var(--color-selected)"
           } else {
@@ -1477,6 +1613,7 @@ let globalState = {
     ),
 
     countsSettings: initCountsSettings(
+      state,
       INIT_COUNT_SETTINGS.groupsRecords, INIT_COUNT_SETTINGS.groupsBleeds, INIT_COUNT_SETTINGS.table
     ),
 
@@ -1485,137 +1622,61 @@ let globalState = {
     bleeds: initBleeds(),
     counts: initCounts(),
     contact: initContact(),
-  },
+  }
 
-  settings: {
+  state.settings = {
     weeklySurveys: { year: INIT_YEAR_SURVEYS },
     bleeds: { year: INIT_YEAR_BLEEDS },
     counts: INIT_COUNT_SETTINGS,
-  },
-}
-
-type DataPageID = "weekly-surveys" | "bleeds" | "counts" | "contact"
-
-const switchDataPage = (name: DataPageID) => {
-  let oldDataPage = globalState.currentDataPage
-  globalState.currentDataPage = name
-  switch (name) {
-  case "weekly-surveys": {
-    replaceChildren(globalState.elements.sidebar.pageSpecific, globalState.elements.weeklySurveySettings)
-    replaceChildren(globalState.elements.dataContainer, globalState.elements.weeklySurveys.container)
-  } break
-  case "bleeds": {
-    replaceChildren(globalState.elements.sidebar.pageSpecific, globalState.elements.bleedsSettings)
-    replaceChildren(globalState.elements.dataContainer, globalState.elements.bleeds.bleeds)
-  } break
-  case "counts": {
-    replaceChildren(globalState.elements.sidebar.pageSpecific, globalState.elements.countsSettings.container)
-    replaceChildren(globalState.elements.dataContainer, globalState.elements.counts.counts)
-  } break
-  case "contact": {
-    removeChildren(globalState.elements.sidebar.pageSpecific)
-    replaceChildren(globalState.elements.dataContainer, globalState.elements.contact.contact)
-  } break
-  default: {
-    console.error("data page", name, "does not exist")
-    globalState.currentDataPage = oldDataPage
-  }
   }
 }
 
-const switchToPassword = () => replaceChildren(globalState.domMain, globalState.elements.password)
-const switchToLoading = () => replaceChildren(globalState.domMain, globalState.elements.loading)
-const switchToData = (dataPageName: DataPageID) => {
-  removeChildren(globalState.domMain)
-  addEl(globalState.domMain, globalState.elements.sidebar.sidebar)
-  addEl(globalState.domMain, globalState.elements.dataContainer)
-  switchDataPage(dataPageName)
-}
+const main = async () => {
 
-const updateCountsTable = () => {
-  let tableEl = createDiv()
-  let switchEl = createDiv()
+  const state: any = {}
+  initState(<State>state)
 
-  switch (globalState.settings.counts.table) {
-  case "records": {
-      tableEl = createCountsRecordsTable(globalState.data, globalState.settings.counts.groupsRecords)
-      switchEl = globalState.elements.countsSettings.recordsSwitch
-  } break;
-  case "bleeds": {
-      tableEl = createCountsBleedsTable(globalState.data, globalState.settings.counts.groupsBleeds)
-      switchEl = globalState.elements.countsSettings.bleedsSwitch
-  } break;
-  default: console.error("unexpected counts table name", globalState.settings.counts.table)
-  }
+  window.addEventListener("popstate", (event) => {
+    state.currentDataPage = getDataPageFromURL(NAME_DATAPAGE_MAP)
 
-  replaceChildren(globalState.elements.counts.table, tableEl)
-  replaceChildren(globalState.elements.countsSettings.groupSwitchContainer, switchEl)
-}
+    switch (state.currentDataPage) {
+    case "counts": {
+      state.settings.counts = getCountSettingsFromURL(state.settings.counts)
+      updateCountsTable(state)
+    } break
 
-const updateBleedsTable = () => replaceChildren(
-  globalState.elements.bleeds.table,
-  createBleedsTable(DOWNLOAD_CSV, globalState.data, globalState.settings.bleeds.year)
-)
+    case "bleeds": {
+      state.settings.bleeds.year = getBleedsYearFromURL(state.settings.bleeds.year)
+      updateBleedsTable(state)
+    } break
 
-const updateSurveyTables = () => {
-  replaceChildren(
-    globalState.elements.weeklySurveys.datesContainer,
-    globalState.elements.weeklySurveys.datesTables[globalState.settings.weeklySurveys.year]
-  )
-  let completions = {}
-  replaceChildren(
-    globalState.elements.weeklySurveys.surveys,
-    createSurveyTable(completions, globalState.data, globalState.settings.weeklySurveys.year)
-  )
-  replaceChildren(
-    globalState.elements.weeklySurveys.completions,
-    createCompletionsTable(completions)
-  )
-}
+    case "weekly-surveys": {
+      state.settings.weeklySurveys.year = getSurveysYearFromURL(state.settings.weeklySurveys.year)
+      updateSurveyTables(state)
+    } break
+    }
+    switchToData(state, state.currentDataPage)
+  })
 
-const updateContactTable = () => replaceChildren(
-  globalState.elements.contact.table,
-  createContactTable(DOWNLOAD_CSV, globalState.data)
-)
-
-window.addEventListener("popstate", (event) => {
-  globalState.currentDataPage = getDataPageFromURL(NAME_DATAPAGE_MAP)
-
-  switch (globalState.currentDataPage) {
-  case "counts": {
-    globalState.settings.counts = getCountSettingsFromURL(globalState.settings.counts)
-    updateCountsTable()
-  } break
-
-  case "bleeds": {
-    globalState.settings.bleeds.year = getBleedsYearFromURL(globalState.settings.bleeds.year)
-    updateBleedsTable()
-  } break
-
-  case "weekly-surveys": {
-    globalState.settings.weeklySurveys.year = getSurveysYearFromURL(globalState.settings.weeklySurveys.year)
-    updateSurveyTables()
-  } break
-  }
-  switchToData(globalState.currentDataPage)
-})
-
-// NOTE(sen) Attempt to login from local storage
-{
-  let password = localStorage.getItem("password")
-  if (password === null) {
-    switchToPassword()
-  } else {
-    switchToLoading()
-    let fetchResult = await fetchData(password)
-    if (!fetchResult.success) {
-      switchToPassword()
+  // NOTE(sen) Attempt to login from local storage
+  {
+    let password = localStorage.getItem("password")
+    if (password === null) {
+      switchToPassword(state)
     } else {
-      setGlobalData(fetchResult.data)
-      switchToData(globalState.currentDataPage)
+      switchToLoading(state)
+      let fetchResult = await fetchData(password)
+      if (!fetchResult.success) {
+        switchToPassword(state)
+      } else {
+        setGlobalData(state, fetchResult.data)
+        switchToData(state, state.currentDataPage)
+      }
     }
   }
 }
+
+main()
 
 // NOTE(sen) To make this a "module"
 export {}
