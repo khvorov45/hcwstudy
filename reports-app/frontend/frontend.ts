@@ -224,33 +224,6 @@ const getColSpecFromGroups = (groups: string[]) => {
   return colSpec
 }
 
-type TwowayMap = {
-	key1Name_: string,
-	key2Name_: string,
-	map1_: {[key: string]: string},
-	map2_: {[key: string]: string},
-}
-
-const twowayMapInit = (key1Name: string, key2Name: string) => {
-  let result: TwowayMap = {key1Name_: key1Name, key2Name_: key2Name, map1_: {}, map2_: {}}
-  return result
-}
-
-const twowayMapInsert = (twowayMap: TwowayMap, key1: string, key2: string) => {
-  twowayMap.map1_[key1] = key2
-  twowayMap.map2_[key2] = key1
-}
-
-const twowayMapGetByKey1 = (twowayMap: TwowayMap, key1: string) => {
-  let result = twowayMap.map1_[key1]
-  return result
-}
-
-const twowayMapGetByKey2 = (twowayMap: TwowayMap, key2: string) => {
-  let result = twowayMap.map2_[key2]
-  return result
-}
-
 //
 // SECTION DOM
 //
@@ -664,7 +637,7 @@ const initLoading = () => {
   return loading
 }
 
-const initSidebar = (state: State, widthPx: number, initDataPage: string, nameDatapageMap: TwowayMap) => {
+const initSidebar = (state: State, widthPx: number, initDataPage: DataPageID) => {
   let sidebar = createDiv()
   sidebar.style.width = widthPx + "px"
   sidebar.style.height = "100vh"
@@ -678,10 +651,9 @@ const initSidebar = (state: State, widthPx: number, initDataPage: string, nameDa
   let top = addDiv(sidebar)
 
   let linksContainer = addEl(top, createSwitch(
-    twowayMapGetByKey2(nameDatapageMap, initDataPage),
-    Object.keys(nameDatapageMap.map1_),
-    (destName) => {
-      let dataPage = <DataPageID>twowayMapGetByKey1(nameDatapageMap, destName)
+    initDataPage,
+    ALL_DATAPAGE_IDS,
+    (dataPage) => {
       let dest: string = dataPage
 
       switch (dataPage) {
@@ -699,15 +671,15 @@ const initSidebar = (state: State, widthPx: number, initDataPage: string, nameDa
       window.history.pushState(null, "", dest)
       switchDataPage(state, dataPage)
     },
-    (destName, optEl, updateSelected) => {
+    (dataPageOpt, optEl, updateSelected) => {
       window.addEventListener("popstate", () => {
-        let dataPage = getDataPageFromURL(nameDatapageMap)
-        if (dataPage !== twowayMapGetByKey1(nameDatapageMap, destName)) {
+        let dataPage = getDataPageFromURL()
+        if (dataPage !== dataPageOpt) {
           optEl.style.background = "var(--color-background)"
         } else {
           optEl.style.background = "var(--color-selected)"
         }
-        updateSelected(twowayMapGetByKey2(nameDatapageMap, dataPage))
+        updateSelected(dataPage)
       })
     }
   ))
@@ -1247,11 +1219,10 @@ const setGlobalData = (state: State, data: any) => {
   updateContactTable(state)
 }
 
-const getDataPageFromURL = (nameDatapageMap: TwowayMap) => {
+const getDataPageFromURL = () => {
   let path = window.location.pathname.slice(1)
-  let allowed = Object.keys(nameDatapageMap.map2_)
   let result: DataPageID = "counts"
-  if (allowed.includes(path)) {
+  if (ALL_DATAPAGE_IDS.includes(path)) {
     result = <DataPageID>path
   } else {
     window.history.replaceState(null, "", result)
@@ -1413,7 +1384,9 @@ type YearID = (typeof YEARS_)[number]
 const SIDEBAR_WIDTH_PX = 100
 const DOWNLOAD_CSV: {[key: string]: string} = {}
 
-type DataPageID = "weekly-surveys" | "bleeds" | "counts" | "contact"
+const ALL_DATAPAGE_IDS_ = ["contact", "weekly-surveys", "bleeds", "counts"] as const
+const ALL_DATAPAGE_IDS = ALL_DATAPAGE_IDS_ as unknown as string[]
+type DataPageID = (typeof ALL_DATAPAGE_IDS_)[number]
 
 const switchDataPage = (state: State, name: DataPageID) => {
   let oldDataPage = state.currentDataPage
@@ -1548,11 +1521,11 @@ type State = {
   }
 }
 
-const initState = (state: State, nameDatapageMap: TwowayMap) => {
+const initState = (state: State) => {
   state.data = {}
 
   state.domMain = document.getElementById("main")!
-  state.currentDataPage = getDataPageFromURL(nameDatapageMap)
+  state.currentDataPage = getDataPageFromURL()
 
   const initYear: YearID = 2022
   const initYearBleeds: YearID = getBleedsYearFromURL(initYear)
@@ -1565,7 +1538,7 @@ const initState = (state: State, nameDatapageMap: TwowayMap) => {
     loading: initLoading(),
     password: initPassword(state),
 
-    sidebar: initSidebar(state, SIDEBAR_WIDTH_PX, state.currentDataPage, nameDatapageMap),
+    sidebar: initSidebar(state, SIDEBAR_WIDTH_PX, state.currentDataPage),
 
     weeklySurveySettings: createSwitch(
       initYearSurvey,
@@ -1629,17 +1602,11 @@ const initState = (state: State, nameDatapageMap: TwowayMap) => {
 
 const main = async () => {
 
-  const nameDatapageMap = twowayMapInit("name", "data page")
-  twowayMapInsert(nameDatapageMap, "Contact", "contact")
-  twowayMapInsert(nameDatapageMap, "Weekly surveys", "weekly-surveys")
-  twowayMapInsert(nameDatapageMap, "Bleeds", "bleeds")
-  twowayMapInsert(nameDatapageMap, "Counts", "counts")
-
   const state: any = {}
-  initState(<State>state, nameDatapageMap)
+  initState(<State>state)
 
   window.addEventListener("popstate", (event) => {
-    state.currentDataPage = getDataPageFromURL(nameDatapageMap)
+    state.currentDataPage = getDataPageFromURL()
 
     switch (state.currentDataPage) {
     case "counts": {
