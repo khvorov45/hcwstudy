@@ -304,6 +304,7 @@ const createSwitch = <SingleOpt extends string | number, OptType extends SingleO
     optElement.style.paddingTop = "5px"
     optElement.style.paddingBottom = "5px"
     optElement.style.cursor = "pointer"
+    optElement.style.textAlign = "center"
 
     let normalCol = "var(--color-background)"
     let hoverCol = "var(--color-background2)"
