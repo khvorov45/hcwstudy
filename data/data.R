@@ -206,7 +206,11 @@ participants <- bind_rows(
     date_screening, email = email, mobile = mobile_number
   ) %>%
   mutate(
-    recruitment_year = if_else(pid %in% participants2020$pid, 2020, 2021),
+    recruitment_year = case_when(
+      pid %in% participants2020$pid ~ 2020, 
+      pid %in% participants2021$pid ~ 2021, 
+      TRUE ~ 2022
+    ),
     atsi = if_else(atsi == "Yes", 1, 0)
   )
 
@@ -284,7 +288,7 @@ write_csv(yearly_changes_fix_pids, "data/yearly-changes.csv")
 redcap_vaccination_history_request <- function(year) {
   redcap_request(
     year, "baseline_arm_1",
-    "vac_2020,vac_2019,vac_2018,vac_2017,vac_2016,vac_2015,record_id",
+    "vac_2021,vac_2020,vac_2019,vac_2018,vac_2017,vac_2016,vac_2015,record_id",
     rawOrLabel = "label"
   )
 }
