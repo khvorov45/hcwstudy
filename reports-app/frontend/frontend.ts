@@ -1406,23 +1406,11 @@ const getSurveysYearFromURL = (def: YearID) => {
   return urlYear
 }
 
-const NAME_DATAPAGE_MAP = twowayMapInit("name", "data page")
-twowayMapInsert(NAME_DATAPAGE_MAP, "Contact", "contact")
-twowayMapInsert(NAME_DATAPAGE_MAP, "Weekly surveys", "weekly-surveys")
-twowayMapInsert(NAME_DATAPAGE_MAP, "Bleeds", "bleeds")
-twowayMapInsert(NAME_DATAPAGE_MAP, "Counts", "counts")
-
-const YEARS = [2020, 2021, 2022]
-type YearID = 2020 | 2021 | 2022
+const YEARS_ = [2020, 2021, 2022] as const
+const YEARS = YEARS_ as unknown as number[]
+type YearID = (typeof YEARS_)[number]
 
 const SIDEBAR_WIDTH_PX = 100
-const INIT_DATA_PAGE = getDataPageFromURL(NAME_DATAPAGE_MAP)
-const INIT_YEAR: YearID = 2022
-const INIT_YEAR_BLEEDS: YearID = getBleedsYearFromURL(INIT_YEAR)
-const INIT_YEAR_SURVEYS: YearID = getSurveysYearFromURL(INIT_YEAR)
-const INIT_COUNT_SETTINGS: CountsSettings = getCountSettingsFromURL({
-  table: "records", groupsRecords: ["site"], groupsBleeds: ["year"]
-})
 const DOWNLOAD_CSV: {[key: string]: string} = {}
 
 type DataPageID = "weekly-surveys" | "bleeds" | "counts" | "contact"
@@ -1560,20 +1548,27 @@ type State = {
   }
 }
 
-const initState = (state: State) => {
+const initState = (state: State, nameDatapageMap: TwowayMap) => {
   state.data = {}
 
   state.domMain = document.getElementById("main")!
-  state.currentDataPage = INIT_DATA_PAGE
+  state.currentDataPage = getDataPageFromURL(nameDatapageMap)
+
+  const initYear: YearID = 2022
+  const initYearBleeds: YearID = getBleedsYearFromURL(initYear)
+  const initYearSurvey: YearID = getSurveysYearFromURL(initYear)
+  const initCountsSettingsVal: CountsSettings = getCountSettingsFromURL({
+    table: "records", groupsRecords: ["site"], groupsBleeds: ["year"]
+  })
 
   state.elements = {
     loading: initLoading(),
     password: initPassword(state),
 
-    sidebar: initSidebar(state, SIDEBAR_WIDTH_PX, INIT_DATA_PAGE, NAME_DATAPAGE_MAP),
+    sidebar: initSidebar(state, SIDEBAR_WIDTH_PX, state.currentDataPage, nameDatapageMap),
 
     weeklySurveySettings: createSwitch(
-      INIT_YEAR_SURVEYS,
+      initYearSurvey,
       <YearID[]>YEARS,
       (year) => {
         state.settings.weeklySurveys.year = year
@@ -1594,7 +1589,7 @@ const initState = (state: State) => {
     ),
 
     bleedsSettings: createSwitch(
-      INIT_YEAR_BLEEDS, YEARS,
+      initYearBleeds, YEARS,
       (year) => {
         state.settings.bleeds.year = year
         window.history.pushState(null, "", `bleeds?year=${year}`)
@@ -1615,7 +1610,7 @@ const initState = (state: State) => {
 
     countsSettings: initCountsSettings(
       state,
-      INIT_COUNT_SETTINGS.groupsRecords, INIT_COUNT_SETTINGS.groupsBleeds, INIT_COUNT_SETTINGS.table
+      initCountsSettingsVal.groupsRecords, initCountsSettingsVal.groupsBleeds, initCountsSettingsVal.table
     ),
 
     dataContainer: initDataContainer(SIDEBAR_WIDTH_PX),
@@ -1626,19 +1621,25 @@ const initState = (state: State) => {
   }
 
   state.settings = {
-    weeklySurveys: { year: INIT_YEAR_SURVEYS },
-    bleeds: { year: INIT_YEAR_BLEEDS },
-    counts: INIT_COUNT_SETTINGS,
+    weeklySurveys: { year: initYearSurvey },
+    bleeds: { year: initYearBleeds },
+    counts: initCountsSettingsVal,
   }
 }
 
 const main = async () => {
 
+  const nameDatapageMap = twowayMapInit("name", "data page")
+  twowayMapInsert(nameDatapageMap, "Contact", "contact")
+  twowayMapInsert(nameDatapageMap, "Weekly surveys", "weekly-surveys")
+  twowayMapInsert(nameDatapageMap, "Bleeds", "bleeds")
+  twowayMapInsert(nameDatapageMap, "Counts", "counts")
+
   const state: any = {}
-  initState(<State>state)
+  initState(<State>state, nameDatapageMap)
 
   window.addEventListener("popstate", (event) => {
-    state.currentDataPage = getDataPageFromURL(NAME_DATAPAGE_MAP)
+    state.currentDataPage = getDataPageFromURL(nameDatapageMap)
 
     switch (state.currentDataPage) {
     case "counts": {
@@ -1656,6 +1657,7 @@ const main = async () => {
       updateSurveyTables(state)
     } break
     }
+
     switchToCurrentDataPage(state)
   })
 
