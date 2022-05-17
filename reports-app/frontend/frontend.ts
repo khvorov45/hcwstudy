@@ -641,7 +641,7 @@ const initPassword = (state: State) => {
         } else {
           localStorage.setItem("password", input.value)
           setGlobalData(state, fetchResult.data)
-          switchToData(state, state.currentDataPage)
+          switchToCurrentDataPage(state)
         }
         buttonText.textContent = "Submit"
       }
@@ -1455,11 +1455,11 @@ const switchDataPage = (state: State, name: DataPageID) => {
 
 const switchToPassword = (state: State) => replaceChildren(state.domMain, state.elements.password)
 const switchToLoading = (state: State) => replaceChildren(state.domMain, state.elements.loading)
-const switchToData = (state: State, dataPageName: DataPageID) => {
+const switchToCurrentDataPage = (state: State) => {
   removeChildren(state.domMain)
   addEl(state.domMain, state.elements.sidebar.sidebar)
   addEl(state.domMain, state.elements.dataContainer)
-  switchDataPage(state, dataPageName)
+  switchDataPage(state, state.currentDataPage)
 }
 
 const updateCountsTable = (state: State) => {
@@ -1655,7 +1655,7 @@ const main = async () => {
       updateSurveyTables(state)
     } break
     }
-    switchToData(state, state.currentDataPage)
+    switchToCurrentDataPage(state)
   })
 
   // NOTE(sen) Attempt to login from local storage
@@ -1670,7 +1670,7 @@ const main = async () => {
         switchToPassword(state)
       } else {
         setGlobalData(state, fetchResult.data)
-        switchToData(state, state.currentDataPage)
+        switchToCurrentDataPage(state)
       }
     }
   }
