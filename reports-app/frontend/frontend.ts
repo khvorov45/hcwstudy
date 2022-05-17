@@ -32,12 +32,12 @@ const isObject = (val: any) => {
 }
 
 const getScrollbarWidths = () => {
-  let outer = createEl('div')
+  let outer = document.createElement('div')
   outer.style.visibility = "hidden"
   outer.style.overflowY = "scroll"
   document.body.appendChild(outer)
 
-  let inner = createEl('div')
+  let inner = document.createElement('div')
   outer.appendChild(inner)
 
   let scrollbarWidthV = (outer.offsetWidth - inner.offsetWidth)
@@ -228,6 +228,34 @@ const getColSpecFromGroups = (groups: string[]) => {
 // SECTION DOM
 //
 
+const TABLE_ROW_HEIGHT_PX = 30
+const SCROLLBAR_WIDTHS = getScrollbarWidths()
+const SIDEBAR_WIDTH_PX = 100
+
+const YEARS_ = [2020, 2021, 2022] as const
+const YEARS = YEARS_ as unknown as number[]
+type YearID = (typeof YEARS_)[number]
+
+const ALL_DATAPAGE_IDS_ = ["contact", "weekly-surveys", "bleeds", "counts"] as const
+const ALL_DATAPAGE_IDS = ALL_DATAPAGE_IDS_ as unknown as string[]
+type DataPageID = (typeof ALL_DATAPAGE_IDS_)[number]
+
+const ALL_COUNTS_TABLES_ = ["records", "bleeds"] as const
+const ALL_COUNTS_TABLES = ALL_COUNTS_TABLES_ as unknown as string[]
+type CountTableID = (typeof ALL_COUNTS_TABLES_)[number]
+
+const ALL_RECORD_GROUPS_ = ["site", "recruited", "arm", "armCovid",
+  "gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"] as const
+const ALL_RECORD_GROUPS = ALL_RECORD_GROUPS_ as unknown as string[]
+type RecordGroups = (typeof ALL_RECORD_GROUPS_)[number]
+
+const ALL_BLEEDS_GROUPS_ = ["year", "site", "recruited", "arm", "armCovid",
+  "gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"] as const
+const ALL_BLEEDS_GROUPS = ALL_BLEEDS_GROUPS_ as unknown as string[]
+type BleedsGroups = (typeof ALL_BLEEDS_GROUPS_)[number]
+
+const DOWNLOAD_CSV: {[key: string]: string} = {}
+
 const createEl = (name: string) => document.createElement(name)
 const createDiv = () => createEl("div")
 
@@ -334,9 +362,6 @@ const createSwitch = <SingleOpt extends string | number, OptType extends SingleO
 
   return switchElement
 }
-
-const TABLE_ROW_HEIGHT_PX = 30
-const SCROLLBAR_WIDTHS = getScrollbarWidths()
 
 const createTableCell = (widthPx: number) => {
   let cellElement = createEl("td")
@@ -778,20 +803,6 @@ const initCounts = () => {
   let table = addDiv(counts)
   return {counts: counts, table: table}
 }
-
-const ALL_COUNTS_TABLES_ = ["records", "bleeds"] as const
-const ALL_COUNTS_TABLES = ALL_COUNTS_TABLES_ as unknown as string[]
-type CountTableID = (typeof ALL_COUNTS_TABLES_)[number]
-
-const ALL_RECORD_GROUPS_ = ["site", "recruited", "arm", "armCovid",
-  "gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"] as const
-const ALL_RECORD_GROUPS = ALL_RECORD_GROUPS_ as unknown as string[]
-type RecordGroups = (typeof ALL_RECORD_GROUPS_)[number]
-
-const ALL_BLEEDS_GROUPS_ = ["year", "site", "recruited", "arm", "armCovid",
-  "gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"] as const
-const ALL_BLEEDS_GROUPS = ALL_BLEEDS_GROUPS_ as unknown as string[]
-type BleedsGroups = (typeof ALL_BLEEDS_GROUPS_)[number]
 
 const initCountsSettings = (
 	state: State,
@@ -1376,17 +1387,6 @@ const getSurveysYearFromURL = (def: YearID) => {
 
   return urlYear
 }
-
-const YEARS_ = [2020, 2021, 2022] as const
-const YEARS = YEARS_ as unknown as number[]
-type YearID = (typeof YEARS_)[number]
-
-const SIDEBAR_WIDTH_PX = 100
-const DOWNLOAD_CSV: {[key: string]: string} = {}
-
-const ALL_DATAPAGE_IDS_ = ["contact", "weekly-surveys", "bleeds", "counts"] as const
-const ALL_DATAPAGE_IDS = ALL_DATAPAGE_IDS_ as unknown as string[]
-type DataPageID = (typeof ALL_DATAPAGE_IDS_)[number]
 
 const switchDataPage = (state: State, name: DataPageID) => {
   let oldDataPage = state.currentDataPage
