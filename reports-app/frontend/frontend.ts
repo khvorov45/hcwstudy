@@ -895,7 +895,7 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
   let participantData = data.participants
 
   let groupedCounts = summarise(
-    participantData, groups, {total: 0, notWithdrawn: 0, consent2022: 0},
+    participantData, groups, {total: 0, notWithdrawn: 0, consent2022: 0, bled2022: 0},
     (row) => row.pid !== undefined && row.pid.length >= 3,
     (row, group) => {
       let key = null
@@ -920,10 +920,17 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
       if (notWithdrawn) {
         counts.notWithdrawn += 1
       }
+
       let consentDate = row.date_fluArm2022
       if (consentDate !== undefined) {
         if (new Date(consentDate).getFullYear() == 2022) {
           counts.consent2022 += 1
+        }
+      }
+
+      if (row.latestBleedDate !== undefined) {
+        if (new Date(row.latestBleedDate).getFullYear() == 2022) {
+          counts.bled2022 += 1
         }
       }
     }
@@ -935,6 +942,7 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
   colSpec.total = {}
   colSpec.notWithdrawn = {}
   colSpec.consent2022 = {}
+  colSpec.bled2022 = {}
 
   let countsAos = aoaToAos(groupedCountsFlat, Object.keys(colSpec))
 
@@ -942,6 +950,7 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
   addTextline(countsTableDesc, "total - total records in redcap")
   addTextline(countsTableDesc, "notWithdrawn - total records in redcap who are not withdrawn")
   addTextline(countsTableDesc, "consent2022 - total records in redcap whose latest flu conset date is from 2022")
+  addTextline(countsTableDesc, "bled2022 - total records in redcap whose latest bleed date is from 2022")
   if (groups.length > 0) {
     addTextline(countsTableDesc, "all counts apply to the subset defined by (" + groups.join(", ") + ")")
   }

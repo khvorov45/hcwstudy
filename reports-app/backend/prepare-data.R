@@ -29,6 +29,13 @@ participants <- read_csv("./data/participants.csv", col_types = cols()) %>%
 			mutate(disease = recode(disease, "flu" = "fluArm2022", "covid" = "covidArm2021")) %>%
 			pivot_wider(names_from = "disease", values_from = c(consent, date)),
 		"pid"
+	) %>%
+	left_join(
+		read_csv("./data/bleed-dates.csv", col_types = cols()) %>%
+			filter(!is.na(date)) %>%
+			group_by(pid) %>%
+			summarise(.groups = "drop", latestBleedDate = max(date)),
+		"pid"
 	)
 
 withdrawn <- read_csv("./data/withdrawn.csv") %>%
