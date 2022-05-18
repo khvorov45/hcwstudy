@@ -1678,6 +1678,5 @@ main()
 // NOTE(sen) To make this a "module"
 export {}
 
-// TODO(sen) Counts consent2022 bleed2022
 // TODO(sen) Table filtering
 // TODO(sen) Titre plots
