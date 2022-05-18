@@ -10,9 +10,25 @@ prior_vac_counts <- vac_hist %>%
 		prior2022 = sum(year >= 2017 & year < 2022 & (status == "Australia" | status == "Overseas")),
 	)
 
-participants <- read_csv("./data/participants.csv") %>%
+participants <- read_csv("./data/participants.csv", col_types = cols()) %>%
 	mutate(age_group = cut(age_screening, c(-Inf, 18, 30, 50, 65), right = FALSE)) %>%
-	left_join(prior_vac_counts, "pid")
+	left_join(prior_vac_counts, "pid") %>%
+	left_join(
+		read_csv("./data/consent.csv", col_types = cols()) %>%
+			filter(
+				(year == 2022 & disease == "flu") | (year == 2021 & disease == "covid"), 
+				!is.na(consent)
+			) %>%
+			select(pid, disease, consent) %>%
+			group_by(pid, disease) %>%
+			summarise(.groups = "drop", consent = paste(unique(consent), collapse = ",")) %>%
+			mutate(disease = recode(disease, "flu" = "fluArm2022", "covid" = "covidArm2021")) %>%
+			pivot_wider(names_from = "disease", values_from = "consent"),
+		"pid"
+	)
+
+participants %>%
+	filter(site == "perth", fluArm2022 == "nested,main")
 
 withdrawn <- read_csv("./data/withdrawn.csv") %>%
 	left_join(participants %>% select(pid, site), "pid") %>%

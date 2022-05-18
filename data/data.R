@@ -207,8 +207,8 @@ participants <- bind_rows(
   ) %>%
   mutate(
     recruitment_year = case_when(
-      pid %in% participants2020$pid ~ 2020, 
-      pid %in% participants2021$pid ~ 2021, 
+      pid %in% participants2020$pid ~ 2020,
+      pid %in% participants2021$pid ~ 2021,
       TRUE ~ 2022
     ),
     atsi = if_else(atsi == "Yes", 1, 0)
@@ -231,27 +231,58 @@ unique(extract_first_pid_digit(participants$pid))
 participants_with_extras <- participants %>%
   mutate(
     age_screening = (date_screening - dob) / lubridate::dyears(1),
-    # TODO(sen) This seems to be the most reliable way of doing it right now
-    # but consent forms would be better if they didn't conflict
-    arm = if_else(extract_first_pid_digit(pid) == "8", "nested", "main")
   )
 
 fun_fix_pids <- function(pid) {
   str_replace(pid, "([[:alpha:]]{3})\\s?-?(\\d{3})", "\\1-\\2") %>%
-    recode("QCH 070" = "QCH-070", "JHH-824 (132)" = "JHH-824")
+    recode(
+      "QCH 070" = "QCH-070",
+      "JHH-824 (132)" = "JHH-824", # NOTE(sen) Changed within 2021
+      "JHH-304 (820)" = "JHH-820", # NOTE(sen) Changed from 2021 to 2022
+      "JHH- 826 (297)" = "JHH-297", # NOTE(sen) Changed from 2021 to 2022
+      "JHH-334 (806)" = "JHH-806", # NOTE(sen) Changed from 2021 to 2022
+    )
 }
 
 participants_fix_pid <- participants_with_extras %>%
-  mutate(pid = fun_fix_pids(pid))
-
-# NOTE(sen) Shouldn't be any duplicates
-participants_fix_pid %>%
+  mutate(pid = fun_fix_pids(pid)) %>%
   group_by(pid) %>%
-  filter(n() > 1)
+  filter(recruitment_year == min(recruitment_year)) %>%
+  ungroup()
 
-# NOTE(sen) All serology pids should match
-setdiff(serology_all_tables$pid, participants_fix_pid$pid) %>% sort()
-setdiff(participants_fix_pid$pid, serology_all_tables$pid) %>% sort()
+check_no_rows <- function(dat, msg) {
+  if (nrow(dat) == 0) {
+    message(crayon::green("no", msg))
+  } else {
+    message(crayon::red("found", msg))
+    dat
+  }
+}
+
+check_no_rows(
+  participants_fix_pid %>% filter(str_length(pid) > 7),
+  "participants with pids >7 characters"
+)
+
+check_no_rows(
+  participants_fix_pid %>% group_by(pid) %>% filter(n() > 1),
+  "participants with duplicate pids"
+)
+
+check_empty_set <- function(set, msg) {
+  if (length(set) == 0) {
+    message(crayon::green("no", msg))
+  } else {
+    message(crayon::red("found", msg))
+  }
+}
+
+check_empty_set(
+  setdiff(serology_all_tables$pid, participants_fix_pid$pid),
+  "non-matching serology pids"
+)
+
+write_csv(participants_fix_pid, "data/participants.csv")
 
 #
 # SECTION Participant information that changes yearly
@@ -563,11 +594,6 @@ covid_arms <- redcap_consent_long_extra %>%
   filter(disease == "covid", !is.na(consent), consent != "no") %>%
   group_by(pid) %>%
   summarise(covid_arm = paste(unique(na.omit(consent)), collapse = ","))
-
-
-participants_with_covid_arms <- participants_fix_pid %>% left_join(covid_arms, "pid")
-
-write_csv(participants_with_covid_arms, "data/participants.csv")
 
 redcap_consent_use_long <- redcap_consent_raw %>%
   select(record_id, redcap_project_year, contains("___")) %>%

@@ -230,7 +230,7 @@ const getColSpecFromGroups = (groups: string[]) => {
 
 const TABLE_ROW_HEIGHT_PX = 30
 const SCROLLBAR_WIDTHS = getScrollbarWidths()
-const SIDEBAR_WIDTH_PX = 100
+const SIDEBAR_WIDTH_PX = 120
 
 const YEARS_ = [2020, 2021, 2022] as const
 const YEARS = YEARS_ as unknown as number[]
@@ -244,12 +244,12 @@ const ALL_COUNTS_TABLES_ = ["records", "bleeds"] as const
 const ALL_COUNTS_TABLES = ALL_COUNTS_TABLES_ as unknown as string[]
 type CountTableID = (typeof ALL_COUNTS_TABLES_)[number]
 
-const ALL_RECORD_GROUPS_ = ["site", "recruited", "arm", "armCovid",
+const ALL_RECORD_GROUPS_ = ["site", "recruited", "fluArm2022", "covidArm2021",
   "gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"] as const
 const ALL_RECORD_GROUPS = ALL_RECORD_GROUPS_ as unknown as string[]
 type RecordGroups = (typeof ALL_RECORD_GROUPS_)[number]
 
-const ALL_BLEEDS_GROUPS_ = ["year", "site", "recruited", "arm", "armCovid",
+const ALL_BLEEDS_GROUPS_ = ["year", "site", "recruited", "fluArm2022", "covidArm2021",
   "gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"] as const
 const ALL_BLEEDS_GROUPS = ALL_BLEEDS_GROUPS_ as unknown as string[]
 type BleedsGroups = (typeof ALL_BLEEDS_GROUPS_)[number]
@@ -895,7 +895,7 @@ const createCountsRecordsTable = (data: any, groups: string[]) => {
   let participantData = data.participants
 
   let groupedCounts = summarise(
-    participantData, groups, {total: 0, active: 0},
+    participantData, groups, {total: 0, notWithdrawn: 0},
     (row) => row.pid !== undefined && row.pid.length >= 3,
     (row, group) => {
       let key = null
@@ -904,8 +904,8 @@ const createCountsRecordsTable = (data: any, groups: string[]) => {
       case "recruited": {key = row.recruitment_year;} break
       case "gender": {key = row.gender;} break
       case "aboriginal": {key = row.atsi;} break
-      case "arm": {key = row.arm;} break
-      case "armCovid": {key = row.covid_arm;} break
+      case "fluArm2022": {key = row.fluArm2022;} break
+      case "covidArm2021": {key = row.covidArm2021;} break
       case "age": {key = row.age_group;} break
       case "prior2020": {key = row.prior2020;} break
       case "prior2021": {key = row.prior2021;} break
@@ -915,10 +915,10 @@ const createCountsRecordsTable = (data: any, groups: string[]) => {
     },
     (row, counts) => {
       let withdrawn = withdrawals[row.pid] === true
-      let active = !withdrawn
+      let notWithdrawn = !withdrawn
       counts.total += 1
-      if (active) {
-        counts.active += 1
+      if (notWithdrawn) {
+        counts.notWithdrawn += 1
       }
     }
   )
@@ -927,13 +927,13 @@ const createCountsRecordsTable = (data: any, groups: string[]) => {
 
   let colSpec = getColSpecFromGroups(groups)
   colSpec.total = {}
-  colSpec.active = {}
+  colSpec.notWithdrawn = {}
 
   let countsAos = aoaToAos(groupedCountsFlat, Object.keys(colSpec))
 
   let countsTableDesc = createDiv()
   addTextline(countsTableDesc, "total - total records in redcap")
-  addTextline(countsTableDesc, "active - total records in redcap who are not withdrawn")
+  addTextline(countsTableDesc, "notWithdrawn - total records in redcap who are not withdrawn")
   if (groups.length > 0) {
     addTextline(countsTableDesc, "all counts apply to the subset defined by (" + groups.join(", ") + ")")
   }
@@ -944,6 +944,8 @@ const createCountsRecordsTable = (data: any, groups: string[]) => {
     case "prior2020": {addTextline(countsTableDesc, "prior2020 - vaccination count between 2015-2019 inclusive");} break
     case "prior2021": {addTextline(countsTableDesc, "prior2021 - vaccination count between 2016-2020 inclusive");} break
     case "prior2022": {addTextline(countsTableDesc, "prior2022 - vaccination count between 2017-2021 inclusive");} break
+    case "fluArm2022": {addTextline(countsTableDesc, "fluArm2022 - flu arm as per 2022 consent");} break
+    case "covidArm2021": {addTextline(countsTableDesc, "covidArm2021 - covid arm as per 2021 consent");} break
     }
   }
 
@@ -980,8 +982,8 @@ const createCountsBleedsTable = (data: any, groups: string[]) => {
       case "recruited": {key = row.recruitment_year;} break
       case "gender": {key = row.gender;} break
       case "aboriginal": {key = row.atsi;} break
-      case "arm": {key = row.arm;} break
-      case "armCovid": {key = row.covid_arm;} break
+      case "fluArm2022": {key = row.fluArm2022;} break
+      case "covidArm2021": {key = row.covidArm2021;} break
       case "age": {key = row.age_group;} break
       case "prior2020": {key = row.prior2020;} break
       case "prior2021": {key = row.prior2021;} break
@@ -1651,5 +1653,6 @@ main()
 // NOTE(sen) To make this a "module"
 export {}
 
+// TODO(sen) Counts consent2022 bleed2022
 // TODO(sen) Table filtering
 // TODO(sen) Titre plots
