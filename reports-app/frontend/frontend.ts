@@ -135,10 +135,10 @@ const dateSeq = (start: string, step: number, count: number) => {
   return result
 }
 
-const summarise = (
-	data: any, groups: string[], defaultCounts: any,
-	filter: (row: any) => boolean, getKey: (row: any, key: string) => any,
-	addRow: (row: any, counts: any) => void,
+const summarise = <RowType, CountsType>(
+	data: RowType[], groups: string[], defaultCounts: CountsType,
+	filter: (row: RowType) => boolean, getKey: (row: RowType, key: string) => any,
+	addRow: (row: RowType, counts: CountsType) => void,
 ) => {
   let groupedCounts: any = {}
   if (groups.length === 0) {
@@ -881,7 +881,7 @@ const initCountsSettings = (
     recordsSwitch: recordsSwitch, bleedsSwitch: bleedsSwitch}
 }
 
-const createCountsRecordsTable = (data: any, groups: string[]) => {
+const createCountsRecordsTable = (data: Data, groups: string[]) => {
 
   let withdrawalData = data.withdrawn
 
@@ -895,7 +895,7 @@ const createCountsRecordsTable = (data: any, groups: string[]) => {
   let participantData = data.participants
 
   let groupedCounts = summarise(
-    participantData, groups, {total: 0, notWithdrawn: 0},
+    participantData, groups, {total: 0, notWithdrawn: 0, consent2022: 0},
     (row) => row.pid !== undefined && row.pid.length >= 3,
     (row, group) => {
       let key = null
@@ -904,8 +904,8 @@ const createCountsRecordsTable = (data: any, groups: string[]) => {
       case "recruited": {key = row.recruitment_year;} break
       case "gender": {key = row.gender;} break
       case "aboriginal": {key = row.atsi;} break
-      case "fluArm2022": {key = row.fluArm2022;} break
-      case "covidArm2021": {key = row.covidArm2021;} break
+      case "fluArm2022": {key = row.consent_fluArm2022;} break
+      case "covidArm2021": {key = row.consent_covidArm2021;} break
       case "age": {key = row.age_group;} break
       case "prior2020": {key = row.prior2020;} break
       case "prior2021": {key = row.prior2021;} break
@@ -920,6 +920,12 @@ const createCountsRecordsTable = (data: any, groups: string[]) => {
       if (notWithdrawn) {
         counts.notWithdrawn += 1
       }
+      let consentDate = row.date_fluArm2022
+      if (consentDate !== undefined) {
+        if (new Date(consentDate).getFullYear() == 2022) {
+          counts.consent2022 += 1
+        }
+      }
     }
   )
 
@@ -928,12 +934,14 @@ const createCountsRecordsTable = (data: any, groups: string[]) => {
   let colSpec = getColSpecFromGroups(groups)
   colSpec.total = {}
   colSpec.notWithdrawn = {}
+  colSpec.consent2022 = {}
 
   let countsAos = aoaToAos(groupedCountsFlat, Object.keys(colSpec))
 
   let countsTableDesc = createDiv()
   addTextline(countsTableDesc, "total - total records in redcap")
   addTextline(countsTableDesc, "notWithdrawn - total records in redcap who are not withdrawn")
+  addTextline(countsTableDesc, "consent2022 - total records in redcap whose latest flu conset date is from 2022")
   if (groups.length > 0) {
     addTextline(countsTableDesc, "all counts apply to the subset defined by (" + groups.join(", ") + ")")
   }
@@ -968,7 +976,7 @@ const createCountsRecordsTable = (data: any, groups: string[]) => {
   return countsTableContainer
 }
 
-const createCountsBleedsTable = (data: any, groups: string[]) => {
+const createCountsBleedsTable = (data: Data, groups: string[]) => {
 
   let groupedCounts = summarise(
     data.bleed_dates, groups,
@@ -982,8 +990,8 @@ const createCountsBleedsTable = (data: any, groups: string[]) => {
       case "recruited": {key = row.recruitment_year;} break
       case "gender": {key = row.gender;} break
       case "aboriginal": {key = row.atsi;} break
-      case "fluArm2022": {key = row.fluArm2022;} break
-      case "covidArm2021": {key = row.covidArm2021;} break
+      case "fluArm2022": {key = row.consent_fluArm2022;} break
+      case "covidArm2021": {key = row.consent_covidArm2021;} break
       case "age": {key = row.age_group;} break
       case "prior2020": {key = row.prior2020;} break
       case "prior2021": {key = row.prior2021;} break
@@ -1600,6 +1608,14 @@ const initState = (state: State) => {
     bleeds: { year: initYearBleeds },
     counts: initCountsSettingsVal,
   }
+}
+
+type Data = {
+  participants: any[],
+  withdrawn: any[],
+  bleed_dates: any[],
+  consent: any[]
+  weekly_surveys: any[],
 }
 
 const main = async () => {

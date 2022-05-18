@@ -530,11 +530,30 @@ write_csv(covid_bleed_dates_long, "data/covid-bleed-dates.csv")
 # SECTION Consent
 #
 
+consent_vars <- c(
+  "record_id",
+  "consent",
+  "add_bleed",
+  "consent_future_use",
+  "consent_covid",
+  "study_group_vacc",
+  "econsent_future_vacc",
+  "consent_unvacc",
+  "econsent_future_unvacc",
+  "study_group_vacc_covax",
+  "econsent_future_vacc_covax",
+  "consent_date",
+  "econsent_date_vacc",
+  "econsent_date_unvacc",
+  "consent_covid_date",
+  "econsent_date_vacc_covax"
+)
+
 redcap_consent_request <- function(year) {
   redcap_request(
     year,
     "baseline_arm_1",
-    "record_id,consent,add_bleed,consent_future_use,consent_covid,study_group_vacc,econsent_future_vacc,consent_unvacc,econsent_future_unvacc,study_group_vacc_covax,econsent_future_vacc_covax"
+    paste0(consent_vars, collapse = ",")
   )
 }
 
@@ -578,15 +597,34 @@ redcap_consent_long <- redcap_consent_raw %>%
   mutate(
     disease = str_replace(form, "^consent_([[:alpha:]]+)_.*$", "\\1"),
     form = str_replace(form, paste0("consent_", disease, "_"), "")
+  ) %>%
+  filter(!is.na(consent))
+
+consent_dates <- redcap_consent_raw %>%
+  select(record_id, redcap_project_year, contains("date")) %>%
+  pivot_longer(contains("date"), names_to = "form", values_to = "date") %>%
+  filter(!is.na(date)) %>%
+  mutate(
+    disease = if_else(
+      form %in% c("consent_covid_date", "econsent_date_vacc_covax"),
+      "covid",
+      "flu"
+    ),
+    form = if_else(
+      form %in% c("consent_date", "consent_covid_date"),
+      "manual",
+      "electronic"
+    )
   )
 
 redcap_consent_long_extra <- redcap_consent_long %>%
+  left_join(consent_dates, c("record_id", "redcap_project_year", "form", "disease")) %>%
   inner_join(
     yearly_changes_fix_pids %>%
       select(record_id, pid, redcap_project_year),
     c("record_id", "redcap_project_year")
   ) %>%
-  select(pid, year = redcap_project_year, disease, form, consent)
+  select(pid, year = redcap_project_year, date, disease, form, consent)
 
 write_csv(redcap_consent_long_extra, "data/consent.csv")
 

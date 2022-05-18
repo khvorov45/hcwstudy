@@ -19,16 +19,17 @@ participants <- read_csv("./data/participants.csv", col_types = cols()) %>%
 				(year == 2022 & disease == "flu") | (year == 2021 & disease == "covid"), 
 				!is.na(consent)
 			) %>%
-			select(pid, disease, consent) %>%
+			select(pid, disease, consent, date) %>%
 			group_by(pid, disease) %>%
-			summarise(.groups = "drop", consent = paste(unique(consent), collapse = ",")) %>%
+			summarise(
+				.groups = "drop",
+				consent = paste(unique(consent), collapse = ","),
+				date = max(date)
+			) %>%
 			mutate(disease = recode(disease, "flu" = "fluArm2022", "covid" = "covidArm2021")) %>%
-			pivot_wider(names_from = "disease", values_from = "consent"),
+			pivot_wider(names_from = "disease", values_from = c(consent, date)),
 		"pid"
 	)
-
-participants %>%
-	filter(site == "perth", fluArm2022 == "nested,main")
 
 withdrawn <- read_csv("./data/withdrawn.csv") %>%
 	left_join(participants %>% select(pid, site), "pid") %>%
