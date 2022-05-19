@@ -236,7 +236,7 @@ const YEARS_ = [2020, 2021, 2022] as const
 const YEARS = YEARS_ as unknown as number[]
 type YearID = (typeof YEARS_)[number]
 
-const ALL_DATAPAGE_IDS_ = ["contact", "weekly-surveys", "bleeds", "counts"] as const
+const ALL_DATAPAGE_IDS_ = ["pariticpants", "weekly-surveys", "bleeds", "counts"] as const
 const ALL_DATAPAGE_IDS = ALL_DATAPAGE_IDS_ as unknown as string[]
 type DataPageID = (typeof ALL_DATAPAGE_IDS_)[number]
 
@@ -832,10 +832,10 @@ const initBleeds = () => {
   return { bleeds: bleeds, table: table }
 }
 
-const initContact = () => {
-  let contact = createDiv()
-  let table = addDiv(contact)
-  return { contact: contact, table: table }
+const initParticipants = () => {
+  let participants = createDiv()
+  let table = addDiv(participants)
+  return { participants: participants, table: table }
 }
 
 const initCounts = () => {
@@ -1246,17 +1246,24 @@ const createBleedsTable = (downloadCsv: { [key: string]: string }, data: any, ye
   return tableResult.table
 }
 
-const createContactTable = (downloadCsv: { [key: string]: string }, data: any) => {
+const createParticipantsTable = (downloadCsv: { [key: string]: string }, data: any) => {
 
   let tableResult = createTableElementFromAos(
     data.participants,
     {
       pid: {},
+      site: {},
       email: { width: 450 },
-      mobile: { width: 300 },
+      mobile: { width: 200 },
+      gender: {},
+      atsi: {width: 50},
+      dob: {},
+      date_screening: {width: 150},
+      age_screening: {width: 150},
+      recruitment_year: {width: 150},
     },
     { format: (x) => x, width: 100 },
-    "Contact",
+    "Participants",
     (row) => true,
     (row) => {}
   )
@@ -1592,9 +1599,9 @@ const switchDataPage = (state: State, name: DataPageID) => {
       replaceChildren(state.elements.sidebar.pageSpecific, state.elements.countsSettings.container)
       replaceChildren(state.elements.dataContainer, state.elements.counts.counts)
     } break
-    case "contact": {
+    case "pariticpants": {
       removeChildren(state.elements.sidebar.pageSpecific)
-      replaceChildren(state.elements.dataContainer, state.elements.contact.contact)
+      replaceChildren(state.elements.dataContainer, state.elements.participants.participants)
     } break
     default: {
       console.error("data page", name, "does not exist")
@@ -1661,8 +1668,8 @@ const updateSurveyTables = (state: State) => {
 }
 
 const updateContactTable = (state: State) => replaceChildren(
-  state.elements.contact.table,
-  createContactTable(DOWNLOAD_CSV, state.data)
+  state.elements.participants.table,
+  createParticipantsTable(DOWNLOAD_CSV, state.data)
 )
 
 type State = {
@@ -1705,8 +1712,8 @@ type State = {
       counts: HTMLElement,
       table: HTMLElement,
     }
-    contact: {
-      contact: HTMLElement,
+    participants: {
+      participants: HTMLElement,
       table: HTMLElement,
     }
   },
@@ -1783,7 +1790,7 @@ const initState = (state: State) => {
     weeklySurveys: initSurveys(),
     bleeds: initBleeds(),
     counts: initCounts(),
-    contact: initContact(),
+    participants: initParticipants(),
   }
 
   state.settings = {
@@ -1853,8 +1860,6 @@ main()
 // NOTE(sen) To make this a "module"
 export {}
 
-// TODO(sen) Change contact to participants (full)
-// TODO(sen) Counts of post-infection bleeds
 // TODO(sen) Counts of swab results
 // TODO(sen) Table filtering
 // TODO(sen) Titre plots
