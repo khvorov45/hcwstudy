@@ -1,13 +1,30 @@
-library(tidyverse)
+suppressPackageStartupMessages(library(tidyverse))
+
+check_no_rows <- function(dat, msg) {
+  if (nrow(dat) == 0) {
+    message(crayon::green("no", msg))
+  } else {
+    message(crayon::red("found", msg))
+    dat
+  }
+}
+
+check_empty_set <- function(set, msg) {
+  if (length(set) == 0) {
+    message(crayon::green("no", msg))
+  } else {
+    message(crayon::red("found", msg))
+  }
+}
 
 #
 # SECTION Serology
 #
 
-#system("data-raw/pull-NIHHCWserol.sh")
+# system("data-raw/pull-NIHHCWserol.sh")
 
 # NOTE(sen) Export tables from access, one csv per table
-#system("data-raw/export-NIHHCWserol.sh")
+# system("data-raw/export-NIHHCWserol.sh")
 
 serology_all_tables_2020 <- list.files("data-raw", pattern = "HI_", full.names = TRUE) %>%
   map_dfr(function(path) {
@@ -83,7 +100,6 @@ serology_all_tables_2020_fix_viruses <- serology_all_tables_2020_fix_day %>%
       paste0(virus, "e"),
       virus
     ),
-
     subtype = case_when(
       str_detect(path, "H1") ~ "H1",
       str_detect(path, "H3") ~ "H3",
@@ -111,9 +127,7 @@ serology_all_tables_2021_fix_viruses <- serology_all_tables_2021 %>%
       str_replace(" Cell", "") %>%
       str_trim() %>%
       str_replace_all("_", "/"),
-
     virus = if_else(str_detect(path, "egg"), paste0(virus, "e"), virus),
-
     subtype = case_when(
       str_detect(path, "H1") ~ "H1",
       str_detect(path, "H3") ~ "H3",
@@ -127,7 +141,8 @@ serology_all_tables_2021_fix_viruses %>%
 
 serology_all_tables_2021_fix_pids <- serology_all_tables_2021_fix_viruses %>%
   mutate(pid = recode(
-    pid, "QCH-42-" = "QCH-042", "QCH-47-" = "QCH-047",
+    pid,
+    "QCH-42-" = "QCH-042", "QCH-47-" = "QCH-047",
     "WCH-26" = "WCH-026", "WCH-26_" = "WCH-026", "WCH-26-" = "WCH-026",
     "WCH-28" = "WCH-028", "WCH-28_" = "WCH-028", "WCH-28-" = "WCH-028",
   ))
@@ -250,15 +265,6 @@ participants_fix_pid <- participants_with_extras %>%
   filter(recruitment_year == min(recruitment_year)) %>%
   ungroup()
 
-check_no_rows <- function(dat, msg) {
-  if (nrow(dat) == 0) {
-    message(crayon::green("no", msg))
-  } else {
-    message(crayon::red("found", msg))
-    dat
-  }
-}
-
 check_no_rows(
   participants_fix_pid %>% filter(str_length(pid) > 7),
   "participants with pids >7 characters"
@@ -268,14 +274,6 @@ check_no_rows(
   participants_fix_pid %>% group_by(pid) %>% filter(n() > 1),
   "participants with duplicate pids"
 )
-
-check_empty_set <- function(set, msg) {
-  if (length(set) == 0) {
-    message(crayon::green("no", msg))
-  } else {
-    message(crayon::red("found", msg))
-  }
-}
 
 check_empty_set(
   setdiff(serology_all_tables$pid, participants_fix_pid$pid),
@@ -610,12 +608,16 @@ consent_dates <- redcap_consent_raw %>%
       "covid",
       "flu"
     ),
-    form = if_else(
-      form %in% c("consent_date", "consent_covid_date"),
-      "manual",
-      "electronic"
+    form = case_when(
+      form %in% c("consent_date", "consent_covid_date") ~ "manual",
+      form %in% c("econsent_date_vacc") ~ "electronic_vac",
+      form %in% c("econsent_date_unvacc") ~ "electronic_unvac",
+      form %in% c("econsent_date_vacc_covax") ~ "electronic",
+      TRUE ~ NA_character_
     )
   )
+
+check_no_rows(consent_dates %>% filter(is.na(form)), "missing consent form id on dates")
 
 redcap_consent_long_extra <- redcap_consent_long %>%
   left_join(consent_dates, c("record_id", "redcap_project_year", "form", "disease")) %>%
@@ -663,27 +665,40 @@ redcap_consent_use_long_extra <- redcap_consent_use_long %>%
 write_csv(redcap_consent_use_long_extra, "data/consent-use.csv")
 
 #
-# SECTION Swabs
+# SECTION Post-infection swabs and bleeds
 #
 
-redcap_swabs_request <- function(year) {
+postinf_vars <- c(
+  "record_id",
+  "swab_collection",
+  "samp_date",
+  "swab_result",
+  "d7_postinfection_blood",
+  "d14_postinfection_blood",
+  "d30_postinfection_blood"
+)
+
+redcap_postinf_request <- function(year) {
   survey_events <- paste0("weekly_survey_", 1:52, "_arm_1", collapse = ",")
   all_events <- paste0("infection_arm_1,", survey_events)
-  redcap_request(year, all_events, "record_id,swab_collection,samp_date,swab_result")
+  redcap_request(year, all_events, paste(postinf_vars, collapse = ","))
 }
 
-swabs <- redcap_swabs_request(2020) %>%
-  bind_rows(redcap_swabs_request(2021)) %>%
-  bind_rows(redcap_swabs_request(2022)) %>%
+redcap_postinf <- redcap_postinf_request(2020) %>%
+  bind_rows(redcap_postinf_request(2021)) %>%
+  bind_rows(redcap_postinf_request(2022)) %>%
   inner_join(
     yearly_changes_fix_pids %>%
       select(record_id, pid, redcap_project_year),
     c("record_id", "redcap_project_year")
   ) %>%
   select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance, -record_id) %>%
-  rename(year = redcap_project_year)
+  rename(year = redcap_project_year) %>%
+  mutate(postinf_instance = row_number())
 
-swabs_no_missing <- swabs %>% filter(!is.na(swab_collection))
+swabs_no_missing <- redcap_postinf %>%
+  filter(!is.na(swab_collection), swab_collection == 1) %>%
+  select(-contains("postinfection_blood"), -swab_collection)
 
 swabs_long <- swabs_no_missing %>%
   pivot_longer(contains("swab_result___"), names_to = "swab_virus", values_to = "swab_result") %>%
@@ -704,15 +719,19 @@ swabs_long <- swabs_no_missing %>%
     "14" = "Other",
     "15" = "Negative",
     "ni" = "NI",
-  ))
+  )) %>%
+  select(pid, year, postinf_instance, samp_date, swab_virus, swab_result)
 
-swabs_long %>% count(swab_virus, swab_result) %>% print(n = 100)
+write_csv(swabs_long, "data/swabs.csv")
 
-write_csv(
-  swabs_long %>%
-    select(pid, year, samp_date, swab_collection, swab_virus, swab_result),
-  "data/swabs.csv"
-)
+postinf_bleed_dates <- redcap_postinf %>%
+  select(-contains("swab_result___")) %>%
+  pivot_longer(contains("postinfection_blood"), names_to = "day", values_to = "bleed_date") %>%
+  mutate(day = str_replace(day, "d(\\d+)_postinfection_blood", "\\1") %>% as.integer()) %>%
+  filter(!is.na(bleed_date)) %>%
+  select(pid, year, postinf_instance, samp_date, day, swab_collection, bleed_date)
+
+write_csv(postinf_bleed_dates, "data/postinf-bleed-dates.csv")
 
 #
 # SECTION Withdrawn
@@ -736,7 +755,7 @@ withdrawn <- withdrawn_raw %>%
   select(pid, everything()) %>%
   mutate(
     withdrawn_reentered = replace_na(withdrawn_reentered, 0),
-    #withdrawn_reentered = if_else(redcap_project_year == 2022, 0, 1),
+    # withdrawn_reentered = if_else(redcap_project_year == 2022, 0, 1),
   )
 
 write_csv(withdrawn, "data/withdrawn.csv")

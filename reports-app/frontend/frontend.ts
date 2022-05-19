@@ -71,7 +71,7 @@ const measureEl = (el: HTMLElement, availableWidth: number, availableHeight: num
   return dim
 }
 
-const fieldsArePresent = (obj: {[key: string]: any}, colnames: string[]) => {
+const fieldsArePresent = (obj: { [key: string]: any }, colnames: string[]) => {
   let result = true
   let missingColnames = []
   for (let colname of colnames) {
@@ -136,13 +136,13 @@ const dateSeq = (start: string, step: number, count: number) => {
 }
 
 const summarise = <RowType, CountsType>(
-	data: RowType[], groups: string[], defaultCounts: CountsType,
-	filter: (row: RowType) => boolean, getKey: (row: RowType, key: string) => any,
-	addRow: (row: RowType, counts: CountsType) => void,
+  data: RowType[], groups: string[], defaultCounts: CountsType,
+  filter: (row: RowType) => boolean, getKey: (row: RowType, key: string) => any,
+  addRow: (row: RowType, counts: CountsType) => void,
 ) => {
   let groupedCounts: any = {}
   if (groups.length === 0) {
-    groupedCounts = {total: {...defaultCounts}}
+    groupedCounts = { total: { ...defaultCounts } }
   }
 
   for (let row of data) {
@@ -159,7 +159,7 @@ const summarise = <RowType, CountsType>(
 
         if (groupIndex == groups.length - 1) {
           if (currentGroupCount[key] === undefined) {
-            currentGroupCount[key] = {...defaultCounts}
+            currentGroupCount[key] = { ...defaultCounts }
           }
           addRow(row, currentGroupCount[key])
         } else {
@@ -240,7 +240,7 @@ const ALL_DATAPAGE_IDS_ = ["contact", "weekly-surveys", "bleeds", "counts"] as c
 const ALL_DATAPAGE_IDS = ALL_DATAPAGE_IDS_ as unknown as string[]
 type DataPageID = (typeof ALL_DATAPAGE_IDS_)[number]
 
-const ALL_COUNTS_TABLES_ = ["records", "bleeds"] as const
+const ALL_COUNTS_TABLES_ = ["records", "routine-bleeds", "postinfection-bleeds"] as const
 const ALL_COUNTS_TABLES = ALL_COUNTS_TABLES_ as unknown as string[]
 type CountTableID = (typeof ALL_COUNTS_TABLES_)[number]
 
@@ -254,7 +254,12 @@ const ALL_BLEEDS_GROUPS_ = ["year", "site", "recruited", "fluArm2022", "covidArm
 const ALL_BLEEDS_GROUPS = ALL_BLEEDS_GROUPS_ as unknown as string[]
 type BleedsGroups = (typeof ALL_BLEEDS_GROUPS_)[number]
 
-const DOWNLOAD_CSV: {[key: string]: string} = {}
+const ALL_POSTINF_BLEEDS_GROUPS_ = ["year", "site", "recruited", "fluArm2022", "covidArm2021",
+  "gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"] as const
+const ALL_POSTINF_BLEEDS_GROUPS = ALL_POSTINF_BLEEDS_GROUPS_ as unknown as string[]
+type PostinfBleedsGroups = (typeof ALL_POSTINF_BLEEDS_GROUPS_)[number]
+
+const DOWNLOAD_CSV: { [key: string]: string } = {}
 
 const createEl = (name: string) => document.createElement(name)
 const createDiv = () => createEl("div")
@@ -287,8 +292,8 @@ const replaceChildren = (parent: HTMLElement, newChild: HTMLElement) => {
 }
 
 const createSwitch = <SingleOpt extends string | number, OptType extends SingleOpt | SingleOpt[]>(
-	init: OptType, opts: SingleOpt[], onUpdate: (opt: OptType) => void,
-	forOpt?: (opt: SingleOpt, optElement: HTMLElement, updateSelected: (newSel: OptType) => void) => void,
+  init: OptType, opts: SingleOpt[], onUpdate: (opt: OptType) => void,
+  forOpt?: (opt: SingleOpt, optElement: HTMLElement, updateSelected: (newSel: OptType) => void) => void,
 ) => {
   let switchElement = createDiv()
   let currentSel = init
@@ -356,7 +361,7 @@ const createSwitch = <SingleOpt extends string | number, OptType extends SingleO
     optElement.textContent = `${opt}`
 
     if (forOpt !== undefined) {
-      forOpt(opt, optElement, (newSel: OptType) => {currentSel = newSel})
+      forOpt(opt, optElement, (newSel: OptType) => { currentSel = newSel })
     }
   }
 
@@ -411,7 +416,7 @@ const createTableTitle = (title: string, downloadable: boolean) => {
   return titleElement
 }
 
-const createTableHeaderRow = (colnames: string[], colWidthsPx: {[key: string]: number}) => {
+const createTableHeaderRow = (colnames: string[], colWidthsPx: { [key: string]: number }) => {
   let headerRow = createDiv()
   headerRow.style.display = "flex"
   headerRow.style.height = TABLE_ROW_HEIGHT_PX + "px"
@@ -436,6 +441,38 @@ const createTableHeaderRow = (colnames: string[], colWidthsPx: {[key: string]: n
   return headerRow
 }
 
+const createTableFilterRow = (colnames: string[], colWidthsPx: { [key: string]: number }, onInput: any) => {
+  let filterRow = createDiv()
+  filterRow.style.display = "flex"
+  filterRow.style.height = TABLE_ROW_HEIGHT_PX + "px"
+  filterRow.style.backgroundColor = "var(--color-background2)"
+  filterRow.style.borderLeft = "1px solid var(--color-border)"
+  filterRow.style.borderRight = "1px solid var(--color-border)"
+  filterRow.style.boxSizing = "border-box"
+
+  let rowWidth = SCROLLBAR_WIDTHS[1]
+  for (let colname of colnames) {
+    let colWidthPx = valueOr(colWidthsPx[colname], colWidthsPx.default)
+    let cellContainer = addDiv(filterRow)
+    cellContainer.style.display = "flex"
+    cellContainer.style.width = colWidthPx + "px"
+    cellContainer.style.alignItems = "center"
+    cellContainer.style.justifyContent = "center"
+
+    let cell = <HTMLInputElement>addEl(cellContainer, createEl("input"))
+    cell.type = "text"
+    cell.style.width = (colWidthPx - 10) + "px"
+    cell.addEventListener("input", (event) => {
+      onInput(colname, (<HTMLTextAreaElement>event.target).value)
+    })
+
+    rowWidth += colWidthPx
+  }
+
+  filterRow.style.width = rowWidth + "px"
+  return filterRow
+}
+
 const createTableBodyContainer = (heightAvailable?: string) => {
   let tableBodyContainer = createDiv()
   tableBodyContainer.style.overflowY = "scroll"
@@ -443,7 +480,7 @@ const createTableBodyContainer = (heightAvailable?: string) => {
     heightAvailable = "100vh"
   }
   tableBodyContainer.style.maxHeight =
-    `calc(${heightAvailable} - ${TABLE_ROW_HEIGHT_PX * 2 + SCROLLBAR_WIDTHS[0]}px`
+    `calc(${heightAvailable} - ${TABLE_ROW_HEIGHT_PX * 3 + SCROLLBAR_WIDTHS[0]}px`
   return tableBodyContainer
 }
 
@@ -466,10 +503,10 @@ const createTableDataRow = (rowIndex: number) => {
 }
 
 const createTableElementFromSoa = (
-	soa: {[key: string]: any[]},
-	formatters: {[key: string]: (val: any) => string},
-	colWidthsPx: {[key: string]: number},
-	title: string,
+  soa: { [key: string]: any[] },
+  formatters: { [key: string]: (val: any) => string },
+  colWidthsPx: { [key: string]: number },
+  title: string,
 ) => {
 
   let table = createDiv()
@@ -509,27 +546,27 @@ const createTableElementFromSoa = (
     }
   }
 
-  return {table: table, width: tableWidthPx}
+  return { table: table, width: tableWidthPx }
 }
 
 type TableColSpec<RowType> = {
-	access?: ((row: RowType) => any) | string,
-	format?: (val: any) => string,
-	width?: number,
+  access?: ((row: RowType) => any) | string,
+  format?: (val: any) => string,
+  width?: number,
 }
 
-const createTableElementFromAos = <RowType extends {[key: string]: any}>(
-	aos: RowType[],
-	colSpec: {[key: string]: TableColSpec<RowType>},
-	defaults: {
-		access?: ((row: RowType) => any) | string,
-		format: (val: any) => string,
-		width: number,
-	},
-	title: string,
-	filter: (row: RowType) => boolean,
-	forRow: (row: RowType) => void,
-	heightAvailable?: string,
+const createTableElementFromAos = <RowType extends { [key: string]: any }>(
+  aos: RowType[],
+  colSpec: { [key: string]: TableColSpec<RowType> },
+  defaults: {
+    access?: ((row: RowType) => any) | string,
+    format: (val: any) => string,
+    width: number,
+  },
+  title: string,
+  filter: (row: RowType) => boolean,
+  forRow: (row: RowType) => void,
+  heightAvailable?: string,
 ) => {
 
   let table = createDiv()
@@ -547,7 +584,7 @@ const createTableElementFromAos = <RowType extends {[key: string]: any}>(
   let rowsShown = 0;
   if (aos.length > 0) {
 
-    let colWidthsPx: any = {default: defaults.width}
+    let colWidthsPx: any = { default: defaults.width }
     for (let colname of colnames) {
       if (colSpec[colname].width !== undefined) {
         colWidthsPx[colname] = colSpec[colname].width
@@ -555,6 +592,7 @@ const createTableElementFromAos = <RowType extends {[key: string]: any}>(
     }
 
     let headerRow = addEl(table, createTableHeaderRow(colnames, colWidthsPx))
+    //addEl(table, createTableFilterRow(colnames, colWidthsPx, console.log))
 
     let tableBodyContainer = addEl(table, createTableBodyContainer(heightAvailable))
     let tableBody = addEl(tableBodyContainer, createTableBody())
@@ -591,7 +629,7 @@ const createTableElementFromAos = <RowType extends {[key: string]: any}>(
     }
   }
 
-  return {table: table, width: tableWidthPx}
+  return { table: table, width: tableWidthPx }
 }
 
 const initPassword = (state: State) => {
@@ -682,15 +720,15 @@ const initSidebar = (state: State, widthPx: number, initDataPage: DataPageID) =>
       let dest: string = dataPage
 
       switch (dataPage) {
-      case "counts": {
-        dest = getCountsPageURL(state.settings.counts)
-      } break
-      case "bleeds": {
-        dest = dataPage + "?year=" + state.settings.bleeds.year
-      } break
-      case "weekly-surveys": {
-        dest = dataPage + "?year=" + state.settings.weeklySurveys.year
-      } break
+        case "counts": {
+          dest = getCountsPageURL(state.settings.counts)
+        } break
+        case "bleeds": {
+          dest = dataPage + "?year=" + state.settings.bleeds.year
+        } break
+        case "weekly-surveys": {
+          dest = dataPage + "?year=" + state.settings.weeklySurveys.year
+        } break
       }
 
       window.history.pushState(null, "", dest)
@@ -723,7 +761,7 @@ const initSidebar = (state: State, widthPx: number, initDataPage: DataPageID) =>
     switchToPassword(state)
   })
 
-  return {sidebar: sidebar, pageSpecific: pageSpecific}
+  return { sidebar: sidebar, pageSpecific: pageSpecific }
 }
 
 const initDataContainer = (sidebarWidthPx: number) => {
@@ -738,8 +776,8 @@ const initSurveys = () => {
   let container = createDiv()
   container.style.display = "flex"
 
-  let surveyDatesFormatters = {default: formatDate, week: (x: any) => `${x}`}
-  let surveyDatesColWidths = {default: 100, week: 50}
+  let surveyDatesFormatters = { default: formatDate, week: (x: any) => `${x}` }
+  let surveyDatesColWidths = { default: 100, week: 50 }
 
   let surveyDates2020 = createTableElementFromSoa(
     {
@@ -781,38 +819,37 @@ const initSurveys = () => {
 
   let surveys = addDiv(container)
   let completions = addDiv(container)
-  return {container: container, surveys: surveys, completions: completions,
+  return {
+    container: container, surveys: surveys, completions: completions,
     datesContainer: datesContainer,
-    datesTables: {2020: surveyDates2020.table, 2021: surveyDates2021.table, 2022: surveyDates2022.table}}
+    datesTables: { 2020: surveyDates2020.table, 2021: surveyDates2021.table, 2022: surveyDates2022.table }
+  }
 }
 
 const initBleeds = () => {
   let bleeds = createDiv()
   let table = addDiv(bleeds)
-  return {bleeds: bleeds, table: table}
+  return { bleeds: bleeds, table: table }
 }
 
 const initContact = () => {
   let contact = createDiv()
   let table = addDiv(contact)
-  return {contact: contact, table: table}
+  return { contact: contact, table: table }
 }
 
 const initCounts = () => {
   let counts = createDiv()
   let table = addDiv(counts)
-  return {counts: counts, table: table}
+  return { counts: counts, table: table }
 }
 
-const initCountsSettings = (
-	state: State,
-  initGroupsRecords: RecordGroups[], initGroupsBleeds: BleedsGroups[], initTable: CountTableID,
-) => {
+const initCountsSettings = (state: State, init: CountsSettings) => {
   let container = createDiv()
 
   let tableSwitch = addEl(container, createSwitch(
-    initTable,
-    <CountTableID[]>["records", "bleeds"],
+    init.table,
+    <CountTableID[]>ALL_COUNTS_TABLES,
     (table) => {
       state.settings.counts.table = table
       window.history.pushState(null, "", getCountsPageURL(state.settings.counts))
@@ -834,7 +871,7 @@ const initCountsSettings = (
   let groupSwitchContainer = addDiv(container)
 
   let recordsSwitch = createSwitch(
-    initGroupsRecords,
+    init.groupsRecords,
     <RecordGroups[]>ALL_RECORD_GROUPS,
     (groups) => {
       state.settings.counts.groupsRecords = groups
@@ -856,7 +893,7 @@ const initCountsSettings = (
   recordsSwitch.style.marginTop = "20px"
 
   let bleedsSwitch = createSwitch(
-    initGroupsBleeds,
+    init.groupsBleeds,
     <BleedsGroups[]>ALL_BLEEDS_GROUPS,
     (groups) => {
       state.settings.counts.groupsBleeds = groups
@@ -877,15 +914,42 @@ const initCountsSettings = (
   )
   bleedsSwitch.style.marginTop = "20px"
 
-  return {container: container, groupSwitchContainer: groupSwitchContainer,
-    recordsSwitch: recordsSwitch, bleedsSwitch: bleedsSwitch}
+  let postinfBleedsSwitch = createSwitch(
+    init.groupsPostinfBleeds,
+    <PostinfBleedsGroups[]>ALL_POSTINF_BLEEDS_GROUPS,
+    (groups) => {
+      state.settings.counts.groupsPostinfBleeds = groups
+      window.history.pushState(null, "", getCountsPageURL(state.settings.counts))
+      updateCountsTable(state)
+    },
+    (group, el, updateSelected) => {
+      window.addEventListener("popstate", () => {
+        let settings = getCountSettingsFromURL(state.settings.counts)
+        if (settings.groupsBleeds.includes(group)) {
+          el.style.backgroundColor = "var(--color-selected)"
+        } else {
+          el.style.backgroundColor = "var(--color-background)"
+        }
+        updateSelected(settings.groupsPostinfBleeds)
+      })
+    },
+  )
+  postinfBleedsSwitch.style.marginTop = "20px"
+
+  return {
+    container: container, 
+    groupSwitchContainer: groupSwitchContainer,
+    recordsSwitch: recordsSwitch, 
+    bleedsSwitch: bleedsSwitch, 
+    postinfBleedsSwitch: postinfBleedsSwitch,
+  }
 }
 
 const createCountsRecordsTable = (data: Data, groups: string[]) => {
 
   let withdrawalData = data.withdrawn
 
-  let withdrawals: {[key: string]: boolean} = {}
+  let withdrawals: { [key: string]: boolean } = {}
   for (let row of withdrawalData) {
     if (row.withdrawn === 1 && row.withdrawn_reentered !== 1) {
       withdrawals[row.pid] = true
@@ -895,21 +959,21 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
   let participantData = data.participants
 
   let groupedCounts = summarise(
-    participantData, groups, {total: 0, notWithdrawn: 0, consent2022: 0, bled2022: 0},
+    participantData, groups, { total: 0, notWithdrawn: 0, consent2022: 0, bled2022: 0 },
     (row) => row.pid !== undefined && row.pid.length >= 3,
     (row, group) => {
       let key = null
       switch (group) {
-      case "site": {key = row.site;} break
-      case "recruited": {key = row.recruitment_year;} break
-      case "gender": {key = row.gender;} break
-      case "aboriginal": {key = row.atsi;} break
-      case "fluArm2022": {key = row.consent_fluArm2022;} break
-      case "covidArm2021": {key = row.consent_covidArm2021;} break
-      case "age": {key = row.age_group;} break
-      case "prior2020": {key = row.prior2020;} break
-      case "prior2021": {key = row.prior2021;} break
-      case "prior2022": {key = row.prior2022;} break
+        case "site": { key = row.site; } break
+        case "recruited": { key = row.recruitment_year; } break
+        case "gender": { key = row.gender; } break
+        case "aboriginal": { key = row.atsi; } break
+        case "fluArm2022": { key = row.consent_fluArm2022; } break
+        case "covidArm2021": { key = row.consent_covidArm2021; } break
+        case "age": { key = row.age_group; } break
+        case "prior2020": { key = row.prior2020; } break
+        case "prior2021": { key = row.prior2021; } break
+        case "prior2022": { key = row.prior2022; } break
       }
       return key
     },
@@ -923,13 +987,13 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 
       let consentDate = row.date_fluArm2022
       if (consentDate !== undefined) {
-        if (new Date(consentDate).getFullYear() == 2022) {
+        if (consentDate.startsWith("2022")) {
           counts.consent2022 += 1
         }
       }
 
       if (row.latestBleedDate !== undefined) {
-        if (new Date(row.latestBleedDate).getFullYear() == 2022) {
+        if (row.latestBleedDate.startsWith("2022")) {
           counts.bled2022 += 1
         }
       }
@@ -957,12 +1021,12 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 
   for (let group of groups) {
     switch (group) {
-    case "recruited": {addTextline(countsTableDesc, "recruited - year the participant was recruited");} break
-    case "prior2020": {addTextline(countsTableDesc, "prior2020 - vaccination count between 2015-2019 inclusive");} break
-    case "prior2021": {addTextline(countsTableDesc, "prior2021 - vaccination count between 2016-2020 inclusive");} break
-    case "prior2022": {addTextline(countsTableDesc, "prior2022 - vaccination count between 2017-2021 inclusive");} break
-    case "fluArm2022": {addTextline(countsTableDesc, "fluArm2022 - flu arm as per 2022 consent");} break
-    case "covidArm2021": {addTextline(countsTableDesc, "covidArm2021 - covid arm as per 2021 consent");} break
+      case "recruited": { addTextline(countsTableDesc, "recruited - year the participant was recruited"); } break
+      case "prior2020": { addTextline(countsTableDesc, "prior2020 - vaccination count between 2015-2019 inclusive"); } break
+      case "prior2021": { addTextline(countsTableDesc, "prior2021 - vaccination count between 2016-2020 inclusive"); } break
+      case "prior2022": { addTextline(countsTableDesc, "prior2022 - vaccination count between 2017-2021 inclusive"); } break
+      case "fluArm2022": { addTextline(countsTableDesc, "fluArm2022 - flu arm as per 2022 consent"); } break
+      case "covidArm2021": { addTextline(countsTableDesc, "covidArm2021 - covid arm as per 2021 consent"); } break
     }
   }
 
@@ -971,7 +1035,7 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
   let tableResult = createTableElementFromAos(
     countsAos,
     colSpec,
-    {format: (x) => x, width: Math.max(100, descDim[0] / Object.keys(colSpec).length)},
+    { format: (x) => x, width: Math.max(100, descDim[0] / Object.keys(colSpec).length) },
     "Record counts",
     (row) => true,
     (row) => {},
@@ -989,35 +1053,35 @@ const createCountsBleedsTable = (data: Data, groups: string[]) => {
 
   let groupedCounts = summarise(
     data.bleed_dates, groups,
-    {fluDay0: 0, fluDay7: 0, fluDay14: 0, fluDay220: 0, covDay0: 0, covDay7: 0, covDay14: 0},
+    { fluDay0: 0, fluDay7: 0, fluDay14: 0, fluDay220: 0, covDay0: 0, covDay7: 0, covDay14: 0 },
     (row) => true,
     (row, group) => {
       let key = null
       switch (group) {
-      case "year": {key = row.year;} break
-      case "site": {key = row.site;} break
-      case "recruited": {key = row.recruitment_year;} break
-      case "gender": {key = row.gender;} break
-      case "aboriginal": {key = row.atsi;} break
-      case "fluArm2022": {key = row.consent_fluArm2022;} break
-      case "covidArm2021": {key = row.consent_covidArm2021;} break
-      case "age": {key = row.age_group;} break
-      case "prior2020": {key = row.prior2020;} break
-      case "prior2021": {key = row.prior2021;} break
-      case "prior2022": {key = row.prior2022;} break
+        case "year": { key = row.year; } break
+        case "site": { key = row.site; } break
+        case "recruited": { key = row.recruitment_year; } break
+        case "gender": { key = row.gender; } break
+        case "aboriginal": { key = row.atsi; } break
+        case "fluArm2022": { key = row.consent_fluArm2022; } break
+        case "covidArm2021": { key = row.consent_covidArm2021; } break
+        case "age": { key = row.age_group; } break
+        case "prior2020": { key = row.prior2020; } break
+        case "prior2021": { key = row.prior2021; } break
+        case "prior2022": { key = row.prior2022; } break
       }
       return key
     },
 
     (row, counts) => {
       const isPresent = (val: any) => val !== null && val !== undefined && val !== ""
-      if (isPresent(row.flu_day_0)) {counts.fluDay0 += 1}
-      if (isPresent(row.flu_day_7)) {counts.fluDay7 += 1}
-      if (isPresent(row.flu_day_14)) {counts.fluDay14 += 1}
-      if (isPresent(row.flu_day_220)) {counts.fluDay220 += 1}
-      if (isPresent(row.covid_day_0)) {counts.covDay0 += 1}
-      if (isPresent(row.covid_day_7)) {counts.covDay7 += 1}
-      if (isPresent(row.covid_day_14)) {counts.covDay14 += 1}
+      if (isPresent(row.flu_day_0)) { counts.fluDay0 += 1 }
+      if (isPresent(row.flu_day_7)) { counts.fluDay7 += 1 }
+      if (isPresent(row.flu_day_14)) { counts.fluDay14 += 1 }
+      if (isPresent(row.flu_day_220)) { counts.fluDay220 += 1 }
+      if (isPresent(row.covid_day_0)) { counts.covDay0 += 1 }
+      if (isPresent(row.covid_day_7)) { counts.covDay7 += 1 }
+      if (isPresent(row.covid_day_14)) { counts.covDay14 += 1 }
     }
   )
 
@@ -1035,17 +1099,17 @@ const createCountsBleedsTable = (data: Data, groups: string[]) => {
   let countsAos = aoaToAos(groupedCountsFlat, Object.keys(colSpec))
 
   let countsTableDesc = createDiv()
-  addTextline(countsTableDesc, "Bleeds that have a date in redcap")
+  addTextline(countsTableDesc, "Routine bleeds that have a date in redcap")
   if (groups.length > 0) {
     addTextline(countsTableDesc, "all counts apply to the subset defined by (" + groups.join(", ") + ")")
   }
 
   for (let group of groups) {
     switch (group) {
-    case "recruited": {addTextline(countsTableDesc, "recruited - year the participant was recruited");} break
-    case "prior2020": {addTextline(countsTableDesc, "prior2020 - vaccination count between 2015-2019 inclusive");} break
-    case "prior2021": {addTextline(countsTableDesc, "prior2021 - vaccination count between 2016-2020 inclusive");} break
-    case "prior2022": {addTextline(countsTableDesc, "prior2022 - vaccination count between 2017-2021 inclusive");} break
+      case "recruited": { addTextline(countsTableDesc, "recruited - year the participant was recruited"); } break
+      case "prior2020": { addTextline(countsTableDesc, "prior2020 - vaccination count between 2015-2019 inclusive"); } break
+      case "prior2021": { addTextline(countsTableDesc, "prior2021 - vaccination count between 2016-2020 inclusive"); } break
+      case "prior2022": { addTextline(countsTableDesc, "prior2022 - vaccination count between 2017-2021 inclusive"); } break
     }
   }
 
@@ -1054,8 +1118,8 @@ const createCountsBleedsTable = (data: Data, groups: string[]) => {
   let tableResult = createTableElementFromAos(
     countsAos,
     colSpec,
-    {format: (x) => x, width: Math.max(100, descDim[0] / Object.keys(colSpec).length)},
-    "Bleed counts",
+    { format: (x) => x, width: Math.max(100, descDim[0] / Object.keys(colSpec).length) },
+    "Routine bleed counts",
     (row) => true,
     (row) => {},
     `(100vh - ${descDim[1]}px)`
@@ -1068,21 +1132,96 @@ const createCountsBleedsTable = (data: Data, groups: string[]) => {
   return countsTableContainer
 }
 
-const createBleedsTable = (downloadCsv: {[key: string]: string}, data: any, year: number) => {
+const createCountsPostinfBleedsTable = (data: Data, groups: string[]) => {
+
+  let groupedCounts = summarise(
+    data.postinf_bleed_dates, groups,
+    { day7: 0, day14: 0, day30: 0 },
+    (row) => true,
+    (row, group) => {
+      let key = null
+      switch (group) {
+        case "year": { key = row.year; } break
+        case "site": { key = row.site; } break
+        case "recruited": { key = row.recruitment_year; } break
+        case "gender": { key = row.gender; } break
+        case "aboriginal": { key = row.atsi; } break
+        case "fluArm2022": { key = row.consent_fluArm2022; } break
+        case "covidArm2021": { key = row.consent_covidArm2021; } break
+        case "age": { key = row.age_group; } break
+        case "prior2020": { key = row.prior2020; } break
+        case "prior2021": { key = row.prior2021; } break
+        case "prior2022": { key = row.prior2022; } break
+      }
+      return key
+    },
+
+    (row, counts) => {
+      const isPresent = (val: any) => val !== null && val !== undefined && val !== ""
+      if (isPresent(row.day7)) { counts.day7 += 1 }
+      if (isPresent(row.day14)) { counts.day14 += 1 }
+      if (isPresent(row.day30)) { counts.day30 += 1 }
+    }
+  )
+
+  let groupedCountsFlat = flattenMap(groupedCounts, [])
+
+  let colSpec = getColSpecFromGroups(groups)
+  colSpec.day7 = {}
+  colSpec.day14 = {}
+  colSpec.day30 = {}
+
+  let countsAos = aoaToAos(groupedCountsFlat, Object.keys(colSpec))
+
+  let countsTableDesc = createDiv()
+  addTextline(countsTableDesc, "Postnfection bleeds that have a date in redcap")
+  if (groups.length > 0) {
+    addTextline(countsTableDesc, "all counts apply to the subset defined by (" + groups.join(", ") + ")")
+  }
+
+  for (let group of groups) {
+    switch (group) {
+      case "recruited": { addTextline(countsTableDesc, "recruited - year the participant was recruited"); } break
+      case "prior2020": { addTextline(countsTableDesc, "prior2020 - vaccination count between 2015-2019 inclusive"); } break
+      case "prior2021": { addTextline(countsTableDesc, "prior2021 - vaccination count between 2016-2020 inclusive"); } break
+      case "prior2022": { addTextline(countsTableDesc, "prior2022 - vaccination count between 2017-2021 inclusive"); } break
+    }
+  }
+
+  let descDim = measureEl(countsTableDesc, window.innerWidth - SIDEBAR_WIDTH_PX, window.innerHeight)
+
+  let tableResult = createTableElementFromAos(
+    countsAos,
+    colSpec,
+    { format: (x) => x, width: Math.max(100, descDim[0] / Object.keys(colSpec).length) },
+    "Postinfection bleed counts",
+    (row) => true,
+    (row) => {},
+    `(100vh - ${descDim[1]}px)`
+  )
+
+  let countsTableContainer = createDiv()
+  addEl(countsTableContainer, countsTableDesc)
+  addEl(countsTableContainer, tableResult.table)
+
+  return countsTableContainer
+}
+
+const createBleedsTable = (downloadCsv: { [key: string]: string }, data: any, year: number) => {
 
   let tableResult = createTableElementFromAos(
     data.bleed_dates,
     {
       pid: {},
-      day0: {access: "flu_day_0"},
-      day7: {access: "flu_day_7"},
-      day220: {access: "flu_day_220"},
-      day0Covid: {access: "covid_day_0"},
-      day7Covid: {access: "covid_day_7"},
-      day14Covid: {access: "covid_day_14"},
+      day0: { access: "flu_day_0" },
+      day7: { access: "flu_day_7" },
+      day220: { access: "flu_day_220" },
+      day0Covid: { access: "covid_day_0" },
+      day7Covid: { access: "covid_day_7" },
+      day14Covid: { access: "covid_day_14" },
       ari: {}
     },
-    {format: (x) => x, width: 100},
+    { format: (x) => x, width: 100 },
     "Bleed dates",
     (row) => {
       let result = row.year === year
@@ -1107,16 +1246,16 @@ const createBleedsTable = (downloadCsv: {[key: string]: string}, data: any, year
   return tableResult.table
 }
 
-const createContactTable = (downloadCsv: {[key: string]: string}, data: any) => {
+const createContactTable = (downloadCsv: { [key: string]: string }, data: any) => {
 
   let tableResult = createTableElementFromAos(
     data.participants,
     {
       pid: {},
-      email: {width: 450},
-      mobile: {width: 300},
+      email: { width: 450 },
+      mobile: { width: 300 },
     },
-    {format: (x) => x, width: 100},
+    { format: (x) => x, width: 100 },
     "Contact",
     (row) => true,
     (row) => {}
@@ -1125,13 +1264,13 @@ const createContactTable = (downloadCsv: {[key: string]: string}, data: any) => 
   return tableResult.table
 }
 
-const createSurveyTable = (completions: {[key: string]: number[]}, data: any, year: number) => {
+const createSurveyTable = (completions: { [key: string]: number[] }, data: any, year: number) => {
   let tableContainer = createDiv()
 
   let tableResult = createTableElementFromAos(
     data.weekly_surveys,
-    {pid: {}, site: {}, week: {access: "survey_index"}, date: {}, ari: {}},
-    {format: (x) => x, width: 100},
+    { pid: {}, site: {}, week: { access: "survey_index" }, date: {}, ari: {} },
+    { format: (x) => x, width: 100 },
     "Completed weekly surveys",
     (row) => row.year === year && row.complete !== 0,
     (row) => {
@@ -1146,7 +1285,7 @@ const createSurveyTable = (completions: {[key: string]: number[]}, data: any, ye
   return tableContainer
 }
 
-const createCompletionsTable = (completions: {[key: string]: number[]}) => {
+const createCompletionsTable = (completions: { [key: string]: number[] }) => {
 
   let collapsed = []
   for (let [pid, completedSurveys] of Object.entries(completions)) {
@@ -1189,13 +1328,13 @@ const createCompletionsTable = (completions: {[key: string]: number[]}) => {
         }
       }
     }
-    collapsed.push({pid: pid, completions: collapsedCompletions})
+    collapsed.push({ pid: pid, completions: collapsedCompletions })
   }
 
   let tableResult = createTableElementFromAos(
     collapsed,
-    {pid: {}, completions: {width: 300}},
-    {format: (x) => x, width: 100},
+    { pid: {}, completions: { width: 300 } },
+    { format: (x) => x, width: 100 },
     "Collapsed completions",
     (row) => true,
     (row) => {}
@@ -1238,7 +1377,7 @@ const fetchData = async (password: string) => {
     }
   }
 
-  return {success: success, data: data}
+  return { success: success, data: data }
 }
 
 const setGlobalData = (state: State, data: any) => {
@@ -1261,15 +1400,17 @@ const getDataPageFromURL = () => {
 }
 
 type CountsSettings = {
-	table: CountTableID,
-	groupsRecords: RecordGroups[],
-	groupsBleeds: BleedsGroups[],
+  table: CountTableID,
+  groupsRecords: RecordGroups[],
+  groupsBleeds: BleedsGroups[],
+  groupsPostinfBleeds: PostinfBleedsGroups[],
 }
 
 const getCountsPageURL = (settings: CountsSettings) => {
   let recordGroups = `record_groups=${settings.groupsRecords.join(",")}`
   let bleedsGroups = `bleeds_groups=${settings.groupsBleeds.join(",")}`
-  let result = `counts?table=${settings.table}&${recordGroups}&${bleedsGroups}`
+  let postinfBleedsGroups = `postinf_bleeds_groups=${settings.groupsPostinfBleeds.join(",")}`
+  let result = `counts?table=${settings.table}&${recordGroups}&${bleedsGroups}&${postinfBleedsGroups}`
   return result
 }
 
@@ -1277,6 +1418,7 @@ const getCountSettingsFromURL = (def: CountsSettings) => {
   let urlTable = def.table
   let urlGroupsRecords = def.groupsRecords
   let urlGroupsBleeds = def.groupsBleeds
+  let urlGroupsPostinfBleeds = def.groupsPostinfBleeds
 
   if (window.location.pathname === "/counts") {
     let params = new URLSearchParams(window.location.search)
@@ -1333,15 +1475,42 @@ const getCountSettingsFromURL = (def: CountsSettings) => {
     } else {
       needToFixAddress = true
     }
+    
+    if (params.has("postinf_bleeds_groups")) {
+
+      let bleedsGroups = params.getAll("postinf_bleeds_groups")
+      let bleedsGroupsFirst = bleedsGroups[0].split(",")
+      if (allAInB(bleedsGroupsFirst, ALL_POSTINF_BLEEDS_GROUPS)) {
+        urlGroupsPostinfBleeds = <PostinfBleedsGroups[]>bleedsGroupsFirst
+      } else {
+        needToFixAddress = true
+      }
+
+      if (bleedsGroups.length > 1) {
+        needToFixAddress = true
+      }
+
+    } else {
+      needToFixAddress = true
+    }
 
     if (needToFixAddress) {
       window.history.replaceState(null, "", getCountsPageURL({
-        table: urlTable, groupsRecords: urlGroupsRecords, groupsBleeds: urlGroupsBleeds
+        table: urlTable, 
+        groupsRecords: urlGroupsRecords, 
+        groupsBleeds: urlGroupsBleeds, 
+        groupsPostinfBleeds: urlGroupsPostinfBleeds
       }))
     }
   }
 
-  let result: CountsSettings = {table: urlTable, groupsRecords: urlGroupsRecords, groupsBleeds: urlGroupsBleeds}
+  let result: CountsSettings = { 
+    table: urlTable, 
+    groupsRecords: urlGroupsRecords, 
+    groupsBleeds: urlGroupsBleeds,
+    groupsPostinfBleeds: urlGroupsPostinfBleeds,
+  }
+
   return result
 }
 
@@ -1411,26 +1580,26 @@ const switchDataPage = (state: State, name: DataPageID) => {
   let oldDataPage = state.currentDataPage
   state.currentDataPage = name
   switch (name) {
-  case "weekly-surveys": {
-    replaceChildren(state.elements.sidebar.pageSpecific, state.elements.weeklySurveySettings)
-    replaceChildren(state.elements.dataContainer, state.elements.weeklySurveys.container)
-  } break
-  case "bleeds": {
-    replaceChildren(state.elements.sidebar.pageSpecific, state.elements.bleedsSettings)
-    replaceChildren(state.elements.dataContainer, state.elements.bleeds.bleeds)
-  } break
-  case "counts": {
-    replaceChildren(state.elements.sidebar.pageSpecific, state.elements.countsSettings.container)
-    replaceChildren(state.elements.dataContainer, state.elements.counts.counts)
-  } break
-  case "contact": {
-    removeChildren(state.elements.sidebar.pageSpecific)
-    replaceChildren(state.elements.dataContainer, state.elements.contact.contact)
-  } break
-  default: {
-    console.error("data page", name, "does not exist")
-    state.currentDataPage = oldDataPage
-  }
+    case "weekly-surveys": {
+      replaceChildren(state.elements.sidebar.pageSpecific, state.elements.weeklySurveySettings)
+      replaceChildren(state.elements.dataContainer, state.elements.weeklySurveys.container)
+    } break
+    case "bleeds": {
+      replaceChildren(state.elements.sidebar.pageSpecific, state.elements.bleedsSettings)
+      replaceChildren(state.elements.dataContainer, state.elements.bleeds.bleeds)
+    } break
+    case "counts": {
+      replaceChildren(state.elements.sidebar.pageSpecific, state.elements.countsSettings.container)
+      replaceChildren(state.elements.dataContainer, state.elements.counts.counts)
+    } break
+    case "contact": {
+      removeChildren(state.elements.sidebar.pageSpecific)
+      replaceChildren(state.elements.dataContainer, state.elements.contact.contact)
+    } break
+    default: {
+      console.error("data page", name, "does not exist")
+      state.currentDataPage = oldDataPage
+    }
   }
 }
 
@@ -1448,15 +1617,22 @@ const updateCountsTable = (state: State) => {
   let switchEl = createDiv()
 
   switch (state.settings.counts.table) {
-  case "records": {
+    case "records": {
       tableEl = createCountsRecordsTable(state.data, state.settings.counts.groupsRecords)
       switchEl = state.elements.countsSettings.recordsSwitch
-  } break;
-  case "bleeds": {
+    } break;
+  
+    case "routine-bleeds": {
       tableEl = createCountsBleedsTable(state.data, state.settings.counts.groupsBleeds)
       switchEl = state.elements.countsSettings.bleedsSwitch
-  } break;
-  default: console.error("unexpected counts table name", state.settings.counts.table)
+    } break;
+  
+    case "postinfection-bleeds": {
+      tableEl = createCountsPostinfBleedsTable(state.data, state.settings.counts.groupsPostinfBleeds)
+      switchEl = state.elements.countsSettings.postinfBleedsSwitch
+    } break;
+
+    default: console.error("unexpected counts table name", state.settings.counts.table)
   }
 
   replaceChildren(state.elements.counts.table, tableEl)
@@ -1507,6 +1683,7 @@ type State = {
       groupSwitchContainer: HTMLElement,
       recordsSwitch: HTMLElement,
       bleedsSwitch: HTMLElement,
+      postinfBleedsSwitch: HTMLElement,
     },
     dataContainer: HTMLElement,
     weeklySurveys: {
@@ -1534,8 +1711,8 @@ type State = {
     }
   },
   settings: {
-    weeklySurveys: {year: YearID},
-    bleeds: {year: YearID},
+    weeklySurveys: { year: YearID },
+    bleeds: { year: YearID },
     counts: CountsSettings,
   }
 }
@@ -1550,7 +1727,7 @@ const initState = (state: State) => {
   const initYearBleeds: YearID = getBleedsYearFromURL(initYear)
   const initYearSurvey: YearID = getSurveysYearFromURL(initYear)
   const initCountsSettingsVal: CountsSettings = getCountSettingsFromURL({
-    table: "records", groupsRecords: ["site"], groupsBleeds: ["year"]
+    table: "records", groupsRecords: ["site"], groupsBleeds: ["year"], groupsPostinfBleeds: ["year"],
   })
 
   state.elements = {
@@ -1600,10 +1777,7 @@ const initState = (state: State) => {
       },
     ),
 
-    countsSettings: initCountsSettings(
-      state,
-      initCountsSettingsVal.groupsRecords, initCountsSettingsVal.groupsBleeds, initCountsSettingsVal.table
-    ),
+    countsSettings: initCountsSettings(state, initCountsSettingsVal),
 
     dataContainer: initDataContainer(SIDEBAR_WIDTH_PX),
     weeklySurveys: initSurveys(),
@@ -1625,6 +1799,7 @@ type Data = {
   bleed_dates: any[],
   consent: any[]
   weekly_surveys: any[],
+  postinf_bleed_dates: any[],
 }
 
 const main = async () => {
@@ -1636,20 +1811,20 @@ const main = async () => {
     state.currentDataPage = getDataPageFromURL()
 
     switch (state.currentDataPage) {
-    case "counts": {
-      state.settings.counts = getCountSettingsFromURL(state.settings.counts)
-      updateCountsTable(state)
-    } break
+      case "counts": {
+        state.settings.counts = getCountSettingsFromURL(state.settings.counts)
+        updateCountsTable(state)
+      } break
 
-    case "bleeds": {
-      state.settings.bleeds.year = getBleedsYearFromURL(state.settings.bleeds.year)
-      updateBleedsTable(state)
-    } break
+      case "bleeds": {
+        state.settings.bleeds.year = getBleedsYearFromURL(state.settings.bleeds.year)
+        updateBleedsTable(state)
+      } break
 
-    case "weekly-surveys": {
-      state.settings.weeklySurveys.year = getSurveysYearFromURL(state.settings.weeklySurveys.year)
-      updateSurveyTables(state)
-    } break
+      case "weekly-surveys": {
+        state.settings.weeklySurveys.year = getSurveysYearFromURL(state.settings.weeklySurveys.year)
+        updateSurveyTables(state)
+      } break
     }
 
     switchToCurrentDataPage(state)
@@ -1678,5 +1853,8 @@ main()
 // NOTE(sen) To make this a "module"
 export {}
 
+// TODO(sen) Change contact to participants (full)
+// TODO(sen) Counts of post-infection bleeds
+// TODO(sen) Counts of swab results
 // TODO(sen) Table filtering
 // TODO(sen) Titre plots
