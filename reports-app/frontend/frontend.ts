@@ -3,6 +3,12 @@
 // SECTION Utilities
 //
 
+const addDays = (date: Date, days: number) => {
+	let dateCopy = new Date(date)
+	dateCopy.setDate(date.getDate() + days)
+	return dateCopy
+}
+
 const allAInB = <T>(arrA: T[], arrB: T[]) => {
 	let result = true
 	for (let entryA of arrA) {
@@ -502,53 +508,6 @@ const createTableDataRow = (rowIndex: number) => {
 	return rowElement
 }
 
-const createTableElementFromSoa = (
-	soa: { [key: string]: any[] },
-	formatters: { [key: string]: (val: any) => string },
-	colWidthsPx: { [key: string]: number },
-	title: string,
-) => {
-
-	let table = createDiv()
-	let titleElement = addEl(table, createTableTitle(title, true))
-	DOWNLOAD_CSV[title] = ""
-
-	let colnames = Object.keys(soa)
-	DOWNLOAD_CSV[title] += colnames.join(",") + "\n"
-
-	let tableWidthPx = 0
-	for (let colname of colnames) {
-		tableWidthPx += getNameOrDefault(colWidthsPx, colname)
-	}
-
-	if (colnames.length > 0) {
-		let headerRow = addEl(table, createTableHeaderRow(colnames, colWidthsPx))
-
-		let tableBodyContainer = addEl(table, createTableBodyContainer())
-		let tableBody = addEl(tableBodyContainer, createTableBody())
-
-		let rowCount = soa[colnames[0]].length
-		for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
-			let rowElement = addEl(tableBody, createTableDataRow(rowIndex))
-
-			for (let colname of colnames) {
-				let colData = soa[colname][rowIndex]
-				let formatter = getNameOrDefault(formatters, colname)
-				let colDataFormatted = formatter(colData)
-
-				let colWidthPx = getNameOrDefault(colWidthsPx, colname)
-				addEl(rowElement, createTableCellString(colWidthPx, colDataFormatted))
-
-				DOWNLOAD_CSV[title] += colDataFormatted + ","
-			}
-
-			DOWNLOAD_CSV[title] += "\n"
-		}
-	}
-
-	return { table: table, width: tableWidthPx }
-}
-
 type TableColSpec<RowType> = {
 	access?: ((row: RowType) => any) | string,
 	format?: (val: any) => string,
@@ -804,43 +763,48 @@ const initSurveys = () => {
 	let container = createDiv()
 	container.style.display = "flex"
 
-	let surveyDatesFormatters = { default: formatDate, week: (x: any) => `${x}` }
-	let surveyDatesColWidths = { default: 100, week: 50 }
+	const getDates = (weekCount: number, start: string, end: string, send: string) => {
+		let result: any[] = []
+		let startDate = new Date(start)
+		let endDate = new Date(end)
+		let sendDate = new Date(send)
+		for (let index = 0; index < weekCount; index += 1) {
+			let row = {
+				week: `${index + 1}`,
+				start: formatDate(addDays(startDate, index * 7)),
+				end: formatDate(addDays(endDate, index * 7)),
+				send: formatDate(addDays(sendDate, index * 7)),
+			}
+			result.push(row)
+		}
+		return result
+	}
 
-	let surveyDates2020 = createTableElementFromSoa(
-		{
-			week: seq(1, 1, 32),
-			start: dateSeq("2020-04-06", 7, 32),
-			end: dateSeq("2020-04-12", 7, 32),
-			send: dateSeq("2020-04-13", 7, 32),
-		},
-		surveyDatesFormatters,
-		surveyDatesColWidths,
-		"Weekly survey dates 2020"
+	let surveyDates2020 = createTableElementFromAos(
+		getDates(32, "2020-04-06", "2020-04-12", "2020-04-13"),
+		{week: {}, start: {}, end: {}, send: {}},
+		{format: (x) => x, width: 100},
+		"Weekly survey dates 2020",
+		(row) => true,
+		(row) => {},
 	)
 
-	let surveyDates2021 = createTableElementFromSoa(
-		{
-			week: seq(1, 1, 52),
-			start: dateSeq("2021-01-04", 7, 52),
-			end: dateSeq("2021-01-10", 7, 52),
-			send: dateSeq("2021-01-11", 7, 52),
-		},
-		surveyDatesFormatters,
-		surveyDatesColWidths,
-		"Weekly survey dates 2021"
+	let surveyDates2021 = createTableElementFromAos(
+		getDates(32, "2021-01-04", "2021-01-10", "2021-01-11"),
+		{week: {}, start: {}, end: {}, send: {}},
+		{format: (x) => x, width: 100},
+		"Weekly survey dates 2021",
+		(row) => true,
+		(row) => {},
 	)
 
-	let surveyDates2022 = createTableElementFromSoa(
-		{
-			week: seq(1, 1, 52),
-			start: dateSeq("2022-01-03", 7, 52),
-			end: dateSeq("2022-01-09", 7, 52),
-			send: dateSeq("2022-01-10", 7, 52),
-		},
-		surveyDatesFormatters,
-		surveyDatesColWidths,
-		"Weekly survey dates 2022"
+	let surveyDates2022 = createTableElementFromAos(
+		getDates(32, "2022-01-03", "2022-01-09", "2022-01-10"),
+		{week: {}, start: {}, end: {}, send: {}},
+		{format: (x) => x, width: 100},
+		"Weekly survey dates 2022",
+		(row) => true,
+		(row) => {},
 	)
 
 	let datesContainer = addDiv(container)
