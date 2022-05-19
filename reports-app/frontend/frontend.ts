@@ -581,6 +581,21 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 		tableWidthPx += valueOr(colSpec[colname].width, defaults.width)
 	}
 
+	// NOTE(sen) Fill in missing spec entries
+	for (let colname of colnames) {
+		let spec = colSpec[colname]
+
+		spec.access = valueOr(spec.access, defaults.access)
+		spec.access = valueOr(spec.access, colname)
+		if (isString(spec.access)) {
+			let colname = <string>spec.access
+			spec.access = (rowData) => rowData[colname]
+		}
+
+		spec.format = valueOr(spec.format, defaults.format)
+		spec.width = valueOr(spec.width, defaults.width)
+	}
+
 	let rowsShown = 0;
 	if (aos.length > 0) {
 
@@ -592,7 +607,32 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 		}
 
 		let headerRow = addEl(table, createTableHeaderRow(colnames, colWidthsPx))
-		//addEl(table, createTableFilterRow(colnames, colWidthsPx, console.log))
+		addEl(table, createTableFilterRow(colnames, colWidthsPx, (colname: string, filterVal: any) => {
+			let rowsShown = 0
+			for (let rowIndex = 0; rowIndex < aos.length; rowIndex += 1) {
+				let rowData = aos[rowIndex]
+				if (filter(rowData)) {
+					let spec = colSpec[colname]
+					let colData = (spec.access as any)(rowData)
+
+					let colDataFormatted: string
+					if (colData === null || colData === undefined) {
+						colDataFormatted = ""
+					} else {
+						colDataFormatted = spec.format!(colData)
+					}
+
+					let rowElement = <HTMLElement>tableBody.children[rowsShown]
+					if (colDataFormatted.toLowerCase().includes(filterVal.toLowerCase())) {
+						rowElement.style.display = "inherit"
+					} else {
+						rowElement.style.display = "none"
+					}
+
+					rowsShown += 1
+				}
+			}
+		}))
 
 		let tableBodyContainer = addEl(table, createTableBodyContainer(heightAvailable))
 		let tableBody = addEl(tableBodyContainer, createTableBody())
@@ -605,21 +645,9 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 
 				for (let colname of colnames) {
 					let spec = colSpec[colname]
-
-					let accessor = valueOr(spec.access, colname)
-					let colData: any
-					if (isString(accessor)) {
-						colData = rowData[<string>accessor]
-					} else {
-						colData = (<(row: RowType) => any>accessor)(rowData)
-					}
-
-					let formatter = valueOr(spec.format, defaults.format)
-					let colDataFormatted = formatter(colData)
-
-					let colWidthPx = valueOr(spec.width, defaults.width)
-					addEl(rowElement, createTableCellString(colWidthPx, colDataFormatted))
-
+					let colData = (spec.access as any)(rowData)
+					let colDataFormatted = spec.format!(colData)
+					addEl(rowElement, createTableCellString(spec.width!, colDataFormatted))
 					DOWNLOAD_CSV[title] += "\"" + colDataFormatted + "\","
 				}
 
@@ -937,10 +965,10 @@ const initCountsSettings = (state: State, init: CountsSettings) => {
 	postinfBleedsSwitch.style.marginTop = "20px"
 
 	return {
-		container: container, 
+		container: container,
 		groupSwitchContainer: groupSwitchContainer,
-		recordsSwitch: recordsSwitch, 
-		bleedsSwitch: bleedsSwitch, 
+		recordsSwitch: recordsSwitch,
+		bleedsSwitch: bleedsSwitch,
 		postinfBleedsSwitch: postinfBleedsSwitch,
 	}
 }
@@ -1256,13 +1284,13 @@ const createParticipantsTable = (downloadCsv: { [key: string]: string }, data: a
 			email: { width: 450 },
 			mobile: { width: 200 },
 			gender: {},
-			atsi: {width: 50},
+			atsi: { width: 50 },
 			dob: {},
-			date_screening: {width: 150},
-			age_screening: {width: 150},
-			recruitment_year: {width: 150},
+			date_screening: { width: 150 },
+			age_screening: { width: 150, format: (x) => x?.toFixed(0) },
+			recruitment_year: { width: 150 },
 		},
-		{ format: (x) => x, width: 100 },
+		{ format: (x) => `${x}`, width: 100 },
 		"Participants",
 		(row) => true,
 		(row) => {}
@@ -1277,7 +1305,7 @@ const createSurveyTable = (completions: { [key: string]: number[] }, data: any, 
 	let tableResult = createTableElementFromAos(
 		data.weekly_surveys,
 		{ pid: {}, site: {}, week: { access: "survey_index" }, date: {}, ari: {} },
-		{ format: (x) => x, width: 100 },
+		{ format: (x) => `${x}`, width: 100 },
 		"Completed weekly surveys",
 		(row) => row.year === year && row.complete !== 0,
 		(row) => {
@@ -1482,7 +1510,7 @@ const getCountSettingsFromURL = (def: CountsSettings) => {
 		} else {
 			needToFixAddress = true
 		}
-		
+
 		if (params.has("postinf_bleeds_groups")) {
 
 			let bleedsGroups = params.getAll("postinf_bleeds_groups")
@@ -1503,17 +1531,17 @@ const getCountSettingsFromURL = (def: CountsSettings) => {
 
 		if (needToFixAddress) {
 			window.history.replaceState(null, "", getCountsPageURL({
-				table: urlTable, 
-				groupsRecords: urlGroupsRecords, 
-				groupsBleeds: urlGroupsBleeds, 
+				table: urlTable,
+				groupsRecords: urlGroupsRecords,
+				groupsBleeds: urlGroupsBleeds,
 				groupsPostinfBleeds: urlGroupsPostinfBleeds
 			}))
 		}
 	}
 
-	let result: CountsSettings = { 
-		table: urlTable, 
-		groupsRecords: urlGroupsRecords, 
+	let result: CountsSettings = {
+		table: urlTable,
+		groupsRecords: urlGroupsRecords,
 		groupsBleeds: urlGroupsBleeds,
 		groupsPostinfBleeds: urlGroupsPostinfBleeds,
 	}
@@ -1628,12 +1656,12 @@ const updateCountsTable = (state: State) => {
 			tableEl = createCountsRecordsTable(state.data, state.settings.counts.groupsRecords)
 			switchEl = state.elements.countsSettings.recordsSwitch
 		} break;
-	
+
 		case "routine-bleeds": {
 			tableEl = createCountsBleedsTable(state.data, state.settings.counts.groupsBleeds)
 			switchEl = state.elements.countsSettings.bleedsSwitch
 		} break;
-	
+
 		case "postinfection-bleeds": {
 			tableEl = createCountsPostinfBleedsTable(state.data, state.settings.counts.groupsPostinfBleeds)
 			switchEl = state.elements.countsSettings.postinfBleedsSwitch
