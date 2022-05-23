@@ -1,6 +1,6 @@
 suppressPackageStartupMessages(library(tidyverse))
 
-vac_hist <- read_csv("./data/vaccinations.csv")
+vac_hist <- read_csv("./data/vaccinations.csv", col_types = cols())
 
 prior_vac_counts <- vac_hist %>%
     group_by(pid) %>%
@@ -38,18 +38,18 @@ participants <- read_csv("./data/participants.csv", col_types = cols()) %>%
         "pid"
     )
 
-withdrawn <- read_csv("./data/withdrawn.csv") %>%
+withdrawn <- read_csv("./data/withdrawn.csv", col_types = cols()) %>%
     left_join(participants %>% select(pid, site), "pid") %>%
     rename(year = redcap_project_year)
 
-bleed_dates_flu <- read_csv("./data/bleed-dates.csv") %>%
+bleed_dates_flu <- read_csv("./data/bleed-dates.csv", col_types = cols()) %>%
     left_join(participants %>% select(pid, site), "pid")
 
 bleed_dates_flu_wide <- bleed_dates_flu %>%
     mutate(day = paste0("flu_day_", day)) %>%
     pivot_wider(names_from = "day", values_from = "date")
 
-bleed_dates_covid <- read_csv("./data/covid-bleed-dates.csv")
+bleed_dates_covid <- read_csv("./data/covid-bleed-dates.csv", col_types = cols())
 
 bleed_dates_covid_wide <- bleed_dates_covid %>%
     mutate(day = paste0("covid_day_", day)) %>%
@@ -63,10 +63,10 @@ postinf_bleed_dates <- read_csv("./data/postinf-bleed-dates.csv", col_types = co
     pivot_wider(names_from = "day", values_from = "bleed_date") %>%
     left_join(participants, "pid")
 
-consent <- read_csv("./data/consent.csv") %>%
+consent <- read_csv("./data/consent.csv", col_types = cols()) %>%
     left_join(participants %>% select(pid, site), "pid")
 
-weekly_surveys <- read_csv("./data/weekly-surveys.csv") %>%
+weekly_surveys <- read_csv("./data/weekly-surveys.csv", col_types = cols()) %>%
     left_join(participants %>% select(pid, site), "pid")
 
 all_data <- list(

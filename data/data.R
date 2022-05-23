@@ -2,18 +2,18 @@ suppressPackageStartupMessages(library(tidyverse))
 
 check_no_rows <- function(dat, msg) {
   if (nrow(dat) == 0) {
-    message(crayon::green("no", msg))
+    message(crayon::green("OK: no", msg))
   } else {
-    message(crayon::red("found", msg))
+    message(crayon::red("ERR: found", msg))
     dat
   }
 }
 
 check_empty_set <- function(set, msg) {
   if (length(set) == 0) {
-    message(crayon::green("no", msg))
+    message(crayon::green("OK: no", msg))
   } else {
-    message(crayon::red("found", msg))
+    message(crayon::red("ERR: found", msg))
   }
 }
 
@@ -108,8 +108,15 @@ serology_all_tables_2020_fix_viruses <- serology_all_tables_2020_fix_day %>%
     )
   )
 
-serology_all_tables_2020_fix_viruses %>%
-  count(virus, subtype, path)
+check_virus_fix <- function(serology_data) {
+  summ <- serology_data %>%
+    group_by(path) %>%
+    summarise(unique_viruses = length(unique(virus)), unique_subtypes = length(unique(subtype)))
+  check_no_rows(summ %>% filter(unique_viruses != 1), "not 1 unique virus per serology file")
+  check_no_rows(summ %>% filter(unique_subtypes != 1), "not 1 unique subtype per serology file")
+}
+
+check_virus_fix(serology_all_tables_2020_fix_viruses)
 
 # NOTE(sen) WCH-025 became WCH-818 and we seem to have V0 WCH-818 data
 serology_all_tables_2020_fix_pids <- serology_all_tables_2020_fix_viruses %>%
@@ -136,8 +143,7 @@ serology_all_tables_2021_fix_viruses <- serology_all_tables_2021 %>%
     ),
   )
 
-serology_all_tables_2021_fix_viruses %>%
-  count(virus, subtype, path)
+check_virus_fix(serology_all_tables_2021_fix_viruses)
 
 serology_all_tables_2021_fix_pids <- serology_all_tables_2021_fix_viruses %>%
   mutate(pid = recode(
@@ -152,20 +158,17 @@ serology_all_tables <- bind_rows(
 ) %>%
   mutate(virus_egg_cell = if_else(str_detect(virus, "e$"), "egg", "cell"))
 
-serology_all_tables %>%
-  count(virus, path)
+check_virus_fix(serology_all_tables)
+check_no_rows(serology_all_tables %>% filter(pid == "WCH-025"), "WCH-025")
+check_no_rows(serology_all_tables %>% filter(!complete.cases(.)), "serology anything missing")
 
-# NOTE(sen) Should be missing
-serology_all_tables %>% filter(pid == "WCH-025")
-
-# NOTE(sen) Nothing should be missing
-serology_all_tables %>% filter(!complete.cases(.))
-
-# NOTE(sen) Shouldn't be any duplicates
-serology_all_tables %>%
-  group_by(pid, year, day, virus) %>%
-  filter(n() > 1) %>%
-  arrange(pid, year, day, virus)
+check_no_rows(
+  serology_all_tables %>%
+    group_by(pid, year, day, virus) %>%
+    filter(n() > 1) %>%
+    arrange(pid, year, day, virus),
+  "serology duplicates"
+)
 
 write_csv(serology_all_tables %>% select(-path), "data/serology.csv")
 
@@ -229,19 +232,13 @@ participants <- bind_rows(
     atsi = if_else(atsi == "Yes", 1, 0)
   )
 
-# NOTE(sen) Some are missing baseline data
-participants %>% filter(!complete.cases(.))
-
 # NOTE(sen) Shouldn't be missing
-participants %>%
-  select(pid, site, recruitment_year, date_screening) %>%
-  filter(!complete.cases(.))
-
-extract_first_pid_digit <- function(string) {
-  str_replace(string, ".*(\\d)\\d{2}.*", "\\1")
-}
-
-unique(extract_first_pid_digit(participants$pid))
+check_no_rows(
+  participants %>%
+    select(pid, site, recruitment_year, date_screening) %>%
+    filter(!complete.cases(.)),
+  "participants non-baseline missing"
+)
 
 participants_with_extras <- participants %>%
   mutate(
@@ -304,9 +301,15 @@ yearly_changes_fix_pids <- yearly_changes_raw %>%
     pid = fun_fix_pids(pid)
   )
 
-# NOTE(sen) All PIDs should match
-setdiff(yearly_changes_fix_pids$pid, participants_fix_pid$pid)
-setdiff(participants_fix_pid$pid, yearly_changes_fix_pids$pid)
+check_empty_set(
+  setdiff(yearly_changes_fix_pids$pid, participants_fix_pid$pid),
+  "yearly changes not in pariticpants"
+)
+
+check_empty_set(
+  setdiff(participants_fix_pid$pid, yearly_changes_fix_pids$pid),
+  "participants not in yearly changes"
+)
 
 write_csv(yearly_changes_fix_pids, "data/yearly-changes.csv")
 
@@ -335,20 +338,37 @@ vaccination_history_raw <- redcap_vaccination_history_request(2020) %>%
 
 vaccination_history_no_duplicates <- vaccination_history_raw %>%
   pivot_longer(contains("vac_"), names_to = "year", values_to = "status") %>%
+  filter(!is.na(status)) %>%
+  mutate(
+    status = str_replace(status, "Yes - ", "")
+  ) %>%
   group_by(pid, year) %>%
-  summarise(.groups = "drop", status = unique(na.omit(status))) %>%
+  filter(n() == 1 | status != "Unknown") %>%
+  summarise(
+    .groups = "drop",
+    status = paste(unique(status), collapse = ","),
+  ) %>%
   mutate(
     year = str_replace(year, "vac_", "") %>% as.integer(),
-    status = str_replace(status, "Yes - ", "")
   )
 
-# NOTE(sen) Shouldn't be any missing data
-vaccination_history_no_duplicates %>% filter(!complete.cases(.))
+check_no_rows(
+  vaccination_history_no_duplicates %>% filter(!complete.cases(.)),
+  "missing vaccination history"
+)
 
-# NOTE(sen) Shouldn't be any duplicates
-vaccination_history_no_duplicates %>%
-  group_by(pid, year) %>%
-  filter(n() > 1)
+check_no_rows(
+  vaccination_history_no_duplicates %>%
+    group_by(pid, year) %>%
+    filter(n() > 1),
+  "vaccination history duplicates (screening)"
+)
+
+check_no_rows(
+  vaccination_history_no_duplicates %>%
+    filter(str_detect(status, ",")),
+  "vaccination history conflicts (screening)"
+)
 
 # NOTE(sen) There is also a vaccination instrument for the current year
 
@@ -367,43 +387,37 @@ vaccination_instrument_raw <- redcap_vaccination_instrument_request(2020) %>%
   select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance, -record_id) %>%
   rename(year = redcap_project_year)
 
-# NOTE(sen) Shouldn't be any duplicates
-vaccination_instrument_raw %>%
-  group_by(pid, year) %>%
-  filter(n() > 1) %>%
-  arrange(pid, year)
+check_no_rows(
+  vaccination_instrument_raw %>%
+    group_by(pid, year) %>%
+    filter(n() > 1) %>%
+    arrange(pid, year),
+  "vaccination instrument duplicates"
+)
 
-# NOTE(sen) Shouldn't be any conflicting information
-# TODO(sen) Contacted melbourne site about ALF-018 on 2021-08-26 through study email
-vaccination_history_no_duplicates %>%
-  inner_join(vaccination_instrument_raw, c("pid", "year")) %>%
-  filter(
-    (vaccinated != 1 & status == "Australia") |
-      (vaccinated == 0 & status != "No")
-  )
+# NOTE(sen) Believe the vaccination instrument more
+vaccination_instrument_renamed <- vaccination_instrument_raw %>%
+  rename(status = vaccinated) %>%
+  mutate(status = recode(status, "1" = "Australia", "0" = "No")) %>%
+  filter(!is.na(status))
 
-vaccination_history_with_instrument <- vaccination_history_no_duplicates %>%
+vaccination_history_with_instrument <- vaccination_instrument_renamed %>%
   bind_rows(
-    vaccination_instrument_raw %>%
-      filter(
-        !paste0(pid, year) %in%
-          with(vaccination_history_no_duplicates, paste0(pid, year))
-      ) %>%
-      rename(status = vaccinated) %>%
-      mutate(status = recode(status, "1" = "Australia", "0" = "No")) %>%
-      filter(!is.na(status))
+    vaccination_history_no_duplicates %>%
+      filter(!paste0(pid, year) %in% with(vaccination_instrument_renamed, paste0(pid, year)))
   )
 
-# NOTE(sen) Shouldn't be any duplicates
-vaccination_history_with_instrument %>%
-  group_by(pid, year) %>%
-  filter(n() > 1)
+check_no_rows(
+  vaccination_history_with_instrument %>%
+    group_by(pid, year) %>%
+    filter(n() > 1),
+  "combined vaccination history duplicates"
+)
 
-# NOTE(sen) Only 4 values allowed here
-unique(vaccination_history_with_instrument$status)
-
-# NOTE(sen) All ids should match
-setdiff(vaccination_history_with_instrument$pid, participants_fix_pid$pid)
+check_empty_set(
+  setdiff(vaccination_history_with_instrument$pid, participants_fix_pid$pid),
+  "vaccination pids not in participant pids"
+)
 
 write_csv(vaccination_history_with_instrument, "data/vaccinations.csv")
 
@@ -488,7 +502,10 @@ bleed_dates_long <- bleed_dates_raw %>%
   ) %>%
   select(-timepoint)
 
-setdiff(bleed_dates_long$pid, participants_fix_pid$pid)
+check_empty_set(
+  setdiff(bleed_dates_long$pid, participants_fix_pid$pid),
+  "bleed dates pids not in participants pids"
+)
 
 write_csv(bleed_dates_long, "data/bleed-dates.csv")
 
@@ -766,6 +783,7 @@ write_csv(withdrawn, "data/withdrawn.csv")
 
 redcap_weekly_survey_req <- function(year) {
   survey_events <- paste0("weekly_survey_", 1:52, "_arm_1", collapse = ",")
+  # NOTE(sen) The more you include here the longer it will take
   weekly_survey_fields <- c(
     "record_id",
     "date_symptom_survey",
