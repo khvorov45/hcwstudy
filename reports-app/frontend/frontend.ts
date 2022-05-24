@@ -525,6 +525,7 @@ type TableColSpecFinal<RowType> = {
 	format: (val: any) => string,
 	width: number,
 	filter: (row: RowType, val: any) => boolean,
+	filterVal: string,
 }
 
 const MISSING_STRING = "(missing)"
@@ -561,13 +562,25 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 		}
 
 		let access = <(row: RowType) => any>accessInit
-		let format = specInit.format ?? defaults?.format ?? ((x: any) => x === undefined || x === null ? MISSING_STRING : `${x}`)
+		let format = (x: any) => {
+			let result = MISSING_STRING
+			if (x !== undefined && x !== null) {
+				let formatTest = specInit.format ?? defaults?.format
+				if (formatTest !== undefined && formatTest !== null) {
+					result = formatTest(x)
+				} else {
+					result = `${x}`
+				}
+			}
+			return result
+		}
 
 		colSpec[colname] = {
 			access: access,
 			format: format,
 			width: specInit.width ?? defaults?.width ?? 100,
 			filter: specInit.filter ?? defaults?.filter ?? ((row, val) => format(access(row)).includes(val)),
+			filterVal: "",
 		}
 	}
 
@@ -581,16 +594,21 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 
 		let headerRow = addEl(table, createTableHeaderRow(colSpec))
 		addEl(table, createTableFilterRow(colSpec, (colname: string, filterVal: any) => {
+			colSpec[colname].filterVal = filterVal
 			let rowsShown = 0
 			let rowsShownAfterFilter = 0
 			for (let rowIndex = 0; rowIndex < aos.length; rowIndex += 1) {
 				let rowData = aos[rowIndex]
 				if (filter !== undefined ? filter(rowData) : true) {
-					let spec = colSpec[colname]
-					let colData = (spec.access as any)(rowData)
-					let colDataFormatted = spec.format!(colData)
 					let rowElement = <HTMLElement>tableBody.children[rowsShown]
-					if (colDataFormatted.toLowerCase().includes(filterVal.toLowerCase())) {
+
+					let passedColFilters = true
+					for (let otherColname of colnames) {
+						let spec = colSpec[otherColname]
+						passedColFilters = passedColFilters && spec.filter(rowData, spec.filterVal)
+					}
+
+					if (passedColFilters) {
 						rowElement.style.display = "inherit"
 						rowElement.style.backgroundColor = getTableRowBackgroundColor(rowsShownAfterFilter)
 						rowsShownAfterFilter += 1
@@ -1244,7 +1262,7 @@ const createParticipantsTable = (downloadCsv: { [key: string]: string }, data: a
 			atsi: { width: 50 },
 			dob: {},
 			date_screening: { width: 150 },
-			age_screening: { width: 150, format: (x) => x?.toFixed(0) },
+			age_screening: { width: 150, format: (x) => x.toFixed(0) },
 			recruitment_year: { width: 150 },
 		},
 		title: "Participants",
