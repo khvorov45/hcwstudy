@@ -383,8 +383,9 @@ const createTableCell = (widthPx: number) => {
 
 const createTableCellString = (widthPx: number, string: string) => {
 	let cellElement = createTableCell(widthPx)
-	if (string !== undefined && string != null) {
-		cellElement.textContent = string
+	cellElement.textContent = string
+	if (string === MISSING_STRING) {
+		cellElement.style.color = "var(--color-text-muted)"
 	}
 	return cellElement
 }
@@ -422,48 +423,49 @@ const createTableTitle = (title: string, downloadable: boolean) => {
 	return titleElement
 }
 
-const createTableHeaderRow = (colnames: string[], colWidthsPx: { [key: string]: number }) => {
+const applyTableHeaderRowStyle = (node: HTMLElement) => {
+	node.style.display = "flex"
+	node.style.height = TABLE_ROW_HEIGHT_PX + "px"
+	node.style.backgroundColor = "var(--color-background2)"
+	node.style.borderLeft = "1px solid var(--color-border)"
+	node.style.borderRight = "1px solid var(--color-border)"
+	node.style.boxSizing = "border-box"
+}
+
+const applyCellContainerStyle = (node: HTMLElement, width: number) => {
+		node.style.display = "flex"
+		node.style.width = width.toFixed(0) + "px"
+		node.style.alignItems = "center"
+		node.style.justifyContent = "center"
+}
+
+const createTableHeaderRow = <T>(colSpec: {[key: string]: TableColSpecFinal<T>}) => {
 	let headerRow = createDiv()
-	headerRow.style.display = "flex"
-	headerRow.style.height = TABLE_ROW_HEIGHT_PX + "px"
-	headerRow.style.backgroundColor = "var(--color-background2)"
-	headerRow.style.borderLeft = "1px solid var(--color-border)"
-	headerRow.style.borderRight = "1px solid var(--color-border)"
-	headerRow.style.boxSizing = "border-box"
+	applyTableHeaderRowStyle(headerRow)
 
 	let rowWidth = SCROLLBAR_WIDTHS[1]
-	for (let colname of colnames) {
-		let colWidthPx = valueOr(colWidthsPx[colname], colWidthsPx.default)
-		let cell = addDiv(headerRow)
-		cell.textContent = colname
-		cell.style.display = "flex"
-		cell.style.width = colWidthPx + "px"
-		cell.style.alignItems = "center"
-		cell.style.justifyContent = "center"
+	for (let colname of Object.keys(colSpec)) {
+		let colWidthPx = colSpec[colname].width
 		rowWidth += colWidthPx
+		let cell = addDiv(headerRow)
+		applyCellContainerStyle(cell, colWidthPx)
+		cell.textContent = colname
 	}
 
 	headerRow.style.width = rowWidth + "px"
 	return headerRow
 }
 
-const createTableFilterRow = (colnames: string[], colWidthsPx: { [key: string]: number }, onInput: any) => {
+const createTableFilterRow = <T>(colSpec: {[key: string]: TableColSpecFinal<T>}, onInput: any) => {
 	let filterRow = createDiv()
-	filterRow.style.display = "flex"
-	filterRow.style.height = TABLE_ROW_HEIGHT_PX + "px"
-	filterRow.style.backgroundColor = "var(--color-background2)"
-	filterRow.style.borderLeft = "1px solid var(--color-border)"
-	filterRow.style.borderRight = "1px solid var(--color-border)"
-	filterRow.style.boxSizing = "border-box"
+	applyTableHeaderRowStyle(filterRow)
 
 	let rowWidth = SCROLLBAR_WIDTHS[1]
-	for (let colname of colnames) {
-		let colWidthPx = valueOr(colWidthsPx[colname], colWidthsPx.default)
+	for (let colname of Object.keys(colSpec)) {
+		let colWidthPx = colSpec[colname].width
+		rowWidth += colWidthPx
 		let cellContainer = addDiv(filterRow)
-		cellContainer.style.display = "flex"
-		cellContainer.style.width = colWidthPx + "px"
-		cellContainer.style.alignItems = "center"
-		cellContainer.style.justifyContent = "center"
+		applyCellContainerStyle(cellContainer, colWidthPx)
 
 		let cell = <HTMLInputElement>addEl(cellContainer, createEl("input"))
 		cell.type = "text"
@@ -471,8 +473,6 @@ const createTableFilterRow = (colnames: string[], colWidthsPx: { [key: string]: 
 		cell.addEventListener("input", (event) => {
 			onInput(colname, (<HTMLTextAreaElement>event.target).value)
 		})
-
-		rowWidth += colWidthPx
 	}
 
 	filterRow.style.width = rowWidth + "px"
@@ -498,13 +498,18 @@ const createTableBody = () => {
 	return tableBody
 }
 
+const getTableRowBackgroundColor = (rowIndex: number) => {
+	let result = "var(--color-background)"
+	if (rowIndex % 2 == 1) {
+		result = "var(--color-background2)"
+	}
+	return result
+}
+
 const createTableDataRow = (rowIndex: number) => {
 	let rowElement = createEl("tr")
 	rowElement.style.height = TABLE_ROW_HEIGHT_PX + "px"
-	rowElement.style.backgroundColor = "var(--color-background)"
-	if (rowIndex % 2 == 1) {
-		rowElement.style.backgroundColor = "var(--color-background2)"
-	}
+	rowElement.style.backgroundColor = getTableRowBackgroundColor(rowIndex)
 	return rowElement
 }
 
@@ -512,78 +517,83 @@ type TableColSpec<RowType> = {
 	access?: ((row: RowType) => any) | string,
 	format?: (val: any) => string,
 	width?: number,
+	filter?: (row: RowType, val: any) => boolean,
 }
 
+type TableColSpecFinal<RowType> = {
+	access: (row: RowType) => any,
+	format: (val: any) => string,
+	width: number,
+	filter: (row: RowType, val: any) => boolean,
+}
+
+const MISSING_STRING = "(missing)"
+
 const createTableElementFromAos = <RowType extends { [key: string]: any }>(
-	aos: RowType[],
-	colSpec: { [key: string]: TableColSpec<RowType> },
-	defaults: {
-		access?: ((row: RowType) => any) | string,
-		format: (val: any) => string,
-		width: number,
-	},
-	title: string,
-	filter: (row: RowType) => boolean,
-	forRow: (row: RowType) => void,
-	heightAvailable?: string,
+	{aos, colSpecInit, defaults, title, filter, forRow, heightAvailable}: {
+		aos: RowType[],
+		colSpecInit: { [key: string]: TableColSpec<RowType> },
+		title: string,
+		defaults?: TableColSpec<RowType>,
+		filter?: (row: RowType) => boolean,
+		forRow?: (row: RowType) => void,
+		heightAvailable?: string,
+	}
 ) => {
 
 	let table = createDiv()
 	let titleElement = addEl(table, createTableTitle(title, true))
 	DOWNLOAD_CSV[title] = ""
 
-	let colnames = Object.keys(colSpec)
+	let colnames = Object.keys(colSpecInit)
 	DOWNLOAD_CSV[title] += colnames.join(",") + "\n"
+
+	// NOTE(sen) Fill in missing spec entries
+	let colSpec: { [key: string]: TableColSpecFinal<RowType> } = {}
+	for (let colname of colnames) {
+		let spec = colSpec[colname]
+		let specInit = colSpecInit[colname]
+
+		let accessInit = specInit.access ?? defaults?.access ?? colname
+		if (isString(accessInit)) {
+			let colname = <string>accessInit
+			accessInit = (rowData) => rowData[colname]
+		}
+
+		let access = <(row: RowType) => any>accessInit
+		let format = specInit.format ?? defaults?.format ?? ((x: any) => x === undefined || x === null ? MISSING_STRING : `${x}`)
+
+		colSpec[colname] = {
+			access: access,
+			format: format,
+			width: specInit.width ?? defaults?.width ?? 100,
+			filter: specInit.filter ?? defaults?.filter ?? ((row, val) => format(access(row)).includes(val)),
+		}
+	}
 
 	let tableWidthPx = 0
 	for (let colname of colnames) {
-		tableWidthPx += valueOr(colSpec[colname].width, defaults.width)
-	}
-
-	// NOTE(sen) Fill in missing spec entries
-	for (let colname of colnames) {
-		let spec = colSpec[colname]
-
-		spec.access = valueOr(spec.access, defaults.access)
-		spec.access = valueOr(spec.access, colname)
-		if (isString(spec.access)) {
-			let colname = <string>spec.access
-			spec.access = (rowData) => rowData[colname]
-		}
-
-		spec.format = valueOr(spec.format, defaults.format)
-		spec.width = valueOr(spec.width, defaults.width)
+		tableWidthPx += colSpec[colname].width!
 	}
 
 	let rowsShown = 0;
 	if (aos.length > 0) {
 
-		let colWidthsPx: any = { default: defaults.width }
-		for (let colname of colnames) {
-			if (colSpec[colname].width !== undefined) {
-				colWidthsPx[colname] = colSpec[colname].width
-			}
-		}
-
-		let headerRow = addEl(table, createTableHeaderRow(colnames, colWidthsPx))
-		addEl(table, createTableFilterRow(colnames, colWidthsPx, (colname: string, filterVal: any) => {
+		let headerRow = addEl(table, createTableHeaderRow(colSpec))
+		addEl(table, createTableFilterRow(colSpec, (colname: string, filterVal: any) => {
 			let rowsShown = 0
+			let rowsShownAfterFilter = 0
 			for (let rowIndex = 0; rowIndex < aos.length; rowIndex += 1) {
 				let rowData = aos[rowIndex]
-				if (filter(rowData)) {
+				if (filter !== undefined ? filter(rowData) : true) {
 					let spec = colSpec[colname]
 					let colData = (spec.access as any)(rowData)
-
-					let colDataFormatted: string
-					if (colData === null || colData === undefined) {
-						colDataFormatted = ""
-					} else {
-						colDataFormatted = spec.format!(colData)
-					}
-
+					let colDataFormatted = spec.format!(colData)
 					let rowElement = <HTMLElement>tableBody.children[rowsShown]
 					if (colDataFormatted.toLowerCase().includes(filterVal.toLowerCase())) {
 						rowElement.style.display = "inherit"
+						rowElement.style.backgroundColor = getTableRowBackgroundColor(rowsShownAfterFilter)
+						rowsShownAfterFilter += 1
 					} else {
 						rowElement.style.display = "none"
 					}
@@ -598,20 +608,20 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 
 		for (let rowIndex = 0; rowIndex < aos.length; rowIndex += 1) {
 			let rowData = aos[rowIndex]
-			if (filter(rowData)) {
+			if (filter !== undefined ? filter(rowData) : true) {
 				let rowElement = addEl(tableBody, createTableDataRow(rowsShown))
 				rowsShown += 1
 
 				for (let colname of colnames) {
 					let spec = colSpec[colname]
-					let colData = (spec.access as any)(rowData)
-					let colDataFormatted = spec.format!(colData)
-					addEl(rowElement, createTableCellString(spec.width!, colDataFormatted))
+					let colData = spec.access(rowData)
+					let colDataFormatted = spec.format(colData)
+					addEl(rowElement, createTableCellString(spec.width, colDataFormatted))
 					DOWNLOAD_CSV[title] += "\"" + colDataFormatted + "\","
 				}
 
 				DOWNLOAD_CSV[title] += "\n"
-				forRow(rowData)
+				forRow?.(rowData)
 			}
 		}
 	}
@@ -780,32 +790,23 @@ const initSurveys = () => {
 		return result
 	}
 
-	let surveyDates2020 = createTableElementFromAos(
-		getDates(32, "2020-04-06", "2020-04-12", "2020-04-13"),
-		{week: {}, start: {}, end: {}, send: {}},
-		{format: (x) => x, width: 100},
-		"Weekly survey dates 2020",
-		(row) => true,
-		(row) => {},
-	)
+	let surveyDates2020 = createTableElementFromAos({
+		aos: getDates(32, "2020-04-06", "2020-04-12", "2020-04-13"),
+		colSpecInit: {week: {}, start: {}, end: {}, send: {}},
+		title: "Weekly survey dates 2020",
+	})
 
-	let surveyDates2021 = createTableElementFromAos(
-		getDates(32, "2021-01-04", "2021-01-10", "2021-01-11"),
-		{week: {}, start: {}, end: {}, send: {}},
-		{format: (x) => x, width: 100},
-		"Weekly survey dates 2021",
-		(row) => true,
-		(row) => {},
-	)
+	let surveyDates2021 = createTableElementFromAos({
+		aos: getDates(32, "2021-01-04", "2021-01-10", "2021-01-11"),
+		colSpecInit: {week: {}, start: {}, end: {}, send: {}},
+		title: "Weekly survey dates 2021",
+	})
 
-	let surveyDates2022 = createTableElementFromAos(
-		getDates(32, "2022-01-03", "2022-01-09", "2022-01-10"),
-		{week: {}, start: {}, end: {}, send: {}},
-		{format: (x) => x, width: 100},
-		"Weekly survey dates 2022",
-		(row) => true,
-		(row) => {},
-	)
+	let surveyDates2022 = createTableElementFromAos({
+		aos: getDates(32, "2022-01-03", "2022-01-09", "2022-01-10"),
+		colSpecInit: {week: {}, start: {}, end: {}, send: {}},
+		title: "Weekly survey dates 2022",
+	})
 
 	let datesContainer = addDiv(container)
 
@@ -1024,15 +1025,13 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 
 	let descDim = measureEl(countsTableDesc, window.innerWidth - SIDEBAR_WIDTH_PX, window.innerHeight)
 
-	let tableResult = createTableElementFromAos(
-		countsAos,
-		colSpec,
-		{ format: (x) => x, width: Math.max(100, descDim[0] / Object.keys(colSpec).length) },
-		"Record counts",
-		(row) => true,
-		(row) => {},
-		`(100vh - ${descDim[1]}px)`
-	)
+	let tableResult = createTableElementFromAos({
+		aos: countsAos,
+		colSpecInit: colSpec,
+		title: "Record counts",
+		defaults: { width: Math.max(100, descDim[0] / Object.keys(colSpec).length) },
+		heightAvailable: `(100vh - ${descDim[1]}px)`,
+	})
 
 	let countsTableContainer = createDiv()
 	addEl(countsTableContainer, countsTableDesc)
@@ -1107,15 +1106,13 @@ const createCountsBleedsTable = (data: Data, groups: string[]) => {
 
 	let descDim = measureEl(countsTableDesc, window.innerWidth - SIDEBAR_WIDTH_PX, window.innerHeight)
 
-	let tableResult = createTableElementFromAos(
-		countsAos,
-		colSpec,
-		{ format: (x) => x, width: Math.max(100, descDim[0] / Object.keys(colSpec).length) },
-		"Routine bleed counts",
-		(row) => true,
-		(row) => {},
-		`(100vh - ${descDim[1]}px)`
-	)
+	let tableResult = createTableElementFromAos({
+		aos: countsAos,
+		colSpecInit: colSpec,
+		title: "Routine bleed counts",
+		defaults: { width: Math.max(100, descDim[0] / Object.keys(colSpec).length) },
+		heightAvailable: `(100vh - ${descDim[1]}px)`,
+	})
 
 	let countsTableContainer = createDiv()
 	addEl(countsTableContainer, countsTableDesc)
@@ -1182,15 +1179,13 @@ const createCountsPostinfBleedsTable = (data: Data, groups: string[]) => {
 
 	let descDim = measureEl(countsTableDesc, window.innerWidth - SIDEBAR_WIDTH_PX, window.innerHeight)
 
-	let tableResult = createTableElementFromAos(
-		countsAos,
-		colSpec,
-		{ format: (x) => x, width: Math.max(100, descDim[0] / Object.keys(colSpec).length) },
-		"Postinfection bleed counts",
-		(row) => true,
-		(row) => {},
-		`(100vh - ${descDim[1]}px)`
-	)
+	let tableResult = createTableElementFromAos({
+		aos: countsAos,
+		colSpecInit: colSpec,
+		title: "Postinfection bleed counts",
+		defaults: { width: Math.max(100, descDim[0] / Object.keys(colSpec).length) },
+		heightAvailable: `(100vh - ${descDim[1]}px)`,
+	})
 
 	let countsTableContainer = createDiv()
 	addEl(countsTableContainer, countsTableDesc)
@@ -1201,9 +1196,9 @@ const createCountsPostinfBleedsTable = (data: Data, groups: string[]) => {
 
 const createBleedsTable = (downloadCsv: { [key: string]: string }, data: any, year: number) => {
 
-	let tableResult = createTableElementFromAos(
-		data.bleed_dates,
-		{
+	let tableResult = createTableElementFromAos({
+		aos: data.bleed_dates,
+		colSpecInit: {
 			pid: {},
 			day0: { access: "flu_day_0" },
 			day7: { access: "flu_day_7" },
@@ -1213,9 +1208,8 @@ const createBleedsTable = (downloadCsv: { [key: string]: string }, data: any, ye
 			day14Covid: { access: "covid_day_14" },
 			ari: {}
 		},
-		{ format: (x) => x, width: 100 },
-		"Bleed dates",
-		(row) => {
+		title: "Bleed dates",
+		filter: (row) => {
 			let result = row.year === year
 			if (result) {
 				const notMissing = (val: any) => val !== "" && val !== undefined && val !== null
@@ -1232,17 +1226,16 @@ const createBleedsTable = (downloadCsv: { [key: string]: string }, data: any, ye
 			}
 			return result
 		},
-		(row) => {}
-	)
+	})
 
 	return tableResult.table
 }
 
 const createParticipantsTable = (downloadCsv: { [key: string]: string }, data: any) => {
 
-	let tableResult = createTableElementFromAos(
-		data.participants,
-		{
+	let tableResult = createTableElementFromAos({
+		aos: data.participants,
+		colSpecInit: {
 			pid: {},
 			site: {},
 			email: { width: 450 },
@@ -1254,11 +1247,8 @@ const createParticipantsTable = (downloadCsv: { [key: string]: string }, data: a
 			age_screening: { width: 150, format: (x) => x?.toFixed(0) },
 			recruitment_year: { width: 150 },
 		},
-		{ format: (x) => `${x}`, width: 100 },
-		"Participants",
-		(row) => true,
-		(row) => {}
-	)
+		title: "Participants",
+	})
 
 	return tableResult.table
 }
@@ -1266,19 +1256,18 @@ const createParticipantsTable = (downloadCsv: { [key: string]: string }, data: a
 const createSurveyTable = (completions: { [key: string]: number[] }, data: any, year: number) => {
 	let tableContainer = createDiv()
 
-	let tableResult = createTableElementFromAos(
-		data.weekly_surveys,
-		{ pid: {}, site: {}, week: { access: "survey_index" }, date: {}, ari: {} },
-		{ format: (x) => `${x}`, width: 100 },
-		"Completed weekly surveys",
-		(row) => row.year === year && row.complete !== 0,
-		(row) => {
+	let tableResult = createTableElementFromAos({
+		aos: data.weekly_surveys,
+		colSpecInit: { pid: {}, site: {}, week: { access: "survey_index" }, date: {}, ari: {} },
+		title: "Completed weekly surveys",
+		filter: (row) => row.year === year && row.complete !== 0,
+		forRow: (row) => {
 			if (completions[row.pid] === undefined) {
 				completions[row.pid] = []
 			}
 			completions[row.pid].push(row.survey_index)
 		}
-	)
+	})
 
 	addEl(tableContainer, tableResult.table)
 	return tableContainer
@@ -1330,14 +1319,11 @@ const createCompletionsTable = (completions: { [key: string]: number[] }) => {
 		collapsed.push({ pid: pid, completions: collapsedCompletions })
 	}
 
-	let tableResult = createTableElementFromAos(
-		collapsed,
-		{ pid: {}, completions: { width: 300 } },
-		{ format: (x) => x, width: 100 },
-		"Collapsed completions",
-		(row) => true,
-		(row) => {}
-	)
+	let tableResult = createTableElementFromAos({
+		aos: collapsed,
+		colSpecInit: { pid: {}, completions: { width: 300 } },
+		title: "Collapsed completions",
+	})
 
 	let tableContainer = createDiv()
 	addEl(tableContainer, tableResult.table)
