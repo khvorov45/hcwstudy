@@ -589,8 +589,8 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 					let valNumber = parseFloat(val.slice(1))
 					if (!isNaN(valNumber)) {
 						switch (val[0]) {
-						case ">": {passed = data > valNumber} break;
-						case "<": {passed = data < valNumber} break;
+						case ">": {passed = data >= valNumber} break;
+						case "<": {passed = data <= valNumber} break;
 						}
 					}
 				} else {
