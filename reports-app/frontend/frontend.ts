@@ -21,6 +21,7 @@ const allAInB = <T>(arrA: T[], arrB: T[]) => {
 }
 
 const isString = (val: any) => (typeof val === "string" || val instanceof String)
+const isNumber = (val: any) => (typeof val === "number")
 
 const formatDate = (date: Date) => {
 	let result = date.toISOString().slice(0, 10)
@@ -579,7 +580,31 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 			access: access,
 			format: format,
 			width: specInit.width ?? defaults?.width ?? 100,
-			filter: specInit.filter ?? defaults?.filter ?? ((row, val) => format(access(row)).includes(val)),
+			filter: specInit.filter ?? defaults?.filter ?? ((row, val) => {
+				let data = access(row)
+				let formattedData = format(data)
+				let passed = true
+
+				if ((val.startsWith(">") || val.startsWith("<")) && isNumber(data)) {
+					let valNumber = parseFloat(val.slice(1))
+					if (!isNaN(valNumber)) {
+						switch (val[0]) {
+						case ">": {passed = data > valNumber} break;
+						case "<": {passed = data < valNumber} break;
+						}
+					}
+				} else {
+					try {
+						let re = new RegExp(val)
+						let reResult = formattedData.search(re)
+						passed = reResult !== -1
+					} catch (e) {
+						passed = formattedData.includes(val)
+					}
+				}
+
+				return passed
+			}),
 			filterVal: "",
 		}
 	}
@@ -1857,5 +1882,6 @@ main()
 export {}
 
 // TODO(sen) Counts of swab results
-// TODO(sen) Table filtering
+// TODO(sen) Date filtering
+// TODO(sen) Table sorting
 // TODO(sen) Titre plots
