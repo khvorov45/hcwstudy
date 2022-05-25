@@ -69,13 +69,17 @@ consent <- read_csv("./data/consent.csv", col_types = cols()) %>%
 weekly_surveys <- read_csv("./data/weekly-surveys.csv", col_types = cols()) %>%
     left_join(participants %>% select(pid, site), "pid")
 
+titres <- read_csv("./data/serology.csv", col_types = cols()) %>%
+	left_join(participants %>% select(-latestBleedDate, -contains("Arm"), -email, -mobile), "pid")
+
 all_data <- list(
     participants = participants,
     withdrawn = withdrawn,
     bleed_dates = bleed_dates_wide,
     postinf_bleed_dates = postinf_bleed_dates,
     consent = consent,
-    weekly_surveys = weekly_surveys
+    weekly_surveys = weekly_surveys,
+    titres = titres
 )
 
 write(jsonlite::toJSON(all_data), "./reports-app/backend/backend-all_data.json")

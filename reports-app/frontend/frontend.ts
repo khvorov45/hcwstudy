@@ -245,7 +245,7 @@ const YEARS_ = [2020, 2021, 2022] as const
 const YEARS = YEARS_ as unknown as number[]
 type YearID = (typeof YEARS_)[number]
 
-const ALL_DATAPAGE_IDS_ = ["pariticpants", "weekly-surveys", "bleeds", "counts"] as const
+const ALL_DATAPAGE_IDS_ = ["pariticpants", "weekly-surveys", "bleeds", "counts", "titres"] as const
 const ALL_DATAPAGE_IDS = ALL_DATAPAGE_IDS_ as unknown as string[]
 type DataPageID = (typeof ALL_DATAPAGE_IDS_)[number]
 
@@ -303,6 +303,12 @@ const removeChildren = (element: HTMLElement) => {
 const replaceChildren = (parent: HTMLElement, newChild: HTMLElement) => {
 	removeChildren(parent)
 	addEl(parent, newChild)
+}
+
+const createTableDesc = () => {
+	let result = createDiv()
+	result.style.whiteSpace = "nowrap"
+	return result
 }
 
 const createSwitch = <SingleOpt extends string | number, OptType extends SingleOpt | SingleOpt[]>(
@@ -452,7 +458,7 @@ const createTableHeaderRow = <T>(colSpec: {[key: string]: TableColSpecFinal<T>})
 	let headerRow = createDiv()
 	applyTableHeaderRowStyle(headerRow)
 
-	let rowWidth = SCROLLBAR_WIDTHS[1]
+	let rowWidth = 0 //SCROLLBAR_WIDTHS[1]
 	for (let colname of Object.keys(colSpec)) {
 		let colWidthPx = colSpec[colname].width
 		rowWidth += colWidthPx
@@ -469,7 +475,7 @@ const createTableFilterRow = <T>(colSpec: {[key: string]: TableColSpecFinal<T>},
 	let filterRow = createDiv()
 	applyTableHeaderRowStyle(filterRow)
 
-	let rowWidth = SCROLLBAR_WIDTHS[1]
+	let rowWidth = 0 //SCROLLBAR_WIDTHS[1]
 	let colnameIndex = 0
 	for (let colname of Object.keys(colSpec)) {
 		let colWidthPx = colSpec[colname].width
@@ -532,17 +538,16 @@ const createTableFilterRow = <T>(colSpec: {[key: string]: TableColSpecFinal<T>},
 	return filterRow
 }
 
-const getTableBodyHeight = (extraHeightTakenInit?: number) => {
-	let extraHeightTaken = extraHeightTakenInit ?? 0
-	let result =
-		window.innerHeight - extraHeightTaken - TABLE_ROW_HEIGHT_PX * 3 - SCROLLBAR_WIDTHS[0]
+const getTableBodyHeight = (tableHeight: number) => {
+	let result = tableHeight - TABLE_ROW_HEIGHT_PX * 3
 	return result
 }
 
-const createTableBodyContainer = (extraHeightTaken?: number) => {
+const createTableBodyContainer = (tableHeight: number) => {
 	let tableBodyContainer = createDiv()
 	tableBodyContainer.style.overflowY = "scroll"
-	tableBodyContainer.style.maxHeight = getTableBodyHeight(extraHeightTaken) + "px"
+	tableBodyContainer.style.maxHeight = getTableBodyHeight(tableHeight) + "px"
+	//tableBodyContainer.style.width =
 	return tableBodyContainer
 }
 
@@ -584,15 +589,17 @@ type TableColSpecFinal<RowType> = {
 const MISSING_STRING = "(missing)"
 
 const createTableElementFromAos = <RowType extends { [key: string]: any }>(
-	{aos, colSpecInit, defaults, title, forRow, extraHeightTaken}: {
+	{aos, colSpecInit, defaults, title, forRow, getTableHeightInit}: {
 		aos: RowType[],
 		colSpecInit: { [key: string]: TableColSpec<RowType> },
 		title: string,
 		defaults?: TableColSpec<RowType>,
 		forRow?: (row: RowType) => void,
-		extraHeightTaken?: number,
+		getTableHeightInit?: () => number,
 	}
 ) => {
+
+	let getTableHeight = getTableHeightInit ?? (() => window.innerHeight - SCROLLBAR_WIDTHS[0])
 
 	let table = createDiv()
 	let titleElement = addEl(table, createTableTitle(title, true))
@@ -662,7 +669,7 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 
 	let tableWidthPx = 0
 	for (let colname of colnames) {
-		tableWidthPx += colSpec[colname].width!
+		tableWidthPx += colSpec[colname].width
 	}
 
 	if (aos.length > 0) {
@@ -674,8 +681,10 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 			virtualizedList.setRowCount(aosFiltered.length)
 		}))
 
-		let tableBodyHeight = getTableBodyHeight()
-		let tableBodyContainer = addEl(table, createTableBodyContainer(extraHeightTaken))
+		let tableBodyHeight = getTableBodyHeight(getTableHeight())
+		let tableBodyContainer = addEl(table, createTableBodyContainer(getTableHeight()))
+		tableBodyContainer.style.width = tableWidthPx + "px"
+		titleElement.style.width = tableWidthPx + "px"
 
 		const getAosFiltered = () => {
 			let aosFiltered: RowType[] = []
@@ -717,7 +726,7 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 		});
 
 		window.addEventListener("resize", () => {
-			let newTableBodyHeight = getTableBodyHeight(extraHeightTaken)
+			let newTableBodyHeight = getTableBodyHeight(getTableHeight())
 			if (newTableBodyHeight != tableBodyHeight) {
 				tableBodyHeight = newTableBodyHeight
 				tableBodyContainer.style.maxHeight = newTableBodyHeight + "px"
@@ -878,14 +887,14 @@ const initSidebar = (state: State, widthPx: number, initDataPage: DataPageID) =>
 const initDataContainer = (sidebarWidthPx: number) => {
 	let container = createDiv()
 	container.style.display = "flex"
-	container.style.width = `calc(100vw - ${sidebarWidthPx}px)`
-	container.style.overflowX = "scroll"
 	return container
 }
 
-const initSurveys = () => {
+const initSurveys = (sidebarWidthPx: number) => {
 	let container = createDiv()
 	container.style.display = "flex"
+	container.style.width = `calc(100vw - ${sidebarWidthPx}px)`
+	container.style.overflowX = "scroll"
 
 	const getDates = (weekCount: number, start: string, end: string, send: string) => {
 		let result: any[] = []
@@ -933,20 +942,36 @@ const initSurveys = () => {
 	}
 }
 
-const initBleeds = () => {
+const initBleeds = (sidebarWidthPx: number) => {
 	let bleeds = createDiv()
+	bleeds.style.width = `calc(100vw - ${sidebarWidthPx}px)`
+	bleeds.style.overflowX = "scroll"
 	let table = addDiv(bleeds)
 	return { bleeds: bleeds, table: table }
 }
 
-const initParticipants = () => {
-	let participants = createDiv()
-	let table = addDiv(participants)
-	return { participants: participants, table: table }
+const initParticipants = (sidebarWidthPx: number) => {
+	let container = createDiv()
+	container.style.width = `calc(100vw - ${sidebarWidthPx}px)`
+	container.style.overflowX = "scroll"
+	let table = addDiv(container)
+	return { container: container, table: table }
 }
 
-const initCounts = () => {
+const initTitres = (sidebarWidthPx: number) => {
+	let container = createDiv()
+	container.style.height = `calc(100vh - ${SCROLLBAR_WIDTHS[0]})`
+	container.style.overflowY = "scroll"
+	let table = addDiv(container)
+	table.style.width = `calc(100vw - ${sidebarWidthPx + SCROLLBAR_WIDTHS[1]}px)`
+	table.style.overflowX = "scroll"
+	return { container: container, table: table }
+}
+
+const initCounts = (sidebarWidthPx: number) => {
 	let counts = createDiv()
+	counts.style.width = `calc(100vw - ${sidebarWidthPx}px)`
+	counts.style.overflowX = "scroll"
 	let table = addDiv(counts)
 	return { counts: counts, table: table }
 }
@@ -1117,7 +1142,7 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 
 	let countsAos = aoaToAos(groupedCountsFlat, Object.keys(colSpec))
 
-	let countsTableDesc = createDiv()
+	let countsTableDesc = createTableDesc()
 	addTextline(countsTableDesc, "total - total records in redcap")
 	addTextline(countsTableDesc, "notWithdrawn - total records in redcap who are not withdrawn")
 	addTextline(countsTableDesc, "consent2022 - total records in redcap whose latest flu conset date is from 2022")
@@ -1144,7 +1169,7 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 		colSpecInit: colSpec,
 		title: "Record counts",
 		defaults: { width: Math.max(100, descDim[0] / Object.keys(colSpec).length) },
-		extraHeightTaken: descDim[1],
+		getTableHeightInit: () => window.innerHeight - SCROLLBAR_WIDTHS[0] - descDim[1],
 	})
 
 	let countsTableContainer = createDiv()
@@ -1203,7 +1228,7 @@ const createCountsBleedsTable = (data: Data, groups: string[]) => {
 
 	let countsAos = aoaToAos(groupedCountsFlat, Object.keys(colSpec))
 
-	let countsTableDesc = createDiv()
+	let countsTableDesc = createTableDesc()
 	addTextline(countsTableDesc, "Routine bleeds that have a date in redcap")
 	if (groups.length > 0) {
 		addTextline(countsTableDesc, "all counts apply to the subset defined by (" + groups.join(", ") + ")")
@@ -1225,7 +1250,7 @@ const createCountsBleedsTable = (data: Data, groups: string[]) => {
 		colSpecInit: colSpec,
 		title: "Routine bleed counts",
 		defaults: { width: Math.max(100, descDim[0] / Object.keys(colSpec).length) },
-		extraHeightTaken: descDim[1],
+		getTableHeightInit: () => window.innerHeight - SCROLLBAR_WIDTHS[0] - descDim[1],
 	})
 
 	let countsTableContainer = createDiv()
@@ -1276,7 +1301,7 @@ const createCountsPostinfBleedsTable = (data: Data, groups: string[]) => {
 
 	let countsAos = aoaToAos(groupedCountsFlat, Object.keys(colSpec))
 
-	let countsTableDesc = createDiv()
+	let countsTableDesc = createTableDesc()
 	addTextline(countsTableDesc, "Postnfection bleeds that have a date in redcap")
 	if (groups.length > 0) {
 		addTextline(countsTableDesc, "all counts apply to the subset defined by (" + groups.join(", ") + ")")
@@ -1298,7 +1323,7 @@ const createCountsPostinfBleedsTable = (data: Data, groups: string[]) => {
 		colSpecInit: colSpec,
 		title: "Postinfection bleed counts",
 		defaults: { width: Math.max(100, descDim[0] / Object.keys(colSpec).length) },
-		extraHeightTaken: descDim[1],
+		getTableHeightInit: () => window.innerHeight - SCROLLBAR_WIDTHS[0] - descDim[1],
 	})
 
 	let countsTableContainer = createDiv()
@@ -1344,7 +1369,7 @@ const createBleedsTable = (downloadCsv: { [key: string]: string }, data: any, ye
 	return tableResult.table
 }
 
-const createParticipantsTable = (downloadCsv: { [key: string]: string }, data: any) => {
+const createParticipantsTable = (downloadCsv: { [key: string]: string }, data: Data) => {
 
 	let tableResult = createTableElementFromAos({
 		aos: data.participants,
@@ -1361,6 +1386,35 @@ const createParticipantsTable = (downloadCsv: { [key: string]: string }, data: a
 			recruitment_year: { width: 150 },
 		},
 		title: "Participants",
+	})
+
+	return tableResult.table
+}
+
+const createTitreTable = (data: Data) => {
+	let tableResult = createTableElementFromAos({
+		aos: data.titres,
+		colSpecInit: {
+			pid: {},
+			site: {},
+			year: {},
+			day: {},
+			virus: {width: 250},
+			subtype: {},
+			eggcell: {access: "virus_egg_cell"},
+			titre: {},
+			gender: {},
+			prior2020: {},
+			prior2021: {},
+			prior2022: {},
+			atsi: { width: 50 },
+			dob: {},
+			date_screening: { width: 150 },
+			age_screening: { width: 150, format: (x) => x.toFixed(0) },
+			recruitment_year: { width: 150 },
+		},
+		title: "Titres",
+		getTableHeightInit: () => 500
 	})
 
 	return tableResult.table
@@ -1482,7 +1536,8 @@ const setGlobalData = (state: State, data: any) => {
 	updateCountsTable(state)
 	updateBleedsTable(state)
 	updateSurveyTables(state)
-	updateContactTable(state)
+	updateParticipantsTable(state)
+	updateTitres(state)
 }
 
 const getDataPageFromURL = () => {
@@ -1691,8 +1746,12 @@ const switchDataPage = (state: State, name: DataPageID) => {
 		} break
 		case "pariticpants": {
 			removeChildren(state.elements.sidebar.pageSpecific)
-			replaceChildren(state.elements.dataContainer, state.elements.participants.participants)
+			replaceChildren(state.elements.dataContainer, state.elements.participants.container)
 		} break
+		case "titres": {
+			removeChildren(state.elements.sidebar.pageSpecific)
+			replaceChildren(state.elements.dataContainer, state.elements.titres.container)
+		} break;
 		default: {
 			console.error("data page", name, "does not exist")
 			state.currentDataPage = oldDataPage
@@ -1757,9 +1816,14 @@ const updateSurveyTables = (state: State) => {
 	)
 }
 
-const updateContactTable = (state: State) => replaceChildren(
+const updateParticipantsTable = (state: State) => replaceChildren(
 	state.elements.participants.table,
 	createParticipantsTable(DOWNLOAD_CSV, state.data)
+)
+
+const updateTitres = (state: State) => replaceChildren(
+	state.elements.titres.table,
+	createTitreTable(state.data)
 )
 
 type State = {
@@ -1797,15 +1861,19 @@ type State = {
 		bleeds: {
 			bleeds: HTMLElement,
 			table: HTMLElement,
-		}
+		},
 		counts: {
 			counts: HTMLElement,
 			table: HTMLElement,
-		}
+		},
 		participants: {
-			participants: HTMLElement,
+			container: HTMLElement,
 			table: HTMLElement,
-		}
+		},
+		titres: {
+			container: HTMLElement,
+			table: HTMLElement,
+		},
 	},
 	settings: {
 		weeklySurveys: { year: YearID },
@@ -1877,10 +1945,11 @@ const initState = (state: State) => {
 		countsSettings: initCountsSettings(state, initCountsSettingsVal),
 
 		dataContainer: initDataContainer(SIDEBAR_WIDTH_PX),
-		weeklySurveys: initSurveys(),
-		bleeds: initBleeds(),
-		counts: initCounts(),
-		participants: initParticipants(),
+		weeklySurveys: initSurveys(SIDEBAR_WIDTH_PX),
+		bleeds: initBleeds(SIDEBAR_WIDTH_PX),
+		counts: initCounts(SIDEBAR_WIDTH_PX),
+		participants: initParticipants(SIDEBAR_WIDTH_PX),
+		titres: initTitres(SIDEBAR_WIDTH_PX)
 	}
 
 	state.settings = {
@@ -1897,6 +1966,7 @@ type Data = {
 	consent: any[]
 	weekly_surveys: any[],
 	postinf_bleed_dates: any[],
+	titres: any[],
 }
 
 const main = async () => {
