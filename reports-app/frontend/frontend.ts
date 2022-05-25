@@ -284,6 +284,11 @@ const addEl = (parent: HTMLElement, el: HTMLElement) => {
 	return el
 }
 
+const removeEl = (parent: HTMLElement, el: HTMLElement) => {
+	parent.removeChild(el)
+	return el
+}
+
 const addDiv = (parent: HTMLElement) => addEl(parent, createDiv())
 const addTextline = (parent: HTMLElement, line: string) => addEl(parent, createTextline(line))
 
@@ -462,18 +467,61 @@ const createTableFilterRow = <T>(colSpec: {[key: string]: TableColSpecFinal<T>},
 	applyTableHeaderRowStyle(filterRow)
 
 	let rowWidth = SCROLLBAR_WIDTHS[1]
+	let colnameIndex = 0
 	for (let colname of Object.keys(colSpec)) {
 		let colWidthPx = colSpec[colname].width
 		rowWidth += colWidthPx
 		let cellContainer = addDiv(filterRow)
 		applyCellContainerStyle(cellContainer, colWidthPx)
+		cellContainer.style.position = "relative"
+
+		let questionMarkWidth = 20
 
 		let cell = <HTMLInputElement>addEl(cellContainer, createEl("input"))
 		cell.type = "text"
-		cell.style.width = (colWidthPx - 10) + "px"
+        cell.autocomplete = "off"
+        cell.placeholder = "Filter..."
+		cell.style.width = (colWidthPx - questionMarkWidth) + "px"
+		cell.style.boxSizing = "border-box"
 		cell.addEventListener("input", (event) => {
 			onInput(colname, (<HTMLTextAreaElement>event.target).value)
 		})
+
+		let questionMark = addDiv(cellContainer)
+		questionMark.style.padding = "2px"
+		questionMark.style.width = questionMarkWidth + "px"
+		questionMark.style.textAlign = "center"
+		questionMark.style.cursor = "pointer"
+		questionMark.textContent = "?"
+
+        let helpText = "Supports regular expressions (e.g. ^male). For numbers, you can type >x and <x (e.g. >40)"
+        let helpEl = createDiv()
+        helpEl.textContent = helpText
+        helpEl.style.position = "absolute"
+        helpEl.style.top = "100%"
+        helpEl.style.backgroundColor = "var(--color-background2)"
+        helpEl.style.padding = "10px"
+        helpEl.style.width = "200px"
+        helpEl.style.border = "1px solid var(--color-border)"
+
+        if (colnameIndex == 0) {
+        	helpEl.style.left = "0px"
+        }
+		if (colnameIndex == Object.keys(colSpec).length - 1) {
+        	helpEl.style.right = "0px"
+        }
+
+        let helpVisible = false
+        questionMark.addEventListener("click", () => {
+        	if (helpVisible) {
+        		removeEl(cellContainer, helpEl)
+        	} else {
+        		addEl(cellContainer, helpEl)
+        	}
+        	helpVisible = !helpVisible
+        })
+
+        colnameIndex += 1
 	}
 
 	filterRow.style.width = rowWidth + "px"
