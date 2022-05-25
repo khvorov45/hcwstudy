@@ -1088,8 +1088,11 @@ export class VirtualizedList {
   }
 
   getRowOffset(index) {
-    const {offset} = this._sizeAndPositionManager.getSizeAndPositionForIndex(index);
-
+    const sizeAndPosition = this._sizeAndPositionManager.getSizeAndPositionForIndex(index);
+    let offset = 0
+    if (sizeAndPosition !== undefined) {
+        offset = sizeAndPosition.offset
+    }
     return offset;
   }
 

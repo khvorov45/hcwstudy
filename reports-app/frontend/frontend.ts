@@ -668,11 +668,18 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 
 		let headerRow = addEl(table, createTableHeaderRow(colSpec))
 		addEl(table, createTableFilterRow(colSpec, (colname: string, filterVal: any) => {
-			/*colSpec[colname].filterVal = filterVal
-			let rowsShownAfterFilter = 0
+			colSpec[colname].filterVal = filterVal
+			aosFiltered = getAosFiltered()
+			virtualizedList.setRowCount(aosFiltered.length)
+		}))
+
+		let tableBodyHeight = getTableBodyHeight()
+		let tableBodyContainer = addEl(table, createTableBodyContainer(extraHeightTaken))
+
+		const getAosFiltered = () => {
+			let aosFiltered: RowType[] = []
 			for (let rowIndex = 0; rowIndex < aos.length; rowIndex += 1) {
 				let rowData = aos[rowIndex]
-				let rowElement = <HTMLElement>tableBody.children[rowIndex]
 
 				let passedColFilters = true
 				for (let otherColname of colnames) {
@@ -681,24 +688,19 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 				}
 
 				if (passedColFilters) {
-					rowElement.style.display = "inherit"
-					rowElement.style.backgroundColor = getTableRowBackgroundColor(rowsShownAfterFilter)
-					rowsShownAfterFilter += 1
-				} else {
-					rowElement.style.display = "none"
+					aosFiltered.push(rowData)
 				}
-			}*/
-		}))
+			}
+			return aosFiltered
+		}
 
-		let tableBodyHeight = getTableBodyHeight()
-		let tableBodyContainer = addEl(table, createTableBodyContainer(extraHeightTaken))
-		//let tableBody = addEl(tableBodyContainer, createTableBody())
+		let aosFiltered = getAosFiltered()
 
 		const virtualizedList = new VirtualizedList(tableBodyContainer, {
 			height: tableBodyHeight,
-			rowCount: aos.length,
+			rowCount: aosFiltered.length,
 			renderRow: (rowIndex: number) => {
-				let rowData = aos[rowIndex]
+				let rowData = aosFiltered[rowIndex]
 				let rowElement = createTableDataRow(rowIndex)
 
 				for (let colname of colnames) {
@@ -713,7 +715,15 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 			rowHeight: TABLE_ROW_HEIGHT_PX,
 		});
 
-		
+		window.addEventListener("resize", () => {
+			let newTableBodyHeight = getTableBodyHeight(extraHeightTaken)
+			if (newTableBodyHeight != tableBodyHeight) {
+				tableBodyHeight = newTableBodyHeight
+				tableBodyContainer.style.maxHeight = newTableBodyHeight + "px"
+				virtualizedList.resize(newTableBodyHeight)
+			}
+		})
+
 		for (let rowIndex = 0; rowIndex < aos.length; rowIndex += 1) {
 			let rowData = aos[rowIndex]
 
