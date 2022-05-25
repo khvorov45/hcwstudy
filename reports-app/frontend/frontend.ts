@@ -497,7 +497,7 @@ const createTableFilterRow = <T>(colSpec: {[key: string]: TableColSpecFinal<T>},
 		questionMark.style.cursor = "pointer"
 		questionMark.textContent = "?"
 
-        let helpText = "Supports regular expressions (e.g. ^male). For numbers, you can type >x and <x (e.g. >40)"
+        let helpText = "Case-sensitive. Supports regular expressions (e.g. ^male). For numbers, you can type >x and <x (e.g. >40)"
         let helpEl = createDiv()
         helpEl.textContent = helpText
         helpEl.style.position = "absolute"
@@ -506,6 +506,7 @@ const createTableFilterRow = <T>(colSpec: {[key: string]: TableColSpecFinal<T>},
         helpEl.style.padding = "10px"
         helpEl.style.width = "200px"
         helpEl.style.border = "1px solid var(--color-border)"
+        helpEl.style.zIndex = "999"
 
         if (colnameIndex == 0) {
         	helpEl.style.left = "0px"
