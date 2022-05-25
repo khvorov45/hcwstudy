@@ -1,3 +1,5 @@
+//@ts-ignore
+import {VirtualizedList} from "/virtualized-list.js"
 
 //
 // SECTION Utilities
@@ -384,6 +386,7 @@ const createTableCell = (widthPx: number) => {
 	let cellElement = createEl("td")
 	cellElement.style.width = widthPx + "px"
 	cellElement.style.textAlign = "center"
+	cellElement.style.verticalAlign = "middle"
 	return cellElement
 }
 
@@ -528,22 +531,22 @@ const createTableFilterRow = <T>(colSpec: {[key: string]: TableColSpecFinal<T>},
 	return filterRow
 }
 
-const createTableBodyContainer = (heightAvailable?: string) => {
+const getTableBodyHeight = (extraHeightTakenInit?: number) => {
+	let extraHeightTaken = extraHeightTakenInit ?? 0
+	let result =
+		window.innerHeight - extraHeightTaken - TABLE_ROW_HEIGHT_PX * 3 - SCROLLBAR_WIDTHS[0]
+	return result
+}
+
+const createTableBodyContainer = (extraHeightTaken?: number) => {
 	let tableBodyContainer = createDiv()
 	tableBodyContainer.style.overflowY = "scroll"
-	if (heightAvailable === undefined || heightAvailable === null) {
-		heightAvailable = "100vh"
-	}
-	tableBodyContainer.style.maxHeight =
-		`calc(${heightAvailable} - ${TABLE_ROW_HEIGHT_PX * 3 + SCROLLBAR_WIDTHS[0]}px`
+	tableBodyContainer.style.maxHeight = getTableBodyHeight(extraHeightTaken) + "px"
 	return tableBodyContainer
 }
 
 const createTableBody = () => {
-	let tableBody = createEl("table")
-	setEl(tableBody, "cellspacing", "0")
-	setEl(tableBody, "cellpadding", "0")
-	tableBody.style.border = "none"
+	let tableBody = createDiv()
 	return tableBody
 }
 
@@ -580,14 +583,13 @@ type TableColSpecFinal<RowType> = {
 const MISSING_STRING = "(missing)"
 
 const createTableElementFromAos = <RowType extends { [key: string]: any }>(
-	{aos, colSpecInit, defaults, title, filter, forRow, heightAvailable}: {
+	{aos, colSpecInit, defaults, title, forRow, extraHeightTaken}: {
 		aos: RowType[],
 		colSpecInit: { [key: string]: TableColSpec<RowType> },
 		title: string,
 		defaults?: TableColSpec<RowType>,
-		filter?: (row: RowType) => boolean,
 		forRow?: (row: RowType) => void,
-		heightAvailable?: string,
+		extraHeightTaken?: number,
 	}
 ) => {
 
@@ -662,58 +664,68 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 		tableWidthPx += colSpec[colname].width!
 	}
 
-	let rowsShown = 0;
 	if (aos.length > 0) {
 
 		let headerRow = addEl(table, createTableHeaderRow(colSpec))
 		addEl(table, createTableFilterRow(colSpec, (colname: string, filterVal: any) => {
-			colSpec[colname].filterVal = filterVal
-			let rowsShown = 0
+			/*colSpec[colname].filterVal = filterVal
 			let rowsShownAfterFilter = 0
 			for (let rowIndex = 0; rowIndex < aos.length; rowIndex += 1) {
 				let rowData = aos[rowIndex]
-				if (filter !== undefined ? filter(rowData) : true) {
-					let rowElement = <HTMLElement>tableBody.children[rowsShown]
+				let rowElement = <HTMLElement>tableBody.children[rowIndex]
 
-					let passedColFilters = true
-					for (let otherColname of colnames) {
-						let spec = colSpec[otherColname]
-						passedColFilters = passedColFilters && spec.filter(rowData, spec.filterVal)
-					}
-
-					if (passedColFilters) {
-						rowElement.style.display = "inherit"
-						rowElement.style.backgroundColor = getTableRowBackgroundColor(rowsShownAfterFilter)
-						rowsShownAfterFilter += 1
-					} else {
-						rowElement.style.display = "none"
-					}
-
-					rowsShown += 1
+				let passedColFilters = true
+				for (let otherColname of colnames) {
+					let spec = colSpec[otherColname]
+					passedColFilters = passedColFilters && spec.filter(rowData, spec.filterVal)
 				}
-			}
+
+				if (passedColFilters) {
+					rowElement.style.display = "inherit"
+					rowElement.style.backgroundColor = getTableRowBackgroundColor(rowsShownAfterFilter)
+					rowsShownAfterFilter += 1
+				} else {
+					rowElement.style.display = "none"
+				}
+			}*/
 		}))
 
-		let tableBodyContainer = addEl(table, createTableBodyContainer(heightAvailable))
-		let tableBody = addEl(tableBodyContainer, createTableBody())
+		let tableBodyHeight = getTableBodyHeight()
+		let tableBodyContainer = addEl(table, createTableBodyContainer(extraHeightTaken))
+		//let tableBody = addEl(tableBodyContainer, createTableBody())
 
-		for (let rowIndex = 0; rowIndex < aos.length; rowIndex += 1) {
-			let rowData = aos[rowIndex]
-			if (filter !== undefined ? filter(rowData) : true) {
-				let rowElement = addEl(tableBody, createTableDataRow(rowsShown))
-				rowsShown += 1
+		const virtualizedList = new VirtualizedList(tableBodyContainer, {
+			height: tableBodyHeight,
+			rowCount: aos.length,
+			renderRow: (rowIndex: number) => {
+				let rowData = aos[rowIndex]
+				let rowElement = createTableDataRow(rowIndex)
 
 				for (let colname of colnames) {
 					let spec = colSpec[colname]
 					let colData = spec.access(rowData)
 					let colDataFormatted = spec.format(colData)
 					addEl(rowElement, createTableCellString(spec.width, colDataFormatted))
-					DOWNLOAD_CSV[title] += "\"" + colDataFormatted + "\","
 				}
 
-				DOWNLOAD_CSV[title] += "\n"
-				forRow?.(rowData)
+				return rowElement
+			},
+			rowHeight: TABLE_ROW_HEIGHT_PX,
+		});
+
+		
+		for (let rowIndex = 0; rowIndex < aos.length; rowIndex += 1) {
+			let rowData = aos[rowIndex]
+
+			for (let colname of colnames) {
+				let spec = colSpec[colname]
+				let colData = spec.access(rowData)
+				let colDataFormatted = spec.format(colData)
+				DOWNLOAD_CSV[title] += "\"" + colDataFormatted + "\","
 			}
+
+			DOWNLOAD_CSV[title] += "\n"
+			forRow?.(rowData)
 		}
 	}
 
@@ -1121,7 +1133,7 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 		colSpecInit: colSpec,
 		title: "Record counts",
 		defaults: { width: Math.max(100, descDim[0] / Object.keys(colSpec).length) },
-		heightAvailable: `(100vh - ${descDim[1]}px)`,
+		extraHeightTaken: descDim[1],
 	})
 
 	let countsTableContainer = createDiv()
@@ -1202,7 +1214,7 @@ const createCountsBleedsTable = (data: Data, groups: string[]) => {
 		colSpecInit: colSpec,
 		title: "Routine bleed counts",
 		defaults: { width: Math.max(100, descDim[0] / Object.keys(colSpec).length) },
-		heightAvailable: `(100vh - ${descDim[1]}px)`,
+		extraHeightTaken: descDim[1],
 	})
 
 	let countsTableContainer = createDiv()
@@ -1275,7 +1287,7 @@ const createCountsPostinfBleedsTable = (data: Data, groups: string[]) => {
 		colSpecInit: colSpec,
 		title: "Postinfection bleed counts",
 		defaults: { width: Math.max(100, descDim[0] / Object.keys(colSpec).length) },
-		heightAvailable: `(100vh - ${descDim[1]}px)`,
+		extraHeightTaken: descDim[1],
 	})
 
 	let countsTableContainer = createDiv()
@@ -1288,19 +1300,7 @@ const createCountsPostinfBleedsTable = (data: Data, groups: string[]) => {
 const createBleedsTable = (downloadCsv: { [key: string]: string }, data: any, year: number) => {
 
 	let tableResult = createTableElementFromAos({
-		aos: data.bleed_dates,
-		colSpecInit: {
-			pid: {},
-			day0: { access: "flu_day_0" },
-			day7: { access: "flu_day_7" },
-			day220: { access: "flu_day_220" },
-			day0Covid: { access: "covid_day_0" },
-			day7Covid: { access: "covid_day_7" },
-			day14Covid: { access: "covid_day_14" },
-			ari: {}
-		},
-		title: "Bleed dates",
-		filter: (row) => {
+		aos: data.bleed_dates.filter((row: any) => {
 			let result = row.year === year
 			if (result) {
 				const notMissing = (val: any) => val !== "" && val !== undefined && val !== null
@@ -1316,7 +1316,18 @@ const createBleedsTable = (downloadCsv: { [key: string]: string }, data: any, ye
 				}
 			}
 			return result
+		}),
+		colSpecInit: {
+			pid: {},
+			day0: { access: "flu_day_0" },
+			day7: { access: "flu_day_7" },
+			day220: { access: "flu_day_220" },
+			day0Covid: { access: "covid_day_0" },
+			day7Covid: { access: "covid_day_7" },
+			day14Covid: { access: "covid_day_14" },
+			ari: {}
 		},
+		title: "Bleed dates",
 	})
 
 	return tableResult.table
@@ -1348,10 +1359,9 @@ const createSurveyTable = (completions: { [key: string]: number[] }, data: any, 
 	let tableContainer = createDiv()
 
 	let tableResult = createTableElementFromAos({
-		aos: data.weekly_surveys,
+		aos: data.weekly_surveys.filter((row: any) => row.year === year && row.complete !== 0),
 		colSpecInit: { pid: {}, site: {}, week: { access: "survey_index" }, date: {}, ari: {} },
 		title: "Completed weekly surveys",
-		filter: (row) => row.year === year && row.complete !== 0,
 		forRow: (row) => {
 			if (completions[row.pid] === undefined) {
 				completions[row.pid] = []

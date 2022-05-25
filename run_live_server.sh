@@ -1,0 +1,1 @@
+live-server reports-app/frontend --entry-file=frontend.html --ignore=*.ts,*.js.map
