@@ -17,6 +17,11 @@ check_empty_set <- function(set, msg) {
   }
 }
 
+paste_unique_togethaaa <- function(vec) {
+  result <- paste(unique(na.omit(vec)), collapse = ",")
+  if_else(result == "", NA_character_, result)
+}
+
 #
 # SECTION Serology
 #
@@ -210,41 +215,6 @@ participants2020 <- redcap_participants_request(2020)
 participants2021 <- redcap_participants_request(2021)
 participants2022 <- redcap_participants_request(2022)
 
-participants <- bind_rows(
-  participants2020,
-  participants2021 %>% filter(!pid %in% participants2020$pid),
-  participants2022 %>% filter(!pid %in% participants2020$pid, !pid %in% participants2021$pid),
-) %>%
-  filter(!is.na(pid)) %>%
-  # NOTE(sen) WCH-025 became WCH-818
-  filter(pid != "WCH-025") %>%
-  select(
-    pid,
-    site = redcap_data_access_group, gender = a1_gender, dob = a2_dob, atsi = a3_atsi,
-    date_screening, email = email, mobile = mobile_number
-  ) %>%
-  mutate(
-    recruitment_year = case_when(
-      pid %in% participants2020$pid ~ 2020,
-      pid %in% participants2021$pid ~ 2021,
-      TRUE ~ 2022
-    ),
-    atsi = if_else(atsi == "Yes", 1, 0)
-  )
-
-# NOTE(sen) Shouldn't be missing
-check_no_rows(
-  participants %>%
-    select(pid, site, recruitment_year, date_screening) %>%
-    filter(!complete.cases(.)),
-  "participants non-baseline missing"
-)
-
-participants_with_extras <- participants %>%
-  mutate(
-    age_screening = (date_screening - dob) / lubridate::dyears(1),
-  )
-
 fun_fix_pids <- function(pid) {
   str_replace(pid, "([[:alpha:]]{3})\\s?-?(\\d{3})", "\\1-\\2") %>%
     recode(
@@ -256,28 +226,71 @@ fun_fix_pids <- function(pid) {
     )
 }
 
-participants_fix_pid <- participants_with_extras %>%
-  mutate(pid = fun_fix_pids(pid)) %>%
-  group_by(pid) %>%
-  filter(recruitment_year == min(recruitment_year)) %>%
-  ungroup()
+participants <- bind_rows(participants2020, participants2021, participants2022) %>%
+  filter(!is.na(pid)) %>%
+  # NOTE(sen) WCH-025 became WCH-818
+  filter(pid != "WCH-025") %>%
+  select(
+    pid,
+    site = redcap_data_access_group, gender = a1_gender, dob = a2_dob, atsi = a3_atsi,
+    date_screening, email = email, mobile = mobile_number, redcap_project_year,
+  ) %>%
+  mutate(
+    pid = fun_fix_pids(pid),
+    atsi = if_else(atsi == "Yes", 1, 0)
+  )
 
 check_no_rows(
-  participants_fix_pid %>% filter(str_length(pid) > 7),
+  participants %>% filter(is.na(pid)),
+  "participants with missing pids"
+)
+
+check_no_rows(
+  participants %>% filter(str_length(pid) > 7),
   "participants with pids >7 characters"
 )
 
 check_no_rows(
-  participants_fix_pid %>% group_by(pid) %>% filter(n() > 1),
-  "participants with duplicate pids"
+  participants %>% filter(!str_detect(pid, "(PCH|CHW|WCH|JHH|QCH|ALF)-\\d{3}")),
+  "participants with non-conforming pids"
 )
 
+check_no_rows(participants %>% count(pid) %>% filter(n > 3), "pids present more than 3 times")
+
+participants_with_extras <- participants %>%
+  group_by(pid, site) %>%
+  summarise(
+    .groups = "drop",
+    gender = first(na.omit(gender)),
+    dob = first(na.omit(dob)),
+    atsi = first(na.omit(atsi)),
+    date_screening = first(na.omit(date_screening)),
+    email = last(na.omit(email)),
+    mobile = last(na.omit(mobile)),
+    recruitment_year = first(na.omit(redcap_project_year)),
+  ) %>%
+  mutate(
+    age_screening = (date_screening - dob) / lubridate::dyears(1),
+  )
+
 check_empty_set(
-  setdiff(serology_all_tables$pid, participants_fix_pid$pid),
+  setdiff(serology_all_tables$pid, participants_with_extras$pid),
   "non-matching serology pids"
 )
 
-write_csv(participants_fix_pid, "data/participants.csv")
+check_no_rows(
+  participants_with_extras %>% group_by(pid) %>% filter(n() > 1),
+  "participants with duplicate pids"
+)
+
+check_no_rows(
+  participants_with_extras %>%
+    select(pid, site, recruitment_year, date_screening) %>%
+    filter(!complete.cases(.)),
+  "participants non-baseline missing"
+)
+
+write_csv(participants_with_extras, "data/participants.csv")
 
 #
 # SECTION Participant information that changes yearly
@@ -302,12 +315,12 @@ yearly_changes_fix_pids <- yearly_changes_raw %>%
   )
 
 check_empty_set(
-  setdiff(yearly_changes_fix_pids$pid, participants_fix_pid$pid),
+  setdiff(yearly_changes_fix_pids$pid, participants_with_extras$pid),
   "yearly changes not in pariticpants"
 )
 
 check_empty_set(
-  setdiff(participants_fix_pid$pid, yearly_changes_fix_pids$pid),
+  setdiff(participants_with_extras$pid, yearly_changes_fix_pids$pid),
   "participants not in yearly changes"
 )
 
@@ -415,7 +428,7 @@ check_no_rows(
 )
 
 check_empty_set(
-  setdiff(vaccination_history_with_instrument$pid, participants_fix_pid$pid),
+  setdiff(vaccination_history_with_instrument$pid, participants_with_extras$pid),
   "vaccination pids not in participant pids"
 )
 
@@ -503,7 +516,7 @@ bleed_dates_long <- bleed_dates_raw %>%
   select(-timepoint)
 
 check_empty_set(
-  setdiff(bleed_dates_long$pid, participants_fix_pid$pid),
+  setdiff(bleed_dates_long$pid, participants_with_extras$pid),
   "bleed dates pids not in participants pids"
 )
 
