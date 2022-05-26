@@ -144,10 +144,17 @@ const dateSeq = (start: string, step: number, count: number) => {
 	return result
 }
 
-const summarise = <RowType, CountsType>(
-	data: RowType[], groups: string[], defaultCounts: CountsType,
-	filter: (row: RowType) => boolean, getKey: (row: RowType, key: string) => any,
+type SummariseSpec<RowType, CountsType> = {
+	data: RowType[],
+	groups: string[],
+	defaultCounts: CountsType,
+	filter?: (row: RowType) => boolean,
+	getKey: (row: RowType, key: string) => any,
 	addRow: (row: RowType, counts: CountsType) => void,
+}
+
+const summarise = <RowType, CountsType>(
+	{data, groups, defaultCounts, filter, getKey, addRow}: SummariseSpec<RowType, CountsType>,
 ) => {
 	let groupedCounts: any = {}
 	if (groups.length === 0) {
@@ -155,7 +162,7 @@ const summarise = <RowType, CountsType>(
 	}
 
 	for (let row of data) {
-		if (filter(row)) {
+		if (filter ? filter(row) : true) {
 
 			if (groups.length === 0) {
 				addRow(row, groupedCounts.total)
@@ -212,6 +219,26 @@ const arrayToMap = (arr: any[], names: string[]) => {
 
 const aoaToAos = (aoa: any[][], names: string[]) => aoa.map((arr) => arrayToMap(arr, names))
 
+const summariseAos = <RowType, CountsType>(
+	spec: SummariseSpec<RowType, CountsType>,
+	modOnCompletion?: (aosRow: any) => void
+) => {
+	let summaryMap = summarise(spec)
+	let summaryAoa = flattenMap(summaryMap, [])
+
+	let namesStart = [...spec.groups]
+	if (namesStart.length === 0) {
+		namesStart.push("Total")
+	}
+
+	let summaryAos = aoaToAos(summaryAoa, namesStart.concat(Object.keys(spec.defaultCounts)))
+	if (modOnCompletion !== undefined) {
+		summaryAos = summaryAos.map(row => {modOnCompletion(row); return row})
+	}
+
+	return summaryAos
+}
+
 const getNameOrDefault = (map: any, name: string) => {
 	let result = map[name]
 	if (result === undefined) {
@@ -267,6 +294,14 @@ const ALL_POSTINF_BLEEDS_GROUPS_ = ["year", "site", "recruited", "fluArm2022", "
 	"gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"] as const
 const ALL_POSTINF_BLEEDS_GROUPS = ALL_POSTINF_BLEEDS_GROUPS_ as unknown as string[]
 type PostinfBleedsGroups = (typeof ALL_POSTINF_BLEEDS_GROUPS_)[number]
+
+const ALL_GMT_GROUPS_ = ["year", "day", "site"] as const
+const ALL_GMT_GROUPS = ALL_GMT_GROUPS_ as unknown as string[]
+type GMTGroups = (typeof ALL_GMT_GROUPS_)[number]
+
+const ALL_GMR_GROUPS_ = ["year", "site"] as const
+const ALL_GMR_GROUPS = ALL_GMR_GROUPS_ as unknown as string[]
+type GMRGroups = (typeof ALL_GMR_GROUPS_)[number]
 
 const DOWNLOAD_CSV: { [key: string]: string } = {}
 
@@ -414,6 +449,7 @@ const createTableTitle = (title: string, downloadable: boolean) => {
 	titleElement.style.height = TABLE_ROW_HEIGHT_PX + "px"
 	titleElement.style.border = "1px solid var(--color-border)"
 	titleElement.style.boxSizing = "border-box"
+	titleElement.style.whiteSpace = "nowrap"
 	titleElement.textContent = title
 
 	if (downloadable) {
@@ -589,13 +625,14 @@ type TableColSpecFinal<RowType> = {
 const MISSING_STRING = "(missing)"
 
 const createTableElementFromAos = <RowType extends { [key: string]: any }>(
-	{aos, colSpecInit, defaults, title, forRow, getTableHeightInit}: {
+	{aos, colSpecInit, defaults, title, forRow, getTableHeightInit, onFilterChange}: {
 		aos: RowType[],
 		colSpecInit: { [key: string]: TableColSpec<RowType> },
 		title: string,
 		defaults?: TableColSpec<RowType>,
 		forRow?: (row: RowType) => void,
 		getTableHeightInit?: () => number,
+		onFilterChange?: (filteredData: RowType[]) => void,
 	}
 ) => {
 
@@ -701,6 +738,7 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 					aosFiltered.push(rowData)
 				}
 			}
+			onFilterChange?.(aosFiltered)
 			return aosFiltered
 		}
 
@@ -965,7 +1003,9 @@ const initTitres = (sidebarWidthPx: number) => {
 	let table = addDiv(container)
 	table.style.width = `calc(100vw - ${sidebarWidthPx + SCROLLBAR_WIDTHS[1]}px)`
 	table.style.overflowX = "scroll"
-	return { container: container, table: table }
+	let summaryTable = <HTMLElement>table.cloneNode(true)
+	addEl(container, summaryTable)
+	return { container: container, table: table, summaryTable: summaryTable }
 }
 
 const initCounts = (sidebarWidthPx: number) => {
@@ -1077,6 +1117,59 @@ const initCountsSettings = (state: State, init: CountsSettings) => {
 	}
 }
 
+const initTitresSettings = (state: State, init: TitresSettings) => {
+	let container = createDiv()
+
+	let gmtGroupsSwitchLabel = addDiv(container)
+	gmtGroupsSwitchLabel.textContent = "GMT groups"
+
+	let gmtGroupsSwitch = createSwitch(
+		init.groupsGMTs,
+		<GMTGroups[]>ALL_GMT_GROUPS,
+		(groups) => {
+			state.settings.titres.groupsGMTs = groups
+			window.history.pushState(null, "", getTitresPageURL(state.settings.titres))
+			updateGMTs(state)
+		},
+		(group, el, updateSelected) => {
+			window.addEventListener("popstate", () => {
+				let settings = getTitresSettingsFromURL(state.settings.titres)
+				if (settings.groupsGMTs.includes(group)) {
+					el.style.backgroundColor = "var(--color-selected)"
+				} else {
+					el.style.backgroundColor = "var(--color-background)"
+				}
+				updateSelected(settings.groupsGMTs)
+			})
+		},
+	)
+
+	let gmrGroupsSwitch = createSwitch(
+		init.groupsGMRs,
+		<GMRGroups[]>ALL_GMR_GROUPS,
+		(groups) => {
+			state.settings.titres.groupsGMRs = groups
+			//window.history.pushState(null, "", getTitresPageURL(state.settings.titres))
+			//updateGMRs(state)
+		},
+		(group, el, updateSelected) => {
+			window.addEventListener("popstate", () => {
+				let settings = getTitresSettingsFromURL(state.settings.titres)
+				if (settings.groupsGMRs.includes(group)) {
+					el.style.backgroundColor = "var(--color-selected)"
+				} else {
+					el.style.backgroundColor = "var(--color-background)"
+				}
+				updateSelected(settings.groupsGMRs)
+			})
+		},
+	)
+
+	addEl(container, gmtGroupsSwitch)
+
+	return container
+}
+
 const createCountsRecordsTable = (data: Data, groups: string[]) => {
 
 	let withdrawalData = data.withdrawn
@@ -1090,10 +1183,12 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 
 	let participantData = data.participants
 
-	let groupedCounts = summarise(
-		participantData, groups, { total: 0, notWithdrawn: 0, consent2022: 0, bled2022: 0 },
-		(row) => row.pid !== undefined && row.pid.length >= 3,
-		(row, group) => {
+	let groupedCounts = summarise({
+		data: participantData,
+		groups: groups,
+		defaultCounts: { total: 0, notWithdrawn: 0, consent2022: 0, bled2022: 0 },
+		filter: (row) => row.pid !== undefined && row.pid.length >= 3,
+		getKey: (row, group) => {
 			let key = null
 			switch (group) {
 				case "site": { key = row.site; } break
@@ -1109,7 +1204,7 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 			}
 			return key
 		},
-		(row, counts) => {
+		addRow: (row, counts) => {
 			let withdrawn = withdrawals[row.pid] === true
 			let notWithdrawn = !withdrawn
 			counts.total += 1
@@ -1130,7 +1225,7 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 				}
 			}
 		}
-	)
+	})
 
 	let groupedCountsFlat = flattenMap(groupedCounts, [])
 
@@ -1181,11 +1276,11 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 
 const createCountsBleedsTable = (data: Data, groups: string[]) => {
 
-	let groupedCounts = summarise(
-		data.bleed_dates, groups,
-		{ fluDay0: 0, fluDay7: 0, fluDay14: 0, fluDay220: 0, covDay0: 0, covDay7: 0, covDay14: 0 },
-		(row) => true,
-		(row, group) => {
+	let groupedCounts = summarise({
+		data: data.bleed_dates,
+		groups: groups,
+		defaultCounts: { fluDay0: 0, fluDay7: 0, fluDay14: 0, fluDay220: 0, covDay0: 0, covDay7: 0, covDay14: 0 },
+		getKey: (row, group) => {
 			let key = null
 			switch (group) {
 				case "year": { key = row.year; } break
@@ -1202,8 +1297,7 @@ const createCountsBleedsTable = (data: Data, groups: string[]) => {
 			}
 			return key
 		},
-
-		(row, counts) => {
+		addRow: (row, counts) => {
 			const isPresent = (val: any) => val !== null && val !== undefined && val !== ""
 			if (isPresent(row.flu_day_0)) { counts.fluDay0 += 1 }
 			if (isPresent(row.flu_day_7)) { counts.fluDay7 += 1 }
@@ -1213,7 +1307,7 @@ const createCountsBleedsTable = (data: Data, groups: string[]) => {
 			if (isPresent(row.covid_day_7)) { counts.covDay7 += 1 }
 			if (isPresent(row.covid_day_14)) { counts.covDay14 += 1 }
 		}
-	)
+	})
 
 	let groupedCountsFlat = flattenMap(groupedCounts, [])
 
@@ -1262,11 +1356,11 @@ const createCountsBleedsTable = (data: Data, groups: string[]) => {
 
 const createCountsPostinfBleedsTable = (data: Data, groups: string[]) => {
 
-	let groupedCounts = summarise(
-		data.postinf_bleed_dates, groups,
-		{ day7: 0, day14: 0, day30: 0 },
-		(row) => true,
-		(row, group) => {
+	let groupedCounts = summarise({
+		data: data.postinf_bleed_dates,
+		groups: groups,
+		defaultCounts: { day7: 0, day14: 0, day30: 0 },
+		getKey: (row, group) => {
 			let key = null
 			switch (group) {
 				case "year": { key = row.year; } break
@@ -1283,14 +1377,13 @@ const createCountsPostinfBleedsTable = (data: Data, groups: string[]) => {
 			}
 			return key
 		},
-
-		(row, counts) => {
+		addRow: (row, counts) => {
 			const isPresent = (val: any) => val !== null && val !== undefined && val !== ""
 			if (isPresent(row.day7)) { counts.day7 += 1 }
 			if (isPresent(row.day14)) { counts.day14 += 1 }
 			if (isPresent(row.day30)) { counts.day30 += 1 }
 		}
-	)
+	})
 
 	let groupedCountsFlat = flattenMap(groupedCounts, [])
 
@@ -1391,7 +1484,7 @@ const createParticipantsTable = (downloadCsv: { [key: string]: string }, data: D
 	return tableResult.table
 }
 
-const createTitreTable = (data: Data) => {
+const createTitreTable = (data: Data, onFilterChange: (filteredData: any[]) => void) => {
 	let tableResult = createTableElementFromAos({
 		aos: data.titres,
 		colSpecInit: {
@@ -1414,7 +1507,38 @@ const createTitreTable = (data: Data) => {
 			recruitment_year: { width: 150 },
 		},
 		title: "Titres",
-		getTableHeightInit: () => 500
+		getTableHeightInit: () => 500,
+		onFilterChange: onFilterChange,
+	})
+
+	return tableResult.table
+}
+
+const createTitreGMTTable = (titreData: any[], groups: string[]) => {
+
+	let titreSummary = summariseAos({
+		data: titreData,
+		groups: groups,
+		defaultCounts: {count: 0, logtitreSum: 0},
+		getKey: (row, group) => row[group],
+		addRow: (row, counts) => {counts.count += 1, counts.logtitreSum += Math.log(row.titre)}
+	}, (row) => {
+		row.logmean = row.logtitreSum / row.count
+		row.GMT = Math.exp(row.logmean)
+	})
+
+	let colSpec: any = {}
+	for (let group of groups) {
+		colSpec[group] = {}
+	}
+	colSpec.count = {}
+	colSpec.GMT = {format: (x: any) => x.toFixed(0)}
+
+	let tableResult = createTableElementFromAos({
+		aos: titreSummary,
+		colSpecInit: colSpec,
+		title: "GMT",
+		getTableHeightInit: () => 500,
 	})
 
 	return tableResult.table
@@ -1558,11 +1682,23 @@ type CountsSettings = {
 	groupsPostinfBleeds: PostinfBleedsGroups[],
 }
 
+type TitresSettings = {
+	groupsGMTs: GMTGroups[],
+	groupsGMRs: GMRGroups[],
+}
+
 const getCountsPageURL = (settings: CountsSettings) => {
 	let recordGroups = `record_groups=${settings.groupsRecords.join(",")}`
 	let bleedsGroups = `bleeds_groups=${settings.groupsBleeds.join(",")}`
 	let postinfBleedsGroups = `postinf_bleeds_groups=${settings.groupsPostinfBleeds.join(",")}`
 	let result = `counts?table=${settings.table}&${recordGroups}&${bleedsGroups}&${postinfBleedsGroups}`
+	return result
+}
+
+const getTitresPageURL = (settings: TitresSettings) => {
+	let groupsGMTs = `groupsGMTs=${settings.groupsGMTs.join(",")}`
+	let groupsGMRs = `groupsGMRs=${settings.groupsGMRs.join(",")}`
+	let result = `titres?${groupsGMTs}&${groupsGMRs}`
 	return result
 }
 
@@ -1666,6 +1802,66 @@ const getCountSettingsFromURL = (def: CountsSettings) => {
 	return result
 }
 
+const getTitresSettingsFromURL = (def: TitresSettings) => {
+	let urlGroupsGMTs = def.groupsGMTs
+	let urlGroupsGMRs = def.groupsGMRs
+
+	if (window.location.pathname === "/titres") {
+		let params = new URLSearchParams(window.location.search)
+		let needToFixAddress = false
+
+		if (params.has("groupsGMTs")) {
+
+			let groups = params.getAll("groupsGMTs")
+			let groupsFirst = groups[0].split(",")
+			if (allAInB(groupsFirst, ALL_GMT_GROUPS)) {
+				urlGroupsGMTs = <GMTGroups[]>groupsFirst
+			} else {
+				needToFixAddress = true
+			}
+
+			if (groups.length > 1) {
+				needToFixAddress = true
+			}
+
+		} else {
+			needToFixAddress = true
+		}
+
+		if (params.has("groupsGMRs")) {
+
+			let groups = params.getAll("groupsGMRs")
+			let groupsFirst = groups[0].split(",")
+			if (allAInB(groupsFirst, ALL_BLEEDS_GROUPS)) {
+				urlGroupsGMRs = <GMRGroups[]>groupsFirst
+			} else {
+				needToFixAddress = true
+			}
+
+			if (groups.length > 1) {
+				needToFixAddress = true
+			}
+
+		} else {
+			needToFixAddress = true
+		}
+
+		if (needToFixAddress) {
+			window.history.replaceState(null, "", getTitresPageURL({
+				groupsGMTs: urlGroupsGMTs,
+				groupsGMRs: urlGroupsGMRs,
+			}))
+		}
+	}
+
+	let result: TitresSettings = {
+		groupsGMTs: urlGroupsGMTs,
+		groupsGMRs: urlGroupsGMRs,
+	}
+
+	return result
+}
+
 const getBleedsYearFromURL = (def: YearID) => {
 	let urlYear = def
 
@@ -1749,7 +1945,7 @@ const switchDataPage = (state: State, name: DataPageID) => {
 			replaceChildren(state.elements.dataContainer, state.elements.participants.container)
 		} break
 		case "titres": {
-			removeChildren(state.elements.sidebar.pageSpecific)
+			replaceChildren(state.elements.sidebar.pageSpecific, state.elements.titresSettings)
 			replaceChildren(state.elements.dataContainer, state.elements.titres.container)
 		} break;
 		default: {
@@ -1821,13 +2017,22 @@ const updateParticipantsTable = (state: State) => replaceChildren(
 	createParticipantsTable(DOWNLOAD_CSV, state.data)
 )
 
-const updateTitres = (state: State) => replaceChildren(
-	state.elements.titres.table,
-	createTitreTable(state.data)
+const updateGMTs = (state: State) => replaceChildren(
+	state.elements.titres.summaryTable, 
+	createTitreGMTTable(state.filteredTitreData, state.settings.titres.groupsGMTs)
 )
+
+const updateTitres = (state: State) => {
+	let titreTable = createTitreTable(state.data, (filteredData) => {
+		state.filteredTitreData = filteredData
+		updateGMTs(state)
+	})
+	replaceChildren(state.elements.titres.table, titreTable)
+}
 
 type State = {
 	data: any,
+	filteredTitreData: any[],
 	domMain: HTMLElement,
 	currentDataPage: DataPageID,
 	elements: {
@@ -1846,6 +2051,7 @@ type State = {
 			bleedsSwitch: HTMLElement,
 			postinfBleedsSwitch: HTMLElement,
 		},
+		titresSettings: HTMLElement,
 		dataContainer: HTMLElement,
 		weeklySurveys: {
 			container: HTMLElement,
@@ -1873,17 +2079,20 @@ type State = {
 		titres: {
 			container: HTMLElement,
 			table: HTMLElement,
+			summaryTable: HTMLElement,
 		},
 	},
 	settings: {
 		weeklySurveys: { year: YearID },
 		bleeds: { year: YearID },
 		counts: CountsSettings,
-	}
+		titres: TitresSettings,
+	},
 }
 
 const initState = (state: State) => {
 	state.data = {}
+	state.filteredTitreData = []
 
 	state.domMain = document.getElementById("main")!
 	state.currentDataPage = getDataPageFromURL()
@@ -1893,6 +2102,9 @@ const initState = (state: State) => {
 	const initYearSurvey: YearID = getSurveysYearFromURL(initYear)
 	const initCountsSettingsVal: CountsSettings = getCountSettingsFromURL({
 		table: "records", groupsRecords: ["site"], groupsBleeds: ["year"], groupsPostinfBleeds: ["year"],
+	})
+	const initTitresSettingsVal: TitresSettings = getTitresSettingsFromURL({
+		groupsGMTs: ["year", "day"], groupsGMRs: ["year"],
 	})
 
 	state.elements = {
@@ -1943,6 +2155,7 @@ const initState = (state: State) => {
 		),
 
 		countsSettings: initCountsSettings(state, initCountsSettingsVal),
+		titresSettings: initTitresSettings(state, initTitresSettingsVal),
 
 		dataContainer: initDataContainer(SIDEBAR_WIDTH_PX),
 		weeklySurveys: initSurveys(SIDEBAR_WIDTH_PX),
@@ -1956,6 +2169,7 @@ const initState = (state: State) => {
 		weeklySurveys: { year: initYearSurvey },
 		bleeds: { year: initYearBleeds },
 		counts: initCountsSettingsVal,
+		titres: initTitresSettingsVal,
 	}
 }
 
@@ -1991,6 +2205,11 @@ const main = async () => {
 			case "weekly-surveys": {
 				state.settings.weeklySurveys.year = getSurveysYearFromURL(state.settings.weeklySurveys.year)
 				updateSurveyTables(state)
+			} break
+
+			case "titres": {
+				state.settings.titres = getTitresSettingsFromURL(state.settings.titres)
+				updateTitres(state)
 			} break
 		}
 
