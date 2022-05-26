@@ -295,7 +295,7 @@ const ALL_POSTINF_BLEEDS_GROUPS_ = ["year", "site", "recruited", "fluArm2022", "
 const ALL_POSTINF_BLEEDS_GROUPS = ALL_POSTINF_BLEEDS_GROUPS_ as unknown as string[]
 type PostinfBleedsGroups = (typeof ALL_POSTINF_BLEEDS_GROUPS_)[number]
 
-const ALL_GMT_GROUPS_ = ["year", "day", "site"] as const
+const ALL_GMT_GROUPS_ = ["year", "day", "site", "prior2020", "prior2021", "prior2022"] as const
 const ALL_GMT_GROUPS = ALL_GMT_GROUPS_ as unknown as string[]
 type GMTGroups = (typeof ALL_GMT_GROUPS_)[number]
 
@@ -998,7 +998,7 @@ const initParticipants = (sidebarWidthPx: number) => {
 
 const initTitres = (sidebarWidthPx: number) => {
 	let container = createDiv()
-	container.style.height = `calc(100vh - ${SCROLLBAR_WIDTHS[0]})`
+	container.style.height = `calc(100vh - ${SCROLLBAR_WIDTHS[0]}px)`
 	container.style.overflowY = "scroll"
 	let table = addDiv(container)
 	table.style.width = `calc(100vw - ${sidebarWidthPx + SCROLLBAR_WIDTHS[1]}px)`
@@ -1519,11 +1519,11 @@ const createTitreGMTTable = (titreData: any[], groups: string[]) => {
 	let titreSummary = summariseAos({
 		data: titreData,
 		groups: groups,
-		defaultCounts: {count: 0, logtitreSum: 0},
+		defaultCounts: {titres: 0, logtitreSum: 0},
 		getKey: (row, group) => row[group],
-		addRow: (row, counts) => {counts.count += 1, counts.logtitreSum += Math.log(row.titre)}
+		addRow: (row, counts) => {counts.titres += 1, counts.logtitreSum += Math.log(row.titre)}
 	}, (row) => {
-		row.logmean = row.logtitreSum / row.count
+		row.logmean = row.logtitreSum / row.titres
 		row.GMT = Math.exp(row.logmean)
 	})
 
@@ -1531,7 +1531,7 @@ const createTitreGMTTable = (titreData: any[], groups: string[]) => {
 	for (let group of groups) {
 		colSpec[group] = {}
 	}
-	colSpec.count = {}
+	colSpec.titres = {}
 	colSpec.GMT = {format: (x: any) => x.toFixed(0)}
 
 	let tableResult = createTableElementFromAos({

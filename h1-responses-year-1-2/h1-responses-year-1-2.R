@@ -5,14 +5,18 @@ vaccinations <- read_csv("data/vaccinations.csv", col_types = cols())
 
 calc_prior_vacs <- function(vaccinations, target_year) {
 	vaccinations %>%
-		filter(year < target_year, year >= target_year - 5) %>%
 		group_by(pid) %>%
-		summarise(prior_count = sum(status %in% c("Australia", "Overseas"))) %>%
+		summarise(
+			.groups = "drop",
+			prior_count = sum((year < target_year) & (year >= target_year - 5) & (status %in% c("Australia", "Overseas")))
+		) %>%
 		mutate(year = target_year)
 }
 
 prior_vacs <- calc_prior_vacs(vaccinations, 2020) %>%
 	bind_rows(calc_prior_vacs(vaccinations, 2021))
+
+prior_vacs %>% filter(year == 2021, prior_count == 0) %>% count()
 
 hi <- read_csv("data/serology.csv", col_types = cols()) %>%
 	left_join(read_csv("data/participants.csv", col_types = cols()), "pid") %>%
@@ -65,16 +69,17 @@ summarise_logmean <- function(vec, round_to = 0) {
   tibble(mean, low, high, string)
 }
 
-hi %>%
-	titre_subset_filter() %>%
-	group_by(prior_count) %>%
-	summarise(ind = length(unique(pid)))
+calc_gmts <- function(hi) {
+	hi %>%
+		titre_subset_filter() %>%
+		group_by(year, day, subtype, prior_count, virus_egg_cell) %>%
+		summarise(.groups = "drop", summarise_logmean(titre, 0))
+}
 
-gmts <- hi %>%
-	titre_subset_filter() %>%
-	group_by(year, day, subtype, prior_count, virus_egg_cell) %>%
-	summarise(.groups = "drop", summarise_logmean(titre, 0))# %>%
-	#filter(day == 14, virus_egg_cell == "egg")
+hi_vax <- hi %>% filter(pid %in% pids_have_14d_titre)
+
+gmts <- calc_gmts(hi)
+gmts_vax <- calc_gmts(hi_vax)
 
 gmrs <- hi %>%
 	titre_subset_filter() %>%
@@ -82,11 +87,21 @@ gmrs <- hi %>%
 	mutate(ratio = `14` / `0`) %>%
 	group_by(year, subtype, prior_count, virus_egg_cell) %>%
 	summarise(.groups = "drop", summarise_logmean(ratio, 2))# %>%
-	#filter(virus_egg_cell == "egg")
+	#filter(virus_egg_cell == "egg")	
 
-nonmissing_titre_counts <- hi %>%
-	titre_subset_filter() %>%
-	count(year, day, subtype, prior_count, virus_egg_cell)
+calc_nonmissing_titre_count <- function(hi) {
+	hi %>%
+		titre_subset_filter() %>%
+		group_by(year, day, subtype, prior_count, virus_egg_cell) %>%
+		summarise(.groups = "drop", n = n(), unique_pids = length(unique(pid)))
+}
+
+nonmissing_titre_counts <- calc_nonmissing_titre_count(hi)
+nonmissing_titre_counts_vax <- calc_nonmissing_titre_count(hi_vax)
+
+# NOTE(sen) Should be equal
+nonmissing_titre_counts %>% 
+	filter(n != unique_pids)
 
 summarise_prop <- function(success, total) {
   ci <- PropCIs::exactci(success, total, 0.95)
@@ -147,7 +162,10 @@ make_titre_plot <- function(hi, gmts, nonmissing_titre_counts, prior_counts) {
 
 	hi %>%
 		titre_subset_filter() %>%
-		filter(pid %in% pids_have_14d_titre, prior_count %in% prior_counts) %>%
+		filter(
+			pid %in% pids_have_14d_titre, 
+			prior_count %in% prior_counts
+		) %>%
 		left_join(pid_jitter, "pid") %>%
 		mutate(
 			day_fake = calc_day_fake(day, prior_count),
@@ -197,8 +215,20 @@ ggsave(
 )
 
 ggsave(
+	"h1-responses-year-1-2/titre_subset_plot_05_vax.png",
+	make_titre_plot(hi_vax, gmts_vax, nonmissing_titre_counts_vax, c(0, 5)),
+	width = 20, height = 20, units = "cm",
+)
+
+ggsave(
 	"h1-responses-year-1-2/titre_subset_plot_035.png",
 	make_titre_plot(hi, gmts, nonmissing_titre_counts, c(0, 3, 5)),
+	width = 20, height = 20, units = "cm",
+)
+
+ggsave(
+	"h1-responses-year-1-2/titre_subset_plot_035_vax.png",
+	make_titre_plot(hi_vax, gmts_vax, nonmissing_titre_counts_vax, c(0, 3, 5)),
 	width = 20, height = 20, units = "cm",
 )
 
@@ -237,6 +267,3 @@ ggsave(
 	make_seroconv_plot(seroconv, c(0, 3, 5)),
 	width = 18, height = 12, units = "cm",
 )
-
-seroconv %>%
-	filter(prior_count %in% prior_counts)
