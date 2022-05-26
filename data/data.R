@@ -223,6 +223,7 @@ fun_fix_pids <- function(pid) {
       "JHH-304 (820)" = "JHH-820", # NOTE(sen) Changed from 2021 to 2022
       "JHH- 826 (297)" = "JHH-297", # NOTE(sen) Changed from 2021 to 2022
       "JHH-334 (806)" = "JHH-806", # NOTE(sen) Changed from 2021 to 2022
+      "JHH-830 (082)" = "JHH-082", # NOTE(sen) Changed from 2021 to 2022
     )
 }
 
@@ -246,12 +247,7 @@ check_no_rows(
 )
 
 check_no_rows(
-  participants %>% filter(str_length(pid) > 7),
-  "participants with pids >7 characters"
-)
-
-check_no_rows(
-  participants %>% filter(!str_detect(pid, "(PCH|CHW|WCH|JHH|QCH|ALF)-\\d{3}")),
+  participants %>% filter(!str_detect(pid, "^(PCH|CHW|WCH|JHH|QCH|ALF)-\\d{3}$")),
   "participants with non-conforming pids"
 )
 
