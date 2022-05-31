@@ -68,6 +68,7 @@ redcap_withdrawal_request <- function(project_year) {
 
 withdrawn2020 <- redcap_withdrawal_request(2020) %>% filter(withdrawn == 1)
 withdrawn2021 <- redcap_withdrawal_request(2021) %>% filter(withdrawn == 1)
+withdrawn2022 <- redcap_withdrawal_request(2022) %>% filter(withdrawn == 1)
 
 #
 # SECTION Consent
@@ -179,8 +180,14 @@ redcap_upload(
 jhh_806_2021_record_id <- pid2021 %>% filter(pid == "JHH-806") %>% pull(record_id)
 jhh_806_2022_record_id <- pid2022_current %>% filter(pid == "JHH-806") %>% pull(record_id)
 
+jhh_007_2021_record_id <- pid2021 %>% filter(pid == "JHH-007") %>% pull(record_id)
+jhh_007_2022_record_id <- pid2022_current %>% filter(pid == "JHH-007") %>% pull(record_id)
+
 pch_043_2021_record_id <- pid2021 %>% filter(pid == "PCH-043") %>% pull(record_id)
 pch_043_2022_record_id <- pid2022_current %>% filter(pid == "PCH-043") %>% pull(record_id)
+
+pch_096_2021_record_id <- pid2021 %>% filter(pid == "PCH-096") %>% pull(record_id)
+pch_096_2022_record_id <- pid2022_current %>% filter(pid == "PCH-096") %>% pull(record_id)
 
 #
 # SECTION Screening
@@ -290,6 +297,15 @@ redcap_upload(
     filter(record_id == jhh_806_2021_record_id) %>%
     process_baseline() %>%
     mutate(record_id = jhh_806_2022_record_id)
+)
+
+redcap_upload(
+  2022,
+  "baseline_arm_1",
+  baseline2021 %>%
+    filter(record_id == jhh_007_2021_record_id) %>%
+    process_baseline() %>%
+    mutate(record_id = jhh_007_2022_record_id)
 )
 
 redcap_upload(
