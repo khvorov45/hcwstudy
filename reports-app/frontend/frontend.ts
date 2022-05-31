@@ -295,7 +295,8 @@ const ALL_POSTINF_BLEEDS_GROUPS_ = ["year", "site", "recruited", "fluArm2022", "
 const ALL_POSTINF_BLEEDS_GROUPS = ALL_POSTINF_BLEEDS_GROUPS_ as unknown as string[]
 type PostinfBleedsGroups = (typeof ALL_POSTINF_BLEEDS_GROUPS_)[number]
 
-const ALL_GMT_GROUPS_ = ["year", "day", "site", "prior2020", "prior2021", "prior2022"] as const
+const ALL_GMT_GROUPS_ = ["year", "day", "site", "virus", "subtype", "eggcell",
+	"gender", "recruited", "age_group", "prior2020", "prior2021", "prior2022"] as const
 const ALL_GMT_GROUPS = ALL_GMT_GROUPS_ as unknown as string[]
 type GMTGroups = (typeof ALL_GMT_GROUPS_)[number]
 
@@ -1503,7 +1504,8 @@ const createTitreTable = (data: Data, onFilterChange: (filteredData: any[]) => v
 			atsi: { width: 50 },
 			dob: {},
 			date_screening: { width: 150 },
-			age_screening: { width: 150, format: (x) => x.toFixed(0) },
+			age: { access: "age_screening", format: (x) => x.toFixed(0) },
+			age_group: {},
 			recruitment_year: { width: 150 },
 		},
 		title: "Titres",
@@ -1520,7 +1522,14 @@ const createTitreGMTTable = (titreData: any[], groups: string[]) => {
 		data: titreData,
 		groups: groups,
 		defaultCounts: {titres: 0, logtitreSum: 0},
-		getKey: (row, group) => row[group],
+		getKey: (row, group) => {
+			let result = row[group]
+			switch (group) {
+			case "eggcell": {result = row.virus_egg_cell} break
+			case "recruited": {result = row.recruitment_year} break
+			}
+			return result
+		},
 		addRow: (row, counts) => {counts.titres += 1, counts.logtitreSum += Math.log(row.titre)}
 	}, (row) => {
 		row.logmean = row.logtitreSum / row.titres
@@ -2018,7 +2027,7 @@ const updateParticipantsTable = (state: State) => replaceChildren(
 )
 
 const updateGMTs = (state: State) => replaceChildren(
-	state.elements.titres.summaryTable, 
+	state.elements.titres.summaryTable,
 	createTitreGMTTable(state.filteredTitreData, state.settings.titres.groupsGMTs)
 )
 
