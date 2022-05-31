@@ -784,6 +784,15 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 			}
 		})
 
+		const resetScroll = () => {
+			virtualizedList.scrollToIndex(1, 0)
+			virtualizedList.scrollToIndex(0, 0)
+		}
+
+		window.addEventListener("popstate", resetScroll)
+		window.addEventListener("pushState", resetScroll)
+		window.addEventListener("replaceState", resetScroll)
+
 		for (let rowIndex = 0; rowIndex < aos.length; rowIndex += 1) {
 			let rowData = aos[rowIndex]
 
@@ -2268,6 +2277,22 @@ const main = async () => {
 		}
 	}
 }
+
+const historyChangeStateAndDispatchEvent = function(type: string) {
+	//@ts-ignore
+    const orig: any = history[type];
+    return function() {
+    	//@ts-ignore
+        const rv = orig.apply(this, arguments);
+        const e: any = new Event(type);
+        e.arguments = arguments;
+        window.dispatchEvent(e);
+        return rv;
+    };
+};
+
+history.pushState = historyChangeStateAndDispatchEvent('pushState')
+history.replaceState = historyChangeStateAndDispatchEvent('replaceState')
 
 main()
 
