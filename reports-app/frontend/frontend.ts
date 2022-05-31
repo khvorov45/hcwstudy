@@ -300,7 +300,8 @@ const ALL_GMT_GROUPS_ = ["year", "day", "site", "virus", "subtype", "eggcell",
 const ALL_GMT_GROUPS = ALL_GMT_GROUPS_ as unknown as string[]
 type GMTGroups = (typeof ALL_GMT_GROUPS_)[number]
 
-const ALL_GMR_GROUPS_ = ["year", "site"] as const
+const ALL_GMR_GROUPS_ = ["year", "site", "virus", "subtype", "eggcell", 
+	"gender", "recruited", "age_group", "prior2020", "prior2021", "prior2022"] as const
 const ALL_GMR_GROUPS = ALL_GMR_GROUPS_ as unknown as string[]
 type GMRGroups = (typeof ALL_GMR_GROUPS_)[number]
 
@@ -645,6 +646,7 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 	let getTableHeight = getTableHeightInit ?? (() => window.innerHeight - SCROLLBAR_WIDTHS[0])
 
 	let table = createDiv()
+	table.style.maxWidth = "100%"
 	let titleElement = addEl(table, createTableTitle(title, true))
 	DOWNLOAD_CSV[title] = ""
 
@@ -1030,12 +1032,23 @@ const initTitres = (sidebarWidthPx: number) => {
 	container.style.width = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
 	container.style.overflow = "scroll"
 	container.style.display = "flex"
-	let table = addDiv(container)
-	table.style.maxWidth = `calc((100vw - ${SIDEBAR_WIDTH_PX}px - ${SCROLLBAR_WIDTHS[1]}px) / 2)`
-	//table.style.overflowX = "scroll"
-	let summaryTable = <HTMLElement>table.cloneNode(true)
-	addEl(container, summaryTable)
-	return { container: container, table: table, summaryTable: summaryTable }
+
+	let left = addDiv(container)
+	left.style.maxWidth = `calc((100vw - ${SIDEBAR_WIDTH_PX}px - ${SCROLLBAR_WIDTHS[1]}px) / 2)`
+	left.style.flex = "1 0"
+	let right = addEl(container, <HTMLElement>left.cloneNode(true))
+
+	let table = addDiv(left)
+	table.style.flex = "1 0"
+	table.style.display = "flex"
+	
+	let plot = addEl(left, <HTMLElement>table.cloneNode(true))
+	
+	let gmtTable = addEl(right, <HTMLElement>table.cloneNode(true))
+	
+	let gmrTable = addEl(right, <HTMLElement>table.cloneNode(true))
+
+	return { container: container, table: table, gmtTable: gmtTable, gmrTable: gmrTable, plot: plot }
 }
 
 const initCounts = (sidebarWidthPx: number) => {
@@ -1176,13 +1189,19 @@ const initTitresSettings = (state: State, init: TitresSettings) => {
 		},
 	)
 
+	addEl(container, gmtGroupsSwitch)
+
+	let gmrGroupsSwitchLabel = addDiv(container)
+	gmrGroupsSwitchLabel.textContent = "GMR groups"
+	gmrGroupsSwitchLabel.style.marginTop = "30px"
+
 	let gmrGroupsSwitch = createSwitch(
 		init.groupsGMRs,
 		<GMRGroups[]>ALL_GMR_GROUPS,
 		(groups) => {
 			state.settings.titres.groupsGMRs = groups
-			//window.history.pushState(null, "", getTitresPageURL(state.settings.titres))
-			//updateGMRs(state)
+			window.history.pushState(null, "", getTitresPageURL(state.settings.titres))
+			updateGMRs(state)
 		},
 		(group, el, updateSelected) => {
 			window.addEventListener("popstate", () => {
@@ -1197,7 +1216,7 @@ const initTitresSettings = (state: State, init: TitresSettings) => {
 		},
 	)
 
-	addEl(container, gmtGroupsSwitch)
+	addEl(container, gmrGroupsSwitch)
 
 	return container
 }
@@ -1581,6 +1600,70 @@ const createTitreGMTTable = (titreData: any[], groups: string[]) => {
 		aos: titreSummary,
 		colSpecInit: colSpec,
 		title: "GMT",
+		getTableHeightInit: () => 500,
+	})
+
+	return tableResult.table
+}
+
+const createTitreGMRTable = (titreData: any[], groups: string[]) => {
+	let table = createDiv()
+
+	let ratios = summariseAos({
+		data: titreData,
+		groups: ["pid"].concat(ALL_GMR_GROUPS),
+		defaultCounts: {d0: null, d14: null},
+		getKey: (row, group) => {
+			let result = row[group]
+			switch (group) {
+			case "eggcell": {result = row.virus_egg_cell} break
+			case "recruited": {result = row.recruitment_year} break
+			}
+			return result
+		},
+		addRow: (row, counts) => {
+			switch (row.day) {
+			case 0: counts.d0 = row.titre; break;
+			case 14: counts.d14 = row.titre; break;
+			}			
+		}
+	})
+
+	let ratioSummary = summariseAos({
+		data: ratios,
+		groups: groups,
+		defaultCounts: {ratios: 0, logratioSum: 0},
+		getKey: (row, group) => {
+			let result = row[group]
+			switch (group) {
+			case "eggcell": {result = row.virus_egg_cell} break
+			case "recruited": {result = row.recruitment_year} break
+			}
+			return result
+		},
+		filter: (row) => row.d14 !== null && row.d0 !== null,
+		addRow: (row, counts) => {
+			counts.ratios += 1, counts.logratioSum += Math.log(row.d14 / row.d0)
+		}
+	}, (row) => {
+		row.logmean = row.logratioSum / row.ratios
+		row.GMR = Math.exp(row.logmean)
+	})
+
+	let colSpec: any = {}
+	for (let group of groups) {
+		colSpec[group] = {}
+		if (group === "virus") {
+			colSpec[group].width = 150
+		}
+	}
+	colSpec.ratios = {}
+	colSpec.GMR = {format: (x: any) => x.toFixed(2)}
+
+	let tableResult = createTableElementFromAos({
+		aos: ratioSummary,
+		colSpecInit: colSpec,
+		title: "GMR",
 		getTableHeightInit: () => 500,
 	})
 
@@ -2061,14 +2144,20 @@ const updateParticipantsTable = (state: State) => replaceChildren(
 )
 
 const updateGMTs = (state: State) => replaceChildren(
-	state.elements.titres.summaryTable,
+	state.elements.titres.gmtTable,
 	createTitreGMTTable(state.filteredTitreData, state.settings.titres.groupsGMTs)
+)
+
+const updateGMRs = (state: State) => replaceChildren(
+	state.elements.titres.gmrTable,
+	createTitreGMRTable(state.filteredTitreData, state.settings.titres.groupsGMRs)
 )
 
 const updateTitres = (state: State) => {
 	let titreTable = createTitreTable(state.data, (filteredData) => {
 		state.filteredTitreData = filteredData
 		updateGMTs(state)
+		updateGMRs(state)
 	})
 	replaceChildren(state.elements.titres.table, titreTable)
 }
@@ -2123,7 +2212,9 @@ type State = {
 		titres: {
 			container: HTMLElement,
 			table: HTMLElement,
-			summaryTable: HTMLElement,
+			gmtTable: HTMLElement,
+			gmrTable: HTMLElement,
+			plot: HTMLElement,
 		},
 	},
 	settings: {
