@@ -7,3 +7,7 @@
 *docx
 *.xlsx
 info.txt
+*.png
+*.sh
+*.js.map
+reports-app/frontend/frontend.js

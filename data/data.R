@@ -320,6 +320,13 @@ check_empty_set(
   "participants not in yearly changes"
 )
 
+check_no_rows(
+  yearly_changes_fix_pids %>%
+    group_by(pid, redcap_project_year) %>%
+    filter(n() > 1),
+  "PID used more than once within a year"  
+)
+
 write_csv(yearly_changes_fix_pids, "data/yearly-changes.csv")
 
 #
