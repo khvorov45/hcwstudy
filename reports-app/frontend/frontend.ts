@@ -910,6 +910,9 @@ const initSidebar = (state: State, widthPx: number, initDataPage: DataPageID) =>
 				case "weekly-surveys": {
 					dest = dataPage + "?year=" + state.settings.weeklySurveys.year
 				} break
+				case "titres": {
+					dest = getTitresPageURL(state.settings.titres)
+				}
 			}
 
 			window.history.pushState(null, "", dest)
