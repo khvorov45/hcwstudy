@@ -669,7 +669,7 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 		let access = <(row: RowType) => any>accessInit
 		let format = (x: any) => {
 			let result = MISSING_STRING
-			if (x !== undefined && x !== null) {
+			if (x !== undefined && x !== null && x !== "undefined") {
 				let formatTest = specInit.format ?? defaults?.format
 				if (formatTest !== undefined && formatTest !== null) {
 					result = formatTest(x)
@@ -1273,12 +1273,10 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 		}
 	}
 
-	let participantData = data.participants
-
 	let groupedCounts = summarise({
-		data: participantData,
+		data: data.participants,
 		groups: groups,
-		defaultCounts: { total: 0, notWithdrawn: 0, consent2022: 0, bled2022: 0 },
+		defaultCounts: { total: 0, notWithdrawn: 0, consent2022: 0, bled2020: 0, bled2021: 0, bled2022: 0 },
 		filter: (row) => row.pid !== undefined && row.pid.length >= 3,
 		getKey: getParticipantsKey,
 		addRow: (row, counts) => {
@@ -1296,11 +1294,9 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 				}
 			}
 
-			if (row.latestBleedDate !== undefined) {
-				if (row.latestBleedDate.startsWith("2022")) {
-					counts.bled2022 += 1
-				}
-			}
+			if (row.bled2020 === 1) { counts.bled2020 += 1 }
+			if (row.bled2021 === 1) { counts.bled2021 += 1 }
+			if (row.bled2022 === 1) { counts.bled2022 += 1 }
 		}
 	})
 
@@ -1310,6 +1306,8 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 	colSpec.total = {}
 	colSpec.notWithdrawn = {}
 	colSpec.consent2022 = {}
+	colSpec.bled2020 = {}
+	colSpec.bled2021 = {}
 	colSpec.bled2022 = {}
 
 	let countsAos = aoaToAos(groupedCountsFlat, Object.keys(colSpec))
@@ -1318,7 +1316,9 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 	addTextline(countsTableDesc.desc, "total - total records in redcap")
 	addTextline(countsTableDesc.desc, "notWithdrawn - total records in redcap who are not withdrawn")
 	addTextline(countsTableDesc.desc, "consent2022 - total records in redcap whose latest flu conset date is from 2022")
-	addTextline(countsTableDesc.desc, "bled2022 - total records in redcap whose latest bleed date is from 2022")
+	addTextline(countsTableDesc.desc, "bled2020 - total records in redcap that have any bleed date in 2020")
+	addTextline(countsTableDesc.desc, "bled2021 - total records in redcap that have any bleed date in 2021")
+	addTextline(countsTableDesc.desc, "bled2022 - total records in redcap that have any bleed date in 2022")
 	addCountsExplanatoryNotes(countsTableDesc.desc, groups)
 
 	let descDim = measureEl(countsTableDesc.container, window.innerWidth - SIDEBAR_WIDTH_PX, window.innerHeight)
@@ -1787,6 +1787,60 @@ const getTitresPageURL = (settings: TitresSettings) => {
 	return result
 }
 
+const getURLArrayParam = <T>(params: any, paramName: string, allowed: string[], def: T[]) => {
+	let urlArr = def
+	let needToFixAddress = false
+
+	if (params.has(paramName)) {
+
+		let parArr = params.getAll(paramName)
+		let first = parArr[0].split(",")
+		if (parArr[0] === "") {
+			urlArr = []
+		} else if (allAInB(first, allowed)) {
+			urlArr = <T[]>first
+		} else {
+			needToFixAddress = true
+		}
+
+		if (parArr.length > 1) {
+			needToFixAddress = true
+		}
+
+	} else {
+		needToFixAddress = true
+	}
+
+	return {urlArr: urlArr, needToFixAddress: needToFixAddress}
+}
+
+const getURLSingleParam = <T>(params: any, paramName: string, allowed: any[], def: T) => {
+	let urlParam = def
+	let needToFixAddress = false
+
+	if (params.has(paramName)) {
+
+		let allParams = params.getAll(paramName)
+		let toCheck: any = allParams[0]
+		if (isNumber(allowed[0])) {
+			toCheck = parseInt(allParams[0])
+		}
+		let paramIsValid = allowed.includes(toCheck)
+		if (paramIsValid) {
+			urlParam = <T>toCheck
+		}
+
+		if (allParams.length > 1 || !paramIsValid) {
+			needToFixAddress = true
+		}
+
+	} else {
+		needToFixAddress = true
+	}
+
+	return {urlParam: urlParam, needToFixAddress: needToFixAddress}
+}
+
 const getCountSettingsFromURL = (def: CountsSettings) => {
 	let urlTable = def.table
 	let urlGroupsRecords = def.groupsRecords
@@ -1795,77 +1849,24 @@ const getCountSettingsFromURL = (def: CountsSettings) => {
 
 	if (window.location.pathname === "/counts") {
 		let params = new URLSearchParams(window.location.search)
-		let needToFixAddress = false
 
-		if (params.has("table")) {
+		let tableRes = getURLSingleParam(params, "table", ALL_COUNTS_TABLES, urlTable)
+		urlTable = tableRes.urlParam
 
-			let tables = params.getAll("table")
-			let tableIsValid = ALL_COUNTS_TABLES.includes(tables[0])
-			if (tableIsValid) {
-				urlTable = <CountTableID>tables[0]
-			}
+		let recordGroupsRes = getURLArrayParam(params, "record_groups", ALL_RECORD_GROUPS, urlGroupsRecords)
+		urlGroupsRecords = recordGroupsRes.urlArr
 
-			if (tables.length > 1 || !tableIsValid) {
-				needToFixAddress = true
-			}
+		let bleedGroupsRes = getURLArrayParam(params, "bleeds_groups", ALL_BLEEDS_GROUPS, urlGroupsBleeds)
+		urlGroupsBleeds = bleedGroupsRes.urlArr
 
-		} else {
-			needToFixAddress = true
-		}
+		let postinfBleedGroupsRes = getURLArrayParam(params, "postinf_bleeds_groups", ALL_POSTINF_BLEEDS_GROUPS, urlGroupsPostinfBleeds)
+		urlGroupsPostinfBleeds = postinfBleedGroupsRes.urlArr
 
-		if (params.has("record_groups")) {
-
-			let recordGroups = params.getAll("record_groups")
-			let recordGroupsFirst = recordGroups[0].split(",")
-			if (allAInB(recordGroupsFirst, ALL_RECORD_GROUPS)) {
-				urlGroupsRecords = <RecordGroups[]>recordGroupsFirst
-			} else {
-				needToFixAddress = true
-			}
-
-			if (recordGroups.length > 1) {
-				needToFixAddress = true
-			}
-
-		} else {
-			needToFixAddress = true
-		}
-
-		if (params.has("bleeds_groups")) {
-
-			let bleedsGroups = params.getAll("bleeds_groups")
-			let bleedsGroupsFirst = bleedsGroups[0].split(",")
-			if (allAInB(bleedsGroupsFirst, ALL_BLEEDS_GROUPS)) {
-				urlGroupsBleeds = <BleedsGroups[]>bleedsGroupsFirst
-			} else {
-				needToFixAddress = true
-			}
-
-			if (bleedsGroups.length > 1) {
-				needToFixAddress = true
-			}
-
-		} else {
-			needToFixAddress = true
-		}
-
-		if (params.has("postinf_bleeds_groups")) {
-
-			let bleedsGroups = params.getAll("postinf_bleeds_groups")
-			let bleedsGroupsFirst = bleedsGroups[0].split(",")
-			if (allAInB(bleedsGroupsFirst, ALL_POSTINF_BLEEDS_GROUPS)) {
-				urlGroupsPostinfBleeds = <PostinfBleedsGroups[]>bleedsGroupsFirst
-			} else {
-				needToFixAddress = true
-			}
-
-			if (bleedsGroups.length > 1) {
-				needToFixAddress = true
-			}
-
-		} else {
-			needToFixAddress = true
-		}
+		let needToFixAddress = 
+			tableRes.needToFixAddress ||
+			recordGroupsRes.needToFixAddress ||
+			bleedGroupsRes.needToFixAddress ||
+			postinfBleedGroupsRes.needToFixAddress
 
 		if (needToFixAddress) {
 			window.history.replaceState(null, "", getCountsPageURL({
@@ -1893,44 +1894,14 @@ const getTitresSettingsFromURL = (def: TitresSettings) => {
 
 	if (window.location.pathname === "/titres") {
 		let params = new URLSearchParams(window.location.search)
-		let needToFixAddress = false
 
-		if (params.has("groupsGMTs")) {
+		let gmtGroupsRes = getURLArrayParam(params, "groupsGMTs", ALL_GMT_GROUPS, urlGroupsGMTs)
+		urlGroupsGMTs = gmtGroupsRes.urlArr
 
-			let groups = params.getAll("groupsGMTs")
-			let groupsFirst = groups[0].split(",")
-			if (allAInB(groupsFirst, ALL_GMT_GROUPS)) {
-				urlGroupsGMTs = <GMTGroups[]>groupsFirst
-			} else {
-				needToFixAddress = true
-			}
+		let gmrGroupsRes = getURLArrayParam(params, "groupsGMRs", ALL_GMT_GROUPS, urlGroupsGMRs)
+		urlGroupsGMRs = gmrGroupsRes.urlArr
 
-			if (groups.length > 1) {
-				needToFixAddress = true
-			}
-
-		} else {
-			needToFixAddress = true
-		}
-
-		if (params.has("groupsGMRs")) {
-
-			let groups = params.getAll("groupsGMRs")
-			let groupsFirst = groups[0].split(",")
-			if (allAInB(groupsFirst, ALL_BLEEDS_GROUPS)) {
-				urlGroupsGMRs = <GMRGroups[]>groupsFirst
-			} else {
-				needToFixAddress = true
-			}
-
-			if (groups.length > 1) {
-				needToFixAddress = true
-			}
-
-		} else {
-			needToFixAddress = true
-		}
-
+		let needToFixAddress = gmtGroupsRes.needToFixAddress || gmrGroupsRes.needToFixAddress
 		if (needToFixAddress) {
 			window.history.replaceState(null, "", getTitresPageURL({
 				groupsGMTs: urlGroupsGMTs,
@@ -1953,24 +1924,11 @@ const getBleedsYearFromURL = (def: YearID) => {
 	if (window.location.pathname === "/bleeds") {
 
 		let params = new URLSearchParams(window.location.search)
-		let needToFixAddress = false
 
-		if (params.has("year")) {
-			let years = params.getAll("year")
+		let yearRes = getURLSingleParam(params, "year", YEARS, urlYear)
+		urlYear = yearRes.urlParam
 
-			let yearFirst = parseInt(years[0])
-			if (YEARS.includes(yearFirst)) {
-				urlYear = <YearID>yearFirst
-			}
-
-			if (years.length > 1) {
-				needToFixAddress = true
-			}
-		} else {
-			needToFixAddress = true
-		}
-
-		if (needToFixAddress) {
+		if (yearRes.needToFixAddress) {
 			window.history.replaceState(null, "", `bleeds?year=${urlYear}`)
 		}
 	}
@@ -1984,24 +1942,11 @@ const getSurveysYearFromURL = (def: YearID) => {
 	if (window.location.pathname === "/weekly-surveys") {
 
 		let params = new URLSearchParams(window.location.search)
-		let needToFixAddress = false
 
-		if (params.has("year")) {
-			let years = params.getAll("year")
+		let yearRes = getURLSingleParam(params, "year", YEARS, urlYear)
+		urlYear = yearRes.urlParam
 
-			let yearFirst = parseInt(years[0])
-			if (YEARS.includes(yearFirst)) {
-				urlYear = <YearID>yearFirst
-			}
-
-			if (years.length > 1) {
-				needToFixAddress = true
-			}
-		} else {
-			needToFixAddress = true
-		}
-
-		if (needToFixAddress) {
+		if (yearRes.needToFixAddress) {
 			window.history.replaceState(null, "", `weekly-surveys?year=${urlYear}`)
 		}
 	}

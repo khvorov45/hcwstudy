@@ -62,11 +62,19 @@ participants <- read_csv("./data/participants.csv", col_types = cols()) %>%
         read_csv("./data/bleed-dates.csv", col_types = cols()) %>%
             filter(!is.na(date)) %>%
             group_by(pid) %>%
-            summarise(.groups = "drop", latestBleedDate = max(date)),
+            summarise(
+            	.groups = "drop", 
+            	bled2020 = as.integer(any(lubridate::year(date) == 2020)),
+            	bled2021 = as.integer(any(lubridate::year(date) == 2021)),
+            	bled2022 = as.integer(any(lubridate::year(date) == 2022)),
+            ),
         "pid"
     ) %>%
     left_join(study_year_vax_tbl_wide, "pid") %>%
-	mutate(across(contains("study_year_vac_"), ~replace_na(.x, 0)))
+	mutate(
+		across(contains("study_year_vac_"), ~replace_na(.x, 0)),
+		across(contains("bled202"), ~replace_na(.x, 0)),
+	)
 
 withdrawn <- read_csv("./data/withdrawn.csv", col_types = cols()) %>%
     left_join(participants %>% select(pid, site), "pid") %>%
@@ -100,7 +108,7 @@ weekly_surveys <- read_csv("./data/weekly-surveys.csv", col_types = cols()) %>%
     left_join(participants %>% select(pid, site), "pid")
 
 titres <- read_csv("./data/serology.csv", col_types = cols()) %>%
-	left_join(participants %>% select(-latestBleedDate, -contains("Arm"), -email, -mobile), "pid")
+	left_join(participants %>% select(-contains("bled202"), -contains("Arm"), -email, -mobile), "pid")
 
 all_data <- list(
     participants = participants,
