@@ -281,7 +281,8 @@ const ALL_COUNTS_TABLES = ALL_COUNTS_TABLES_ as unknown as string[]
 type CountTableID = (typeof ALL_COUNTS_TABLES_)[number]
 
 const ALL_RECORD_GROUPS_ = ["site", "recruited", "fluArm2022", "covidArm2021",
-	"gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"] as const
+	"gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022", 
+	"vax2020", "vax2021", "vax2022"] as const
 const ALL_RECORD_GROUPS = ALL_RECORD_GROUPS_ as unknown as string[]
 type RecordGroups = (typeof ALL_RECORD_GROUPS_)[number]
 
@@ -787,8 +788,10 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 		})
 
 		const resetScroll = () => {
-			virtualizedList.scrollToIndex(1, 0)
-			virtualizedList.scrollToIndex(0, 0)
+			try {
+				virtualizedList.scrollToIndex(1, 0)
+				virtualizedList.scrollToIndex(0, 0)
+			} catch (e) {}
 		}
 
 		window.addEventListener("popstate", resetScroll)
@@ -1255,6 +1258,9 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 				case "prior2020": { key = row.prior2020; } break
 				case "prior2021": { key = row.prior2021; } break
 				case "prior2022": { key = row.prior2022; } break
+				case "vax2020": { key = row.study_year_vac_2020; } break
+				case "vax2021": { key = row.study_year_vac_2021; } break
+				case "vax2022": { key = row.study_year_vac_2022; } break
 			}
 			return key
 		},
@@ -1306,6 +1312,9 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 			case "prior2020": { addTextline(countsTableDesc.desc, "prior2020 - vaccination count between 2015-2019 inclusive"); } break
 			case "prior2021": { addTextline(countsTableDesc.desc, "prior2021 - vaccination count between 2016-2020 inclusive"); } break
 			case "prior2022": { addTextline(countsTableDesc.desc, "prior2022 - vaccination count between 2017-2021 inclusive"); } break
+			case "vax2020": { addTextline(countsTableDesc.desc, "vax2020 - vaccinated in 2020 (vaccination recorded or day14 bleed taken or day14 titre present)"); } break
+			case "vax2021": { addTextline(countsTableDesc.desc, "vax2021 - vaccinated in 2021 (vaccination recorded or day14 bleed taken or day14 titre present)"); } break
+			case "vax2022": { addTextline(countsTableDesc.desc, "vax2022 - vaccinated in 2022 (vaccination recorded or day14 bleed taken or day14 titre present)"); } break
 			case "fluArm2022": { addTextline(countsTableDesc.desc, "fluArm2022 - flu arm as per 2022 consent"); } break
 			case "covidArm2021": { addTextline(countsTableDesc.desc, "covidArm2021 - covid arm as per 2021 consent"); } break
 		}

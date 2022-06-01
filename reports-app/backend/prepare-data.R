@@ -10,6 +10,34 @@ prior_vac_counts <- vac_hist %>%
         prior2022 = sum(year >= 2017 & year < 2022 & (status == "Australia" | status == "Overseas")),
     )
 
+study_year_vax_tbl <- vac_hist %>%
+	filter(year >= 2020) %>%
+	full_join(
+		read_csv("./data/serology.csv", col_types = cols()) %>%
+    		filter(day == 14) %>%
+    		group_by(pid, year) %>%
+    		summarise(.groups = "drop", d14sera = as.integer(any(!is.na(titre)))),
+    	c("year", "pid")
+	) %>%
+	full_join(
+		read_csv("./data/bleed-dates.csv", col_types = cols()) %>%
+			rename(d14bleed_date = date) %>%
+			filter(day == 14) %>%
+			select(-day),
+		c("year", "pid")
+	) %>%
+	mutate(study_year_vax = as.integer(
+		(status == "Australia" | status == "Overseas") | d14sera == 1 | !is.na(d14bleed_date)
+	))
+
+study_year_vax_tbl_wide <- study_year_vax_tbl %>%
+	select(pid, year, study_year_vax) %>%
+	mutate(year = paste0("study_year_vac_", year)) %>%
+	pivot_wider(names_from = "year", values_from = "study_year_vax") %>%
+	mutate(across(contains("study_year_vac_"), ~replace_na(.x, 0)))
+
+# study_year_vax_tbl_wide %>% group_by(pid) %>% filter(n() > 1)
+
 participants <- read_csv("./data/participants.csv", col_types = cols()) %>%
     mutate(age_group = cut(age_screening, c(-Inf, 18, 30, 50, 65), right = FALSE)) %>%
     left_join(prior_vac_counts, "pid") %>%
@@ -36,7 +64,9 @@ participants <- read_csv("./data/participants.csv", col_types = cols()) %>%
             group_by(pid) %>%
             summarise(.groups = "drop", latestBleedDate = max(date)),
         "pid"
-    )
+    ) %>%
+    left_join(study_year_vax_tbl_wide, "pid") %>%
+	mutate(across(contains("study_year_vac_"), ~replace_na(.x, 0)))
 
 withdrawn <- read_csv("./data/withdrawn.csv", col_types = cols()) %>%
     left_join(participants %>% select(pid, site), "pid") %>%
