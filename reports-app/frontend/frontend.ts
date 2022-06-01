@@ -1592,14 +1592,7 @@ const createTitreGMRTable = (titreData: any[], groups: string[]) => {
 		data: ratios,
 		groups: groups,
 		defaultCounts: {ratios: 0, logratioSum: 0},
-		getKey: (row, group) => {
-			let result = row[group]
-			switch (group) {
-			case "eggcell": {result = row.virus_egg_cell} break
-			case "recruited": {result = row.recruitment_year} break
-			}
-			return result
-		},
+		getKey: (row, group) => row[group],
 		filter: (row) => row.d14 !== null && row.d0 !== null,
 		addRow: (row, counts) => {
 			counts.ratios += 1, counts.logratioSum += Math.log(row.d14 / row.d0)
