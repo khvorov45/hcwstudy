@@ -281,18 +281,18 @@ const ALL_COUNTS_TABLES = ALL_COUNTS_TABLES_ as unknown as string[]
 type CountTableID = (typeof ALL_COUNTS_TABLES_)[number]
 
 const ALL_RECORD_GROUPS_ = ["site", "recruited", "fluArm2022", "covidArm2021",
-	"gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022", 
+	"gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022",
 	"vax2020", "vax2021", "vax2022"] as const
 const ALL_RECORD_GROUPS = ALL_RECORD_GROUPS_ as unknown as string[]
 type RecordGroups = (typeof ALL_RECORD_GROUPS_)[number]
 
 const ALL_BLEEDS_GROUPS_ = ["year", "site", "recruited", "fluArm2022", "covidArm2021",
-	"gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"] as const
+	"gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022",
+	"vax2020", "vax2021", "vax2022"] as const
 const ALL_BLEEDS_GROUPS = ALL_BLEEDS_GROUPS_ as unknown as string[]
 type BleedsGroups = (typeof ALL_BLEEDS_GROUPS_)[number]
 
-const ALL_POSTINF_BLEEDS_GROUPS_ = ["year", "site", "recruited", "fluArm2022", "covidArm2021",
-	"gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022"] as const
+const ALL_POSTINF_BLEEDS_GROUPS_ = ALL_BLEEDS_GROUPS_
 const ALL_POSTINF_BLEEDS_GROUPS = ALL_POSTINF_BLEEDS_GROUPS_ as unknown as string[]
 type PostinfBleedsGroups = (typeof ALL_POSTINF_BLEEDS_GROUPS_)[number]
 
@@ -301,7 +301,7 @@ const ALL_GMT_GROUPS_ = ["year", "day", "site", "virus", "subtype", "eggcell",
 const ALL_GMT_GROUPS = ALL_GMT_GROUPS_ as unknown as string[]
 type GMTGroups = (typeof ALL_GMT_GROUPS_)[number]
 
-const ALL_GMR_GROUPS_ = ["year", "site", "virus", "subtype", "eggcell", 
+const ALL_GMR_GROUPS_ = ["year", "site", "virus", "subtype", "eggcell",
 	"gender", "recruited", "age_group", "prior2020", "prior2021", "prior2022"] as const
 const ALL_GMR_GROUPS = ALL_GMR_GROUPS_ as unknown as string[]
 type GMRGroups = (typeof ALL_GMR_GROUPS_)[number]
@@ -1047,11 +1047,11 @@ const initTitres = (sidebarWidthPx: number) => {
 	let table = addDiv(left)
 	table.style.flex = "1 0"
 	table.style.display = "flex"
-	
+
 	let plot = addEl(left, <HTMLElement>table.cloneNode(true))
-	
+
 	let gmtTable = addEl(right, <HTMLElement>table.cloneNode(true))
-	
+
 	let gmrTable = addEl(right, <HTMLElement>table.cloneNode(true))
 
 	return { container: container, table: table, gmtTable: gmtTable, gmrTable: gmrTable, plot: plot }
@@ -1227,6 +1227,41 @@ const initTitresSettings = (state: State, init: TitresSettings) => {
 	return container
 }
 
+const getParticipantsKey = (row: any, group: string) => {
+	let key = row[group]
+	switch (group) {
+		case "recruited": { key = row.recruitment_year; } break
+		case "aboriginal": { key = row.atsi; } break
+		case "fluArm2022": { key = row.consent_fluArm2022; } break
+		case "covidArm2021": { key = row.consent_covidArm2021; } break
+		case "age": { key = row.age_group; } break
+		case "vax2020": { key = row.study_year_vac_2020; } break
+		case "vax2021": { key = row.study_year_vac_2021; } break
+		case "vax2022": { key = row.study_year_vac_2022; } break
+	}
+	return key
+}
+
+const addCountsExplanatoryNotes = (node: HTMLElement, groups: string[]) => {
+	if (groups.length > 0) {
+		addTextline(node, "all counts apply to the subset defined by (" + groups.join(", ") + ")")
+	}
+
+	for (let group of groups) {
+		switch (group) {
+			case "recruited": { addTextline(node, "recruited - year the participant was recruited"); } break
+			case "prior2020": { addTextline(node, "prior2020 - vaccination count between 2015-2019 inclusive"); } break
+			case "prior2021": { addTextline(node, "prior2021 - vaccination count between 2016-2020 inclusive"); } break
+			case "prior2022": { addTextline(node, "prior2022 - vaccination count between 2017-2021 inclusive"); } break
+			case "vax2020": { addTextline(node, "vax2020 - vaccinated in 2020 (vaccination recorded or day14 bleed taken or day14 titre present)"); } break
+			case "vax2021": { addTextline(node, "vax2021 - vaccinated in 2021 (vaccination recorded or day14 bleed taken or day14 titre present)"); } break
+			case "vax2022": { addTextline(node, "vax2022 - vaccinated in 2022 (vaccination recorded or day14 bleed taken or day14 titre present)"); } break
+			case "fluArm2022": { addTextline(node, "fluArm2022 - flu arm as per 2022 consent"); } break
+			case "covidArm2021": { addTextline(node, "covidArm2021 - covid arm as per 2021 consent"); } break
+		}
+	}
+}
+
 const createCountsRecordsTable = (data: Data, groups: string[]) => {
 
 	let withdrawalData = data.withdrawn
@@ -1245,25 +1280,7 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 		groups: groups,
 		defaultCounts: { total: 0, notWithdrawn: 0, consent2022: 0, bled2022: 0 },
 		filter: (row) => row.pid !== undefined && row.pid.length >= 3,
-		getKey: (row, group) => {
-			let key = null
-			switch (group) {
-				case "site": { key = row.site; } break
-				case "recruited": { key = row.recruitment_year; } break
-				case "gender": { key = row.gender; } break
-				case "aboriginal": { key = row.atsi; } break
-				case "fluArm2022": { key = row.consent_fluArm2022; } break
-				case "covidArm2021": { key = row.consent_covidArm2021; } break
-				case "age": { key = row.age_group; } break
-				case "prior2020": { key = row.prior2020; } break
-				case "prior2021": { key = row.prior2021; } break
-				case "prior2022": { key = row.prior2022; } break
-				case "vax2020": { key = row.study_year_vac_2020; } break
-				case "vax2021": { key = row.study_year_vac_2021; } break
-				case "vax2022": { key = row.study_year_vac_2022; } break
-			}
-			return key
-		},
+		getKey: getParticipantsKey,
 		addRow: (row, counts) => {
 			let withdrawn = withdrawals[row.pid] === true
 			let notWithdrawn = !withdrawn
@@ -1302,23 +1319,7 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 	addTextline(countsTableDesc.desc, "notWithdrawn - total records in redcap who are not withdrawn")
 	addTextline(countsTableDesc.desc, "consent2022 - total records in redcap whose latest flu conset date is from 2022")
 	addTextline(countsTableDesc.desc, "bled2022 - total records in redcap whose latest bleed date is from 2022")
-	if (groups.length > 0) {
-		addTextline(countsTableDesc.desc, "all counts apply to the subset defined by (" + groups.join(", ") + ")")
-	}
-
-	for (let group of groups) {
-		switch (group) {
-			case "recruited": { addTextline(countsTableDesc.desc, "recruited - year the participant was recruited"); } break
-			case "prior2020": { addTextline(countsTableDesc.desc, "prior2020 - vaccination count between 2015-2019 inclusive"); } break
-			case "prior2021": { addTextline(countsTableDesc.desc, "prior2021 - vaccination count between 2016-2020 inclusive"); } break
-			case "prior2022": { addTextline(countsTableDesc.desc, "prior2022 - vaccination count between 2017-2021 inclusive"); } break
-			case "vax2020": { addTextline(countsTableDesc.desc, "vax2020 - vaccinated in 2020 (vaccination recorded or day14 bleed taken or day14 titre present)"); } break
-			case "vax2021": { addTextline(countsTableDesc.desc, "vax2021 - vaccinated in 2021 (vaccination recorded or day14 bleed taken or day14 titre present)"); } break
-			case "vax2022": { addTextline(countsTableDesc.desc, "vax2022 - vaccinated in 2022 (vaccination recorded or day14 bleed taken or day14 titre present)"); } break
-			case "fluArm2022": { addTextline(countsTableDesc.desc, "fluArm2022 - flu arm as per 2022 consent"); } break
-			case "covidArm2021": { addTextline(countsTableDesc.desc, "covidArm2021 - covid arm as per 2021 consent"); } break
-		}
-	}
+	addCountsExplanatoryNotes(countsTableDesc.desc, groups)
 
 	let descDim = measureEl(countsTableDesc.container, window.innerWidth - SIDEBAR_WIDTH_PX, window.innerHeight)
 
@@ -1343,23 +1344,7 @@ const createCountsBleedsTable = (data: Data, groups: string[]) => {
 		data: data.bleed_dates,
 		groups: groups,
 		defaultCounts: { fluDay0: 0, fluDay7: 0, fluDay14: 0, fluDay220: 0, covDay0: 0, covDay7: 0, covDay14: 0 },
-		getKey: (row, group) => {
-			let key = null
-			switch (group) {
-				case "year": { key = row.year; } break
-				case "site": { key = row.site; } break
-				case "recruited": { key = row.recruitment_year; } break
-				case "gender": { key = row.gender; } break
-				case "aboriginal": { key = row.atsi; } break
-				case "fluArm2022": { key = row.consent_fluArm2022; } break
-				case "covidArm2021": { key = row.consent_covidArm2021; } break
-				case "age": { key = row.age_group; } break
-				case "prior2020": { key = row.prior2020; } break
-				case "prior2021": { key = row.prior2021; } break
-				case "prior2022": { key = row.prior2022; } break
-			}
-			return key
-		},
+		getKey: getParticipantsKey,
 		addRow: (row, counts) => {
 			const isPresent = (val: any) => val !== null && val !== undefined && val !== ""
 			if (isPresent(row.flu_day_0)) { counts.fluDay0 += 1 }
@@ -1387,18 +1372,7 @@ const createCountsBleedsTable = (data: Data, groups: string[]) => {
 
 	let countsTableDesc = createTableDesc()
 	addTextline(countsTableDesc.desc, "Routine bleeds that have a date in redcap")
-	if (groups.length > 0) {
-		addTextline(countsTableDesc.desc, "all counts apply to the subset defined by (" + groups.join(", ") + ")")
-	}
-
-	for (let group of groups) {
-		switch (group) {
-			case "recruited": { addTextline(countsTableDesc.desc, "recruited - year the participant was recruited"); } break
-			case "prior2020": { addTextline(countsTableDesc.desc, "prior2020 - vaccination count between 2015-2019 inclusive"); } break
-			case "prior2021": { addTextline(countsTableDesc.desc, "prior2021 - vaccination count between 2016-2020 inclusive"); } break
-			case "prior2022": { addTextline(countsTableDesc.desc, "prior2022 - vaccination count between 2017-2021 inclusive"); } break
-		}
-	}
+	addCountsExplanatoryNotes(countsTableDesc.desc, groups)
 
 	let descDim = measureEl(countsTableDesc.container, window.innerWidth - SIDEBAR_WIDTH_PX, window.innerHeight)
 
@@ -1423,23 +1397,7 @@ const createCountsPostinfBleedsTable = (data: Data, groups: string[]) => {
 		data: data.postinf_bleed_dates,
 		groups: groups,
 		defaultCounts: { day7: 0, day14: 0, day30: 0 },
-		getKey: (row, group) => {
-			let key = null
-			switch (group) {
-				case "year": { key = row.year; } break
-				case "site": { key = row.site; } break
-				case "recruited": { key = row.recruitment_year; } break
-				case "gender": { key = row.gender; } break
-				case "aboriginal": { key = row.atsi; } break
-				case "fluArm2022": { key = row.consent_fluArm2022; } break
-				case "covidArm2021": { key = row.consent_covidArm2021; } break
-				case "age": { key = row.age_group; } break
-				case "prior2020": { key = row.prior2020; } break
-				case "prior2021": { key = row.prior2021; } break
-				case "prior2022": { key = row.prior2022; } break
-			}
-			return key
-		},
+		getKey: getParticipantsKey,
 		addRow: (row, counts) => {
 			const isPresent = (val: any) => val !== null && val !== undefined && val !== ""
 			if (isPresent(row.day7)) { counts.day7 += 1 }
@@ -1459,18 +1417,7 @@ const createCountsPostinfBleedsTable = (data: Data, groups: string[]) => {
 
 	let countsTableDesc = createTableDesc()
 	addTextline(countsTableDesc.desc, "Postnfection bleeds that have a date in redcap")
-	if (groups.length > 0) {
-		addTextline(countsTableDesc.desc, "all counts apply to the subset defined by (" + groups.join(", ") + ")")
-	}
-
-	for (let group of groups) {
-		switch (group) {
-			case "recruited": { addTextline(countsTableDesc.desc, "recruited - year the participant was recruited"); } break
-			case "prior2020": { addTextline(countsTableDesc.desc, "prior2020 - vaccination count between 2015-2019 inclusive"); } break
-			case "prior2021": { addTextline(countsTableDesc.desc, "prior2021 - vaccination count between 2016-2020 inclusive"); } break
-			case "prior2022": { addTextline(countsTableDesc.desc, "prior2022 - vaccination count between 2017-2021 inclusive"); } break
-		}
-	}
+	addCountsExplanatoryNotes(countsTableDesc.desc, groups)
 
 	let descDim = measureEl(countsTableDesc.container, window.innerWidth - SIDEBAR_WIDTH_PX, window.innerHeight)
 
@@ -1637,7 +1584,7 @@ const createTitreGMRTable = (titreData: any[], groups: string[]) => {
 			switch (row.day) {
 			case 0: counts.d0 = row.titre; break;
 			case 14: counts.d14 = row.titre; break;
-			}			
+			}
 		}
 	})
 
