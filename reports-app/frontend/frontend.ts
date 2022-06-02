@@ -264,6 +264,8 @@ const getColSpecFromGroups = (groups: string[]) => {
 // SECTION DOM
 //
 
+const XMLNS = "http://www.w3.org/2000/svg"
+
 const TABLE_ROW_HEIGHT_PX = 30
 const SCROLLBAR_WIDTHS = getScrollbarWidths()
 const SIDEBAR_WIDTH_PX = 120
@@ -310,7 +312,8 @@ const DOWNLOAD_CSV: { [key: string]: string } = {}
 
 const createEl = (name: string) => document.createElement(name)
 const createDiv = () => createEl("div")
-
+const createSvg = (name: string) => document.createElementNS(XMLNS, name)
+const setSvg = (el: SVGElement, name: string, val: string) => el.setAttributeNS(null, name, val)
 const setEl = (el: HTMLElement, name: string, val: string) => el.setAttribute(name, val)
 
 const createTextline = (line: string) => {
@@ -319,7 +322,7 @@ const createTextline = (line: string) => {
 	return div
 }
 
-const addEl = (parent: HTMLElement, el: HTMLElement) => {
+const addEl = <T1 extends HTMLElement|SVGElement, T2 extends HTMLElement|SVGElement>(parent: T1, el: T2) => {
 	parent.appendChild(el)
 	return el
 }
@@ -557,6 +560,7 @@ const createTableFilterRow = <T>(colSpec: {[key: string]: TableColSpecFinal<T>},
         helpEl.style.width = "200px"
         helpEl.style.border = "1px solid var(--color-border)"
         helpEl.style.zIndex = "999"
+        helpEl.style.whiteSpace = "normal"
 
         if (colnameIndex == 0) {
         	helpEl.style.left = "0px"
@@ -1036,21 +1040,32 @@ const initTitres = (sidebarWidthPx: number) => {
 	let container = createDiv()
 	container.style.height = `calc(100vh)`
 	container.style.width = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
-	container.style.overflow = "scroll"
+	container.style.overflow = "hidden"
 	container.style.display = "flex"
+	container.style.flexDirection = "column"
 
-	let left = addDiv(container)
-	left.style.maxWidth = `calc((100vw - ${SIDEBAR_WIDTH_PX}px - ${SCROLLBAR_WIDTHS[1]}px) / 2)`
+	let top = addDiv(container)
+	top.style.maxWidth = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
+	top.style.maxHeight = `calc(100vh / 2)`
+	top.style.flex = "1 0"
+	top.style.display = "flex"
+	top.style.overflow = "hidden"
+	let bottom = addEl(container, <HTMLElement>top.cloneNode(true))
+
+	let left = addDiv(top)
+	left.style.maxWidth = `calc((100vw - ${SIDEBAR_WIDTH_PX}px) / 2)`
 	left.style.flex = "1 0"
-	let right = addEl(container, <HTMLElement>left.cloneNode(true))
+	left.style.overflow = "hidden"
+	let right = addEl(top, <HTMLElement>left.cloneNode(true))
 
 	let table = addDiv(left)
 	table.style.flex = "1 0"
 	table.style.display = "flex"
 
-	let plot = addEl(left, <HTMLElement>table.cloneNode(true))
+	let plot = addEl(bottom, <HTMLElement>table.cloneNode(true))
 
 	let gmtTable = addEl(right, <HTMLElement>table.cloneNode(true))
+	gmtTable.style.height = "50%"
 
 	let gmrTable = addEl(right, <HTMLElement>table.cloneNode(true))
 
@@ -1516,9 +1531,12 @@ const createTitreTable = (data: Data, onFilterChange: (filteredData: any[]) => v
 			age: { access: "age_screening", format: (x) => x.toFixed(0) },
 			age_group: {},
 			recruitment_year: { width: 150 },
+			vax2020: {access: "study_year_vac_2020"},
+			vax2021: {access: "study_year_vac_2021"},
+			vax2022: {access: "study_year_vac_2022"},
 		},
 		title: "Titres",
-		getTableHeightInit: () => 500,
+		getTableHeightInit: () => window.innerHeight / 2 - SCROLLBAR_WIDTHS[0],
 		onFilterChange: onFilterChange,
 	})
 
@@ -1559,7 +1577,7 @@ const createTitreGMTTable = (titreData: any[], groups: string[]) => {
 		aos: titreSummary,
 		colSpecInit: colSpec,
 		title: "GMT",
-		getTableHeightInit: () => 500,
+		getTableHeightInit: () => window.innerHeight / 4 - SCROLLBAR_WIDTHS[0],
 	})
 
 	return tableResult.table
@@ -1616,10 +1634,245 @@ const createTitreGMRTable = (titreData: any[], groups: string[]) => {
 		aos: ratioSummary,
 		colSpecInit: colSpec,
 		title: "GMR",
-		getTableHeightInit: () => 500,
+		getTableHeightInit: () => window.innerHeight / 4 - SCROLLBAR_WIDTHS[0],
 	})
 
 	return tableResult.table
+}
+
+type Plot = {
+	svg: SVGElement,
+}
+
+type Rect = {
+	l: number,
+	r: number,
+	t: number,
+	b: number,
+}
+
+const scale = (value: number, valueMin: number, valueMax: number, scaleMin: number, scaleMax: number) => {
+	let result = scaleMin
+	let scaleRange = scaleMax - scaleMin
+	if (scaleRange !== 0) {
+		result = scaleRange / 2 + scaleMin
+		let valueRange = valueMax - valueMin
+		if (valueRange !== 0) {
+			let value0 = value - valueMin
+			let valueNorm = value0 / valueRange
+			let valueScale0 = valueNorm * scaleRange
+			result = valueScale0 + scaleMin
+		}
+	}
+	return result
+}
+
+const createSvgPath = (ys: (number | null)[], xs: number[], color: string) => {
+	let prevX = null
+	let prevY = null
+	let pathEl = createSvg("g")
+	for (let pathIndex = 0; pathIndex < ys.length; pathIndex += 1) {
+		let y = ys[pathIndex]
+		let x = xs[pathIndex]
+		if (y !== null) {
+			if (prevX !== null) {
+				let line = addEl(pathEl, createSvg("line"))
+				setSvg(line, "x1", `${prevX}`)
+				setSvg(line, "y1", `${prevY}`)
+				setSvg(line, "x2", `${x}`)
+				setSvg(line, "y2", `${y}`)
+				setSvg(line, "stroke", color)
+			}
+			prevX = x
+			prevY = y
+		}
+	}
+	return pathEl
+}
+
+const createSvgRect = (rect: Rect, color: string) => {
+	let rectEl = <SVGRectElement>createSvg("rect");
+	setSvg(rectEl, "x", `${rect.l}`)
+	setSvg(rectEl, "y", `${rect.t}`)
+	setSvg(rectEl, "width", `${rect.r - rect.l}`)
+	setSvg(rectEl, "height", `${rect.b - rect.t}`)
+	setSvg(rectEl, "fill", color)
+	return rectEl
+}
+
+const createSvgText = (text: string, x: number, y: number, color: string, baseline: string, align: string) => {
+	let textEl = createSvg("text")
+	setSvg(textEl, "x", `${x}`)
+	setSvg(textEl, "y", `${y}`)
+	setSvg(textEl, "fill", color)
+	setSvg(textEl, "dominant-baseline", baseline)
+	setSvg(textEl, "text-anchor", align)
+	textEl.textContent = text
+	return textEl
+}
+
+type PlotSpec<X, Y> = {
+	width: number,
+	height: number,
+	scaleXData?: (x: X) => number,
+	scaleYData?: (y: Y) => number,
+	padAxis: Rect,
+	padData: Rect,
+	xMin: X,
+	xMax: X,
+	yMin: Y,
+	yMax: Y,
+	xTicks: X[],
+	yTicks: Y[],
+}
+
+const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
+	let svg = createSvg("svg")
+	setSvg(svg, "viewBox", `0 0 ${spec.width} ${spec.height}`)
+	setSvg(svg, "width", `${spec.width}`)
+	setSvg(svg, "height", `${spec.height}`)
+
+	let scaleXData = spec.scaleXData ?? ((x) => x as unknown as number)
+	let scaleYData = spec.scaleYData ?? ((y) => y as unknown as number)
+
+	let scaleXToPx = (val: X) => scale(
+		scaleXData(val), scaleXData(spec.xMin), scaleXData(spec.xMax),
+		spec.padAxis.l + spec.padData.l, spec.width - spec.padAxis.r - spec.padData.r
+	)
+
+	let scaleYToPx = (val: Y) => scale(
+		scaleYData(val), scaleYData(spec.yMin), scaleYData(spec.yMax),
+		spec.height - spec.padAxis.b - spec.padData.b, spec.padAxis.t + spec.padData.t
+	)
+
+	let axisThiccness = 1
+	let axisCol = "var(--color-text)"
+
+	// NOTE(sen) Axis lines
+
+	addEl(svg, createSvgRect(
+		{l: spec.padAxis.l, r: spec.padAxis.l + axisThiccness,
+			t: spec.padAxis.t, b: spec.height - spec.padAxis.b},
+		axisCol
+	))
+
+	addEl(svg, createSvgRect(
+		{l: spec.padAxis.l, r: spec.width - spec.padAxis.r,
+			t: spec.height - spec.padAxis.b - axisThiccness, b: spec.height - spec.padAxis.b},
+		axisCol
+	))
+
+	// NOTE(sen) Ticks and grid
+
+	let tickLength = 5
+	let tickToText = 5
+	let axisTextCol = "var(--color-text)"
+
+	for (let xTick of spec.xTicks) {
+		let xCoord = scaleXToPx(xTick)
+		addEl(svg, createSvgRect(
+			{l: xCoord, r: xCoord + axisThiccness,
+				t: spec.height - spec.padAxis.b, b: spec.height - spec.padAxis.b + tickLength},
+			axisCol
+		))
+		addEl(svg, createSvgText(
+			`${xTick}`,
+			xCoord,
+			spec.height - spec.padAxis.b + tickLength + tickToText,
+			axisTextCol,
+			"hanging",
+			"middle",
+		))
+	}
+
+	for (let yTick of spec.yTicks) {
+		let yCoord = scaleYToPx(yTick)
+		addEl(svg, createSvgRect(
+			{l: spec.padAxis.l - tickLength, r: spec.padAxis.l,
+				t: yCoord, b: yCoord + axisThiccness},
+			axisCol
+		))
+		addEl(svg, createSvgText(
+			`${yTick}`,
+			spec.padAxis.l - tickLength - tickToText,
+			yCoord,
+			axisTextCol,
+			"middle",
+			"end",
+		))
+	}
+
+	return {svg: svg, spec: spec, scaleXToPx: scaleXToPx, scaleYToPx: scaleYToPx}
+}
+
+const createTitrePlot = (data: any[]) => {
+	let container = createDiv()
+	container.style.maxWidth = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
+	container.style.maxHeight = `calc(100vh / 2)`
+	container.style.overflow = "hidden"
+
+	let plot = beginPlot({
+		width: window.innerWidth - SIDEBAR_WIDTH_PX,
+		height: window.innerHeight / 2,
+		padAxis: {l: 50, r: 10, t: 10, b: 50},
+		padData: {l: 50, r: 50, t: 10, b: 10},
+		xMin: 0,
+		xMax: 220,
+		yMin: 5,
+		yMax: 5120,
+		scaleYData: Math.log,
+		scaleXData: ((x) => x == 220 ? 50 : x),
+		yTicks: [5, 10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120],
+		xTicks: [0, 7, 14, 220],
+	})
+
+	let individuals = summariseAos({
+		data: data,
+		groups: ALL_GMT_GROUPS.concat("pid").filter(x => x !== "day"),
+		defaultCounts: {day0: null, day7: null, day14: null, day220: null},
+		getKey: getParticipantsKey,
+		addRow: (row, counts) => {
+			switch (row.day) {
+			case 0: {counts.day0 = row.titre} break;
+			case 7: {counts.day7 = row.titre} break;
+			case 14: {counts.day14 = row.titre} break;
+			case 220: {counts.day220 = row.titre} break;
+			}
+		}
+	})
+
+	let indThreshold = 100
+	let lineAlpha = "00"
+	if (individuals.length <= indThreshold) {
+		let lineAlphaMin = 10
+		lineAlpha = Math.round((Math.exp(-0.02 * individuals.length) * (255 - lineAlphaMin) + lineAlphaMin)).toString(16).padStart(2, "0")
+	}
+	let lineCol = "#ff69b4" + lineAlpha
+	for (let ind of individuals) {
+		let titres = [ind.day0, ind.day7, ind.day14, ind.day220]
+		let yCoords = titres.map((x) => x !== null ? plot.scaleYToPx(x) : null)
+		let xCoords = [0, 7, 14, 220].map(plot.scaleXToPx)
+
+		addEl(plot.svg, createSvgPath(yCoords, xCoords, lineCol))
+
+		for (let titreIndex = 0; titreIndex < titres.length; titreIndex += 1) {
+			let yCoord = yCoords[titreIndex]
+			let xCoord = xCoords[titreIndex]
+			let pointSize = 5
+			let pointHalfSize = pointSize / 2
+			let pointCol = "#ff69b4"
+			if (yCoord !== null) {
+				addEl(plot.svg, createSvgRect(
+					{l: xCoord - pointHalfSize, r: xCoord + pointHalfSize, 
+						t: yCoord - pointHalfSize, b: yCoord + pointHalfSize}, 
+					pointCol
+				))
+			}
+		}
+	}
+
+	addEl(container, plot.svg as unknown as HTMLElement)
+	return container
 }
 
 const createSurveyTable = (completions: { [key: string]: number[] }, data: any, year: number) => {
@@ -1855,7 +2108,7 @@ const getCountSettingsFromURL = (def: CountsSettings) => {
 		let postinfBleedGroupsRes = getURLArrayParam(params, "postinf_bleeds_groups", ALL_POSTINF_BLEEDS_GROUPS, urlGroupsPostinfBleeds)
 		urlGroupsPostinfBleeds = postinfBleedGroupsRes.urlArr
 
-		let needToFixAddress = 
+		let needToFixAddress =
 			tableRes.needToFixAddress ||
 			recordGroupsRes.needToFixAddress ||
 			bleedGroupsRes.needToFixAddress ||
@@ -2050,11 +2303,17 @@ const updateGMRs = (state: State) => replaceChildren(
 	createTitreGMRTable(state.filteredTitreData, state.settings.titres.groupsGMRs)
 )
 
+const updateTitrePlot = (state: State) => replaceChildren(
+	state.elements.titres.plot,
+	createTitrePlot(state.filteredTitreData)
+)
+
 const updateTitres = (state: State) => {
 	let titreTable = createTitreTable(state.data, (filteredData) => {
 		state.filteredTitreData = filteredData
 		updateGMTs(state)
 		updateGMRs(state)
+		updateTitrePlot(state)
 	})
 	replaceChildren(state.elements.titres.table, titreTable)
 }
