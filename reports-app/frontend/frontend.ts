@@ -1853,7 +1853,9 @@ const createTitrePlot = (data: any[]) => {
 		let yCoords = titres.map((x) => x !== null ? plot.scaleYToPx(x) : null)
 		let xCoords = [0, 7, 14, 220].map(plot.scaleXToPx)
 
-		addEl(plot.svg, createSvgPath(yCoords, xCoords, lineCol))
+		if (lineAlpha !== "00") {
+			addEl(plot.svg, createSvgPath(yCoords, xCoords, lineCol))
+		}
 
 		for (let titreIndex = 0; titreIndex < titres.length; titreIndex += 1) {
 			let yCoord = yCoords[titreIndex]
