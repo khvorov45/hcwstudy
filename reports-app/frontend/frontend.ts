@@ -1840,7 +1840,7 @@ const addBoxplot = <X, Y>(
 		defaultCounts: () => ({yVals: [] as number[]}),
 		getKey: (row, group) => row[group],
 		addRow: (row, summ) => {summ.yVals.push(plot.scaleYToPx(getY(row)))}
-	}, (summ) => {console.log(summ); summ.stats = getSortedStats(summ.yVals)})
+	}, (summ) => {summ.stats = getSortedStats(summ.yVals)})
 
 	for (let boxplotData of summary) {
 
