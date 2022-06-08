@@ -254,6 +254,24 @@ const getColSpecFromGroups = (groups: string[]) => {
 	return colSpec
 }
 
+const randUnif = (from: number, to: number) => {
+	let rand01 = Math.random()
+	let range = (to - from)
+	let randRange = rand01 * range
+	let result = from + randRange
+	return result
+}
+
+const randNorm = (mean: number, sd: number) => {
+	let u1 = 0
+	let u2 = 0
+	while (u1 === 0) { u1 = Math.random() }
+	while (u2 === 0) { u2 = Math.random() }
+	let randNorm01 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2)
+	let result = randNorm01 * sd + mean
+	return result
+}
+
 //
 // SECTION DOM
 //
@@ -1670,6 +1688,26 @@ const drawRect = (renderer: CanvasRenderingContext2D, rect: Rect, color: string)
 	renderer.fillRect(rect.l, rect.t, rect.r - rect.l, rect.b - rect.t)
 }
 
+const drawLine = (
+	renderer: CanvasRenderingContext2D, 
+	x1: number, y1: number, x2: number, y2: number, 
+	color: string, thiccness: number, dashSegments: number[]
+) => {
+	renderer.strokeStyle = color
+	renderer.beginPath()
+	renderer.moveTo(x1, y1)
+	renderer.lineTo(x2, y2)
+	let oldLineWidth = renderer.lineWidth
+	renderer.lineWidth = thiccness
+
+	renderer.setLineDash(dashSegments)
+
+	renderer.stroke()
+
+	renderer.lineWidth = oldLineWidth
+	renderer.setLineDash([])
+}
+
 const drawRectOutline = (renderer: CanvasRenderingContext2D, rect: Rect, color: string, thiccness: number) => {
 	renderer.fillStyle = color
 	let l = rect.l - thiccness / 2
@@ -1830,18 +1868,18 @@ const addBoxplot = <X, Y>(
 				b: boxplotData.stats.median + boxLineThiccness / 2,
 				t: boxplotData.stats.median - boxLineThiccness / 2,
 			},
-			meanColor,
+			color,
 		)
 
-		drawRect(
+		drawLine(
 			plot.renderer,
-			{
-				l: boxLeft - meanChonkiness,
-				r: boxRight + meanChonkiness,
-				b: boxplotData.stats.mean + boxLineThiccness / 2,
-				t: boxplotData.stats.mean - boxLineThiccness / 2,
-			},
+			boxLeft - meanChonkiness,
+			boxplotData.stats.mean,
+			boxRight + meanChonkiness,
+			boxplotData.stats.mean,
 			meanColor,
+			boxLineThiccness,
+			[3, 3]
 		)
 
 		drawRect(
@@ -2048,8 +2086,9 @@ const createTitrePlot = (data: any[]) => {
 	}
 
 	let boxplotCol = lineColBase
+	let boxplotMeanCol = "#61de2a"
 
-	addBoxplot(plot, data, ["day"], (row) => row.day, (row) => row.titre, 20, boxplotCol, boxplotCol)
+	addBoxplot(plot, data, ["day"], (row) => row.day, (row) => row.titre, 20, boxplotCol, boxplotMeanCol)
 
 	addEl(container, plot.canvas as HTMLElement)
 	return container
