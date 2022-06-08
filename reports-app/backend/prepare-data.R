@@ -63,7 +63,7 @@ participants <- read_csv("./data/participants.csv", col_types = cols()) %>%
             filter(!is.na(date)) %>%
             group_by(pid) %>%
             summarise(
-            	.groups = "drop", 
+            	.groups = "drop",
             	bled2020 = as.integer(any(lubridate::year(date) == 2020)),
             	bled2021 = as.integer(any(lubridate::year(date) == 2021)),
             	bled2022 = as.integer(any(lubridate::year(date) == 2022)),

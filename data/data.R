@@ -123,7 +123,7 @@ check_virus_fix <- function(serology_data) {
 
 check_virus_fix(serology_all_tables_2020_fix_viruses)
 
-# NOTE(sen) WCH-025 became WCH-818 and we seem to have V0 WCH-818 data
+# NOTE(sen) WCH-025 became WCH-818 and we have V0 WCH-818 data
 serology_all_tables_2020_fix_pids <- serology_all_tables_2020_fix_viruses %>%
   filter(pid != "WCH-025")
 
@@ -156,6 +156,7 @@ serology_all_tables_2021_fix_pids <- serology_all_tables_2021_fix_viruses %>%
     "QCH-42-" = "QCH-042", "QCH-47-" = "QCH-047",
     "WCH-26" = "WCH-026", "WCH-26_" = "WCH-026", "WCH-26-" = "WCH-026",
     "WCH-28" = "WCH-028", "WCH-28_" = "WCH-028", "WCH-28-" = "WCH-028",
+    "ALF-092" = "ALF-819",
   ))
 
 serology_all_tables <- bind_rows(
@@ -165,6 +166,7 @@ serology_all_tables <- bind_rows(
 
 check_virus_fix(serology_all_tables)
 check_no_rows(serology_all_tables %>% filter(pid == "WCH-025"), "WCH-025")
+check_no_rows(serology_all_tables %>% filter(pid == "ALF-092"), "ALF-092")
 check_no_rows(serology_all_tables %>% filter(!complete.cases(.)), "serology anything missing")
 
 check_no_rows(
@@ -224,13 +226,13 @@ fun_fix_pids <- function(pid) {
       "JHH- 826 (297)" = "JHH-297", # NOTE(sen) Changed from 2021 to 2022
       "JHH-334 (806)" = "JHH-806", # NOTE(sen) Changed from 2021 to 2022
       "JHH-830 (082)" = "JHH-082", # NOTE(sen) Changed from 2021 to 2022
+      "WCH-025" = "WCH-818", # NOTE(sen) Changed study group in 2020
+      "ALF-092" = "ALF-819", # NOTE(sen) Changed study group in 2022
     )
 }
 
 participants <- bind_rows(participants2020, participants2021, participants2022) %>%
   filter(!is.na(pid)) %>%
-  # NOTE(sen) WCH-025 became WCH-818
-  filter(pid != "WCH-025") %>%
   select(
     pid,
     site = redcap_data_access_group, gender = a1_gender, dob = a2_dob, atsi = a3_atsi,
@@ -251,7 +253,10 @@ check_no_rows(
   "participants with non-conforming pids"
 )
 
-check_no_rows(participants %>% count(pid) %>% filter(n > 3), "pids present more than 3 times")
+check_no_rows(
+  participants %>% count(pid) %>% filter(n > 3, pid != "WCH-818"),
+  "(unkndown) pids present more than 3 times"
+)
 
 participants_with_extras <- participants %>%
   group_by(pid, site) %>%
@@ -276,7 +281,7 @@ check_empty_set(
 
 check_no_rows(
   participants_with_extras %>% group_by(pid) %>% filter(n() > 1),
-  "participants with duplicate pids"
+  "duplicate pids"
 )
 
 check_no_rows(
@@ -299,9 +304,7 @@ redcap_yearly_changes_request <- function(year) {
 yearly_changes_raw <- redcap_yearly_changes_request(2020) %>%
   bind_rows(redcap_yearly_changes_request(2021)) %>%
   bind_rows(redcap_yearly_changes_request(2022)) %>%
-  select(record_id, pid, redcap_project_year) %>%
-  # NOTE(sen) WCH-025 became WCH-818
-  filter(pid != "WCH-025")
+  select(record_id, pid, redcap_project_year)
 
 yearly_changes_fix_pids <- yearly_changes_raw %>%
   filter(!is.na(pid)) %>%
@@ -322,9 +325,16 @@ check_empty_set(
 
 check_no_rows(
   yearly_changes_fix_pids %>%
-    group_by(pid, redcap_project_year) %>%
+    group_by(pid_og, redcap_project_year) %>%
     filter(n() > 1),
-  "PID used more than once within a year"  
+  "PID (OG) used more than once within a year"
+)
+
+check_no_rows(
+  yearly_changes_fix_pids %>%
+    group_by(pid, redcap_project_year) %>%
+    filter(n() > 1, !pid %in% c("WCH-818", "ALF-819")),
+  "(unknown) PID (fixed) used more than once within a year"
 )
 
 write_csv(yearly_changes_fix_pids, "data/yearly-changes.csv")
@@ -401,10 +411,15 @@ vaccination_instrument_raw <- redcap_vaccination_instrument_request(2020) %>%
     c("record_id", "redcap_project_year")
   ) %>%
   select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance, -record_id) %>%
-  rename(year = redcap_project_year)
+  rename(year = redcap_project_year) %>%
+  filter(!is.na(vaccinated))
+
+vaccination_instrument_raw_no_duplicates <- vaccination_instrument_raw %>%
+  group_by(pid, year) %>%
+  summarise(.groups = "drop", vaccinated = as.integer(any(vaccinated == 1)))
 
 check_no_rows(
-  vaccination_instrument_raw %>%
+  vaccination_instrument_raw_no_duplicates %>%
     group_by(pid, year) %>%
     filter(n() > 1) %>%
     arrange(pid, year),
@@ -412,7 +427,7 @@ check_no_rows(
 )
 
 # NOTE(sen) Believe the vaccination instrument more
-vaccination_instrument_renamed <- vaccination_instrument_raw %>%
+vaccination_instrument_renamed <- vaccination_instrument_raw_no_duplicates %>%
   rename(status = vaccinated) %>%
   mutate(status = recode(status, "1" = "Australia", "0" = "No")) %>%
   filter(!is.na(status))
@@ -433,6 +448,13 @@ check_no_rows(
 check_empty_set(
   setdiff(vaccination_history_with_instrument$pid, participants_with_extras$pid),
   "vaccination pids not in participant pids"
+)
+
+check_no_rows(
+  vaccination_history_with_instrument %>%
+    group_by(pid, year) %>%
+    filter(n() > 1),
+  "vaccination history (final) duplicates"
 )
 
 write_csv(vaccination_history_with_instrument, "data/vaccinations.csv")
@@ -481,6 +503,13 @@ covax_request <- covax_request_raw %>%
   rename(year = redcap_project_year) %>%
   select(pid, year, dose, received, date, batch, brand)
 
+check_no_rows(
+  covax_request %>%
+    group_by(pid, year, dose) %>%
+    filter(n() > 1),
+  "duplicate covid vax"
+)
+
 write_csv(covax_request, "data/covid-vax.csv")
 
 #
@@ -516,14 +545,26 @@ bleed_dates_long <- bleed_dates_raw %>%
       recode("baseline" = "0", "7d" = "7", "14d" = "14", "end_season" = "220"),
     date = if_else(date == "NI", NA_character_, date)
   ) %>%
-  select(-timepoint)
+  select(pid, year, day, date) %>%
+  filter(!is.na(date))
+
+bleed_dates_long_no_duplicates <- bleed_dates_long %>%
+  group_by(pid, year, day) %>%
+  summarise(.groups = "drop", date = max(lubridate::ymd(date)))
 
 check_empty_set(
-  setdiff(bleed_dates_long$pid, participants_with_extras$pid),
+  setdiff(bleed_dates_long_no_duplicates$pid, participants_with_extras$pid),
   "bleed dates pids not in participants pids"
 )
 
-write_csv(bleed_dates_long, "data/bleed-dates.csv")
+check_no_rows(
+  bleed_dates_long_no_duplicates %>%
+    group_by(pid, year, day) %>%
+    filter(n() > 1),
+  "bleed dates duplicates"
+)
+
+write_csv(bleed_dates_long_no_duplicates, "data/bleed-dates.csv")
 
 #
 # SECTION Covid bleed dates
@@ -552,8 +593,15 @@ covid_bleed_dates_long <- covid_bleed_dates_raw %>%
   mutate(
     day = str_replace(timepoint, "covax_d(\\d+)_sampdate", "\\1"),
   ) %>%
-  select(-timepoint) %>%
+  select(pid, year, day, date) %>%
   filter(!is.na(date))
+
+check_no_rows(
+  covid_bleed_dates_long %>%
+    group_by(pid, year, day) %>%
+    filter(n() > 1),
+  "covid bleed duplicates"
+)
 
 write_csv(covid_bleed_dates_long, "data/covid-bleed-dates.csv")
 
@@ -661,9 +709,24 @@ redcap_consent_long_extra <- redcap_consent_long %>%
   ) %>%
   select(pid, year = redcap_project_year, date, disease, form, consent)
 
-write_csv(redcap_consent_long_extra, "data/consent.csv")
+redcap_consent_long_extra_no_duplicates <- redcap_consent_long_extra %>%
+  group_by(pid, year, disease, form) %>%
+  filter(
+    any(is.na(date)) | date == max(date),
+    !(pid == "ALF-819" & consent == "main" & year == 2022 & form == "electronic_vac")
+) %>%
+  ungroup()
 
-covid_arms <- redcap_consent_long_extra %>%
+check_no_rows(
+  redcap_consent_long_extra_no_duplicates %>%
+    group_by(pid, year, disease, form) %>%
+    filter(n() > 1),
+  "consent duplicates"
+)
+
+write_csv(redcap_consent_long_extra_no_duplicates, "data/consent.csv")
+
+covid_arms <- redcap_consent_long_extra_no_duplicates %>%
   filter(disease == "covid", !is.na(consent), consent != "no") %>%
   group_by(pid) %>%
   summarise(covid_arm = paste(unique(na.omit(consent)), collapse = ","))
@@ -681,8 +744,8 @@ redcap_consent_use_long <- redcap_consent_raw %>%
     option = str_replace(form, ".*___(.*)$", "\\1") %>% recode("1" = "this", "2" = "other", "3" = "any"),
     form = case_when(
       str_starts(form, "consent_future_use___") ~ "manual",
-      str_starts(form, "econsent_future_vacc___") ~ "electronic",
-      str_starts(form, "econsent_future_unvacc___") ~ "electronic",
+      str_starts(form, "econsent_future_vacc___") ~ "electronic_vac",
+      str_starts(form, "econsent_future_unvacc___") ~ "electronic_unvac",
       str_starts(form, "econsent_future_vacc_covax___") ~ "electronic",
     ),
   )
@@ -695,7 +758,19 @@ redcap_consent_use_long_extra <- redcap_consent_use_long %>%
   ) %>%
   select(pid, year = redcap_project_year, disease, form, option, consent_use)
 
-write_csv(redcap_consent_use_long_extra, "data/consent-use.csv")
+redcap_consent_use_long_extra_no_duplicates <- redcap_consent_use_long_extra %>%
+  group_by(pid, year, disease, form, option) %>%
+  summarise(.groups = "drop", consent_use = as.integer(any(consent_use == 1)))
+
+check_no_rows(
+  redcap_consent_use_long_extra_no_duplicates %>%
+    group_by(pid, year, disease, form, option) %>%
+    filter(n() > 1) %>%
+    arrange(pid, year, disease, form, option),
+  "duplicates in consent use"
+)
+
+write_csv(redcap_consent_use_long_extra_no_duplicates, "data/consent-use.csv")
 
 #
 # SECTION Post-infection swabs and bleeds
@@ -755,6 +830,13 @@ swabs_long <- swabs_no_missing %>%
   )) %>%
   select(pid, year, postinf_instance, samp_date, swab_virus, swab_result)
 
+check_no_rows(
+  swabs_long %>%
+    group_by(pid, year, postinf_instance, swab_virus) %>%
+    filter(n() > 1),
+  "duplicate swabs"
+)
+
 write_csv(swabs_long, "data/swabs.csv")
 
 postinf_bleed_dates <- redcap_postinf %>%
@@ -763,6 +845,13 @@ postinf_bleed_dates <- redcap_postinf %>%
   mutate(day = str_replace(day, "d(\\d+)_postinfection_blood", "\\1") %>% as.integer()) %>%
   filter(!is.na(bleed_date)) %>%
   select(pid, year, postinf_instance, samp_date, day, swab_collection, bleed_date)
+
+check_no_rows(
+  postinf_bleed_dates %>%
+    group_by(pid, year, postinf_instance, day) %>%
+    filter(n() > 1),
+  "duplicate post-infection bleeds"
+)
 
 write_csv(postinf_bleed_dates, "data/postinf-bleed-dates.csv")
 
@@ -790,6 +879,13 @@ withdrawn <- withdrawn_raw %>%
     withdrawn_reentered = replace_na(withdrawn_reentered, 0),
     # withdrawn_reentered = if_else(redcap_project_year == 2022, 0, 1),
   )
+
+check_no_rows(
+  withdrawn %>%
+    group_by(pid, redcap_project_year) %>%
+    filter(n() > 1),
+  "withdrawal duplicates"
+)
 
 write_csv(withdrawn, "data/withdrawn.csv")
 
@@ -860,4 +956,17 @@ weekly_surveys <- weekly_surveys_raw %>%
     complete = weekly_symptom_survey_complete
   )
 
-write_csv(weekly_surveys, "data/weekly-surveys.csv")
+weekly_surveys_no_duplicates <- weekly_surveys %>%
+  group_by(pid, year, survey_index) %>%
+  filter(n() == 1 | complete == 2) %>%
+  summarise(.groups = "drop", ari = as.integer(any(ari == 1)))
+
+check_no_rows(
+  weekly_surveys_no_duplicates %>%
+    group_by(pid, year, survey_index) %>%
+    filter(n() > 1) %>%
+    arrange(pid, year, survey_index),
+  "weekly surveys duplicates"
+)
+
+write_csv(weekly_surveys_no_duplicates, "data/weekly-surveys.csv")
