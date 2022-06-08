@@ -95,14 +95,6 @@ const fieldsArePresent = (obj: { [key: string]: any }, colnames: string[]) => {
 	return result
 }
 
-const arrSum = (arr: number[]) => {
-	let result = 0
-	for (let val of arr) {
-		result += val
-	}
-	return result
-}
-
 const arrLinSearch = <T>(arr: T[], item: T) => {
 	let result = -1
 	for (let index = 0; index < arr.length; index += 1) {
@@ -147,7 +139,7 @@ const dateSeq = (start: string, step: number, count: number) => {
 type SummariseSpec<RowType, CountsType> = {
 	data: RowType[],
 	groups: string[],
-	defaultCounts: CountsType,
+	defaultCounts: CountsType | (() => CountsType),
 	filter?: (row: RowType) => boolean,
 	getKey: (row: RowType, key: string) => any,
 	addRow: (row: RowType, counts: CountsType) => void,
@@ -156,9 +148,10 @@ type SummariseSpec<RowType, CountsType> = {
 const summarise = <RowType, CountsType>(
 	{data, groups, defaultCounts, filter, getKey, addRow}: SummariseSpec<RowType, CountsType>,
 ) => {
+	let getDefaultCounts = () => typeof (defaultCounts) === "function" ? (<() => CountsType>defaultCounts)() : {...defaultCounts}
 	let groupedCounts: any = {}
 	if (groups.length === 0) {
-		groupedCounts = { total: { ...defaultCounts } }
+		groupedCounts = { total: getDefaultCounts() }
 	}
 
 	for (let row of data) {
@@ -175,7 +168,7 @@ const summarise = <RowType, CountsType>(
 
 				if (groupIndex == groups.length - 1) {
 					if (currentGroupCount[key] === undefined) {
-						currentGroupCount[key] = { ...defaultCounts }
+						currentGroupCount[key] = getDefaultCounts()
 					}
 					addRow(row, currentGroupCount[key])
 				} else {
@@ -231,7 +224,8 @@ const summariseAos = <RowType, CountsType>(
 		namesStart.push("Total")
 	}
 
-	let summaryAos = aoaToAos(summaryAoa, namesStart.concat(Object.keys(spec.defaultCounts)))
+	let getDefaultCounts = () => typeof (spec.defaultCounts) === "function" ? (<() => CountsType>spec.defaultCounts)() : {...spec.defaultCounts}
+	let summaryAos = aoaToAos(summaryAoa, namesStart.concat(Object.keys(getDefaultCounts())))
 	if (modOnCompletion !== undefined) {
 		summaryAos = summaryAos.map(row => {modOnCompletion(row); return row})
 	}
@@ -1475,11 +1469,11 @@ const createBleedsTable = (downloadCsv: { [key: string]: string }, data: any, ye
 			pid: {},
 			day0: { access: "flu_day_0" },
 			day7: { access: "flu_day_7" },
+			day14: { access: "flu_day_14" },
 			day220: { access: "flu_day_220" },
 			day0Covid: { access: "covid_day_0" },
 			day7Covid: { access: "covid_day_7" },
 			day14Covid: { access: "covid_day_14" },
-			ari: {}
 		},
 		title: "Bleed dates",
 	})
@@ -1640,8 +1634,12 @@ const createTitreGMRTable = (titreData: any[], groups: string[]) => {
 	return tableResult.table
 }
 
-type Plot = {
-	svg: SVGElement,
+type Plot<X, Y> = {
+	canvas: HTMLCanvasElement,
+	renderer: CanvasRenderingContext2D,
+	spec: PlotSpec<X, Y>,
+	scaleXToPx: (x: X) => number,
+	scaleYToPx: (y: Y) => number,
 }
 
 type Rect = {
@@ -1667,48 +1665,207 @@ const scale = (value: number, valueMin: number, valueMax: number, scaleMin: numb
 	return result
 }
 
-const createSvgPath = (ys: (number | null)[], xs: number[], color: string) => {
-	let prevX = null
-	let prevY = null
-	let pathEl = createSvg("g")
-	for (let pathIndex = 0; pathIndex < ys.length; pathIndex += 1) {
-		let y = ys[pathIndex]
-		let x = xs[pathIndex]
-		if (y !== null) {
-			if (prevX !== null) {
-				let line = addEl(pathEl, createSvg("line"))
-				setSvg(line, "x1", `${prevX}`)
-				setSvg(line, "y1", `${prevY}`)
-				setSvg(line, "x2", `${x}`)
-				setSvg(line, "y2", `${y}`)
-				setSvg(line, "stroke", color)
+const drawRect = (renderer: CanvasRenderingContext2D, rect: Rect, color: string) => {
+	renderer.fillStyle = color
+	renderer.fillRect(rect.l, rect.t, rect.r - rect.l, rect.b - rect.t)
+}
+
+const drawRectOutline = (renderer: CanvasRenderingContext2D, rect: Rect, color: string, thiccness: number) => {
+	renderer.fillStyle = color
+	let l = rect.l - thiccness / 2
+	let r = rect.r - thiccness / 2
+	let t = rect.t - thiccness / 2
+	let b = rect.b - thiccness / 2
+	let w = rect.r - rect.l + thiccness
+	let h = rect.b - rect.t + thiccness
+	renderer.fillRect(l, t, thiccness, h)
+	renderer.fillRect(r, t, thiccness, h)
+	renderer.fillRect(l, t, w, thiccness)
+	renderer.fillRect(l, b, w, thiccness)
+}
+
+const toRadians = (val: number) => val / 360 * 2 * Math.PI
+
+const drawText = (
+	renderer: CanvasRenderingContext2D, text: string, xCoord: number, yCoord: number,
+	color: string, angle: number, baseline: CanvasTextBaseline, textAlign: CanvasTextAlign,
+) => {
+	renderer.fillStyle = color
+	renderer.font = "16px sans-serif"
+
+	renderer.textBaseline = baseline
+	renderer.textAlign = textAlign
+	renderer.translate(xCoord, yCoord)
+	renderer.rotate(toRadians(angle))
+	renderer.fillText(text, 0, 0)
+
+	renderer.setTransform(1, 0, 0, 1, 0, 0)
+}
+
+const drawPath = (
+	renderer: CanvasRenderingContext2D,
+	yCoords: (number | null)[], xCoords: number[], color: string
+) => {
+	renderer.strokeStyle = color
+	renderer.beginPath()
+	let started = false;
+	for (let pointIndex = 0; pointIndex < yCoords.length; pointIndex += 1) {
+		let xCoord = xCoords[pointIndex];
+		let yCoord = yCoords[pointIndex];
+		if (yCoord !== null) {
+			if (!started) {
+				renderer.moveTo(xCoord, yCoord)
+				started = true
+			} else {
+				renderer.lineTo(xCoord, yCoord)
 			}
-			prevX = x
-			prevY = y
 		}
 	}
-	return pathEl
+	renderer.stroke()
 }
 
-const createSvgRect = (rect: Rect, color: string) => {
-	let rectEl = <SVGRectElement>createSvg("rect");
-	setSvg(rectEl, "x", `${rect.l}`)
-	setSvg(rectEl, "y", `${rect.t}`)
-	setSvg(rectEl, "width", `${rect.r - rect.l}`)
-	setSvg(rectEl, "height", `${rect.b - rect.t}`)
-	setSvg(rectEl, "fill", color)
-	return rectEl
+type BoxplotStats = {
+	min: number,
+	max: number,
+	q25: number,
+	median: number,
+	q75: number,
+	iqr: number,
+	mean: number,
 }
 
-const createSvgText = (text: string, x: number, y: number, color: string, baseline: string, align: string) => {
-	let textEl = createSvg("text")
-	setSvg(textEl, "x", `${x}`)
-	setSvg(textEl, "y", `${y}`)
-	setSvg(textEl, "fill", color)
-	setSvg(textEl, "dominant-baseline", baseline)
-	setSvg(textEl, "text-anchor", align)
-	textEl.textContent = text
-	return textEl
+const arrSum = (arr: number[]) => {
+	let sum = 0
+	for (let val of arr) {
+		sum += val
+	}
+	return sum
+}
+
+const arrMean = (arr: number[]) => {
+	let sum = arrSum(arr)
+	let mean = sum / arr.length
+	return mean
+}
+
+const arrSd = (arr: number[]) => {
+  let mu = arrMean(arr)
+  let diffArr = arr.map((a) => (a - mu) ** 2)
+  let sd = Math.sqrt(arrSum(diffArr) / (arr.length - 1))
+  return sd
+}
+
+const arrSortedAscQuantile = (sorted: number[], q: number) => {
+  const pos = (sorted.length - 1) * q
+  const base = Math.floor(pos)
+  const rest = pos - base
+  let result = sorted[base]
+  if (sorted[base + 1] !== undefined) {
+    result += rest * (sorted[base + 1] - sorted[base])
+  }
+  return result
+}
+
+const getSortedStats = (arr: number[]) => {
+	let result: BoxplotStats | null = null
+	if (arr.length > 0) {
+		let arrSorted = arr.sort((x1, x2) => x1 - x2)
+		let q25 = arrSortedAscQuantile(arrSorted, 0.25)
+		let q75 = arrSortedAscQuantile(arrSorted, 0.75)
+		result = {
+			min: arrSorted[0],
+			max: arrSorted[arrSorted.length - 1],
+			median: arrSortedAscQuantile(arrSorted, 0.5),
+			q25: q25,
+			q75: q75,
+			iqr: q75 - q25,
+			mean: arrMean(arrSorted),
+		}
+	}
+	return result
+}
+
+const addBoxplot = <X, Y>(
+	plot: Plot<X, Y>,
+	data: any[],
+	xNames: string[],
+	getX: (row: any) => X,
+	getY: (row: any) => Y,
+	boxWidth: number,
+	color: string,
+	meanColor: string
+) => {
+
+	let summary = summariseAos({
+		data: data,
+		groups: xNames,
+		defaultCounts: () => ({yVals: [] as number[]}),
+		getKey: (row, group) => row[group],
+		addRow: (row, summ) => {summ.yVals.push(plot.scaleYToPx(getY(row)))}
+	}, (summ) => {console.log(summ); summ.stats = getSortedStats(summ.yVals)})
+
+	for (let boxplotData of summary) {
+
+		let xVal = getX(boxplotData)
+		let xCoord = plot.scaleXToPx(xVal)
+		let boxLeft = xCoord - boxWidth / 2
+		let boxRight = xCoord + boxWidth / 2
+
+		let medianChonkiness = 10
+		let meanChonkiness = 15
+		let boxLineThiccness = 3
+
+		drawRectOutline(
+			plot.renderer,
+			{l: boxLeft, b: boxplotData.stats.q75, r: boxRight, t: boxplotData.stats.q25},
+			color,
+			boxLineThiccness,
+		)
+
+		drawRect(
+			plot.renderer,
+			{
+				l: boxLeft - medianChonkiness,
+				r: boxRight + medianChonkiness,
+				b: boxplotData.stats.median + boxLineThiccness / 2,
+				t: boxplotData.stats.median - boxLineThiccness / 2,
+			},
+			meanColor,
+		)
+
+		drawRect(
+			plot.renderer,
+			{
+				l: boxLeft - meanChonkiness,
+				r: boxRight + meanChonkiness,
+				b: boxplotData.stats.mean + boxLineThiccness / 2,
+				t: boxplotData.stats.mean - boxLineThiccness / 2,
+			},
+			meanColor,
+		)
+
+		drawRect(
+			plot.renderer, 
+			{
+				l: xCoord - boxLineThiccness / 2,
+				r: xCoord + boxLineThiccness / 2,
+				b: boxplotData.stats.max,
+				t: boxplotData.stats.q75,
+			},
+			color,
+		)
+
+		drawRect(
+			plot.renderer, 
+			{
+				l: xCoord - boxLineThiccness / 2,
+				r: xCoord + boxLineThiccness / 2,
+				b: boxplotData.stats.q25,
+				t: boxplotData.stats.min,
+			},
+			color,
+		)
+	}
 }
 
 type PlotSpec<X, Y> = {
@@ -1727,10 +1884,12 @@ type PlotSpec<X, Y> = {
 }
 
 const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
-	let svg = createSvg("svg")
-	setSvg(svg, "viewBox", `0 0 ${spec.width} ${spec.height}`)
-	setSvg(svg, "width", `${spec.width}`)
-	setSvg(svg, "height", `${spec.height}`)
+
+	let canvas = <HTMLCanvasElement>createEl("canvas")
+	canvas.width = spec.width
+	canvas.height = spec.height
+
+	let renderer = canvas.getContext("2d")!
 
 	let scaleXData = spec.scaleXData ?? ((x) => x as unknown as number)
 	let scaleYData = spec.scaleYData ?? ((y) => y as unknown as number)
@@ -1740,69 +1899,82 @@ const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
 		spec.padAxis.l + spec.padData.l, spec.width - spec.padAxis.r - spec.padData.r
 	)
 
-	let scaleYToPx = (val: Y) => scale(
-		scaleYData(val), scaleYData(spec.yMin), scaleYData(spec.yMax),
-		spec.height - spec.padAxis.b - spec.padData.b, spec.padAxis.t + spec.padData.t
-	)
+	let scaleYToPx = (val: Y) => {
+		let result = scale(
+			scaleYData(val), scaleYData(spec.yMin), scaleYData(spec.yMax),
+			spec.height - spec.padAxis.b - spec.padData.b, spec.padAxis.t + spec.padData.t
+		)
+		return result
+	}
 
 	let axisThiccness = 1
-	let axisCol = "var(--color-text)"
+	let axisCol = "#bfbdb6"
 
 	// NOTE(sen) Axis lines
 
-	addEl(svg, createSvgRect(
+	drawRect(
+		renderer,
 		{l: spec.padAxis.l, r: spec.padAxis.l + axisThiccness,
 			t: spec.padAxis.t, b: spec.height - spec.padAxis.b},
-		axisCol
-	))
+		axisCol,
+	)
 
-	addEl(svg, createSvgRect(
+	drawRect(
+		renderer,
 		{l: spec.padAxis.l, r: spec.width - spec.padAxis.r,
 			t: spec.height - spec.padAxis.b - axisThiccness, b: spec.height - spec.padAxis.b},
-		axisCol
-	))
+		axisCol,
+	)
 
 	// NOTE(sen) Ticks and grid
 
 	let tickLength = 5
 	let tickToText = 5
-	let axisTextCol = "var(--color-text)"
+	let axisTextCol = axisCol
 
 	for (let xTick of spec.xTicks) {
 		let xCoord = scaleXToPx(xTick)
-		addEl(svg, createSvgRect(
+		drawRect(
+			renderer,
 			{l: xCoord, r: xCoord + axisThiccness,
 				t: spec.height - spec.padAxis.b, b: spec.height - spec.padAxis.b + tickLength},
 			axisCol
-		))
-		addEl(svg, createSvgText(
+		)
+		drawText(
+			renderer,
 			`${xTick}`,
 			xCoord,
 			spec.height - spec.padAxis.b + tickLength + tickToText,
 			axisTextCol,
+			0,
 			"hanging",
-			"middle",
-		))
+			"center",
+		)
 	}
 
 	for (let yTick of spec.yTicks) {
 		let yCoord = scaleYToPx(yTick)
-		addEl(svg, createSvgRect(
+		drawRect(
+			renderer,
 			{l: spec.padAxis.l - tickLength, r: spec.padAxis.l,
-				t: yCoord, b: yCoord + axisThiccness},
+				t: yCoord - axisThiccness, b: yCoord},
 			axisCol
-		))
-		addEl(svg, createSvgText(
+		)
+		drawText(
+			renderer,
 			`${yTick}`,
 			spec.padAxis.l - tickLength - tickToText,
 			yCoord,
 			axisTextCol,
+			0,
 			"middle",
 			"end",
-		))
+		)
 	}
 
-	return {svg: svg, spec: spec, scaleXToPx: scaleXToPx, scaleYToPx: scaleYToPx}
+	let result: Plot<X, Y> = {canvas: canvas, renderer: renderer, spec: spec,
+		scaleXToPx: scaleXToPx, scaleYToPx: scaleYToPx}
+	return result
 }
 
 const createTitrePlot = (data: any[]) => {
@@ -1847,14 +2019,15 @@ const createTitrePlot = (data: any[]) => {
 		let lineAlphaMin = 10
 		lineAlpha = Math.round((Math.exp(-0.02 * individuals.length) * (255 - lineAlphaMin) + lineAlphaMin)).toString(16).padStart(2, "0")
 	}
-	let lineCol = "#ff69b4" + lineAlpha
+	let lineColBase = "#ff69b4"
+	let lineCol = lineColBase + lineAlpha
 	for (let ind of individuals) {
 		let titres = [ind.day0, ind.day7, ind.day14, ind.day220]
 		let yCoords = titres.map((x) => x !== null ? plot.scaleYToPx(x) : null)
 		let xCoords = [0, 7, 14, 220].map(plot.scaleXToPx)
 
 		if (lineAlpha !== "00") {
-			addEl(plot.svg, createSvgPath(yCoords, xCoords, lineCol))
+			drawPath(plot.renderer, yCoords, xCoords, lineCol)
 		}
 
 		for (let titreIndex = 0; titreIndex < titres.length; titreIndex += 1) {
@@ -1864,16 +2037,21 @@ const createTitrePlot = (data: any[]) => {
 			let pointHalfSize = pointSize / 2
 			let pointCol = "#ff69b4"
 			if (yCoord !== null) {
-				addEl(plot.svg, createSvgRect(
-					{l: xCoord - pointHalfSize, r: xCoord + pointHalfSize, 
-						t: yCoord - pointHalfSize, b: yCoord + pointHalfSize}, 
+				drawRect(
+					plot.renderer,
+					{l: xCoord - pointHalfSize, r: xCoord + pointHalfSize,
+						t: yCoord - pointHalfSize, b: yCoord + pointHalfSize},
 					pointCol
-				))
+				)
 			}
 		}
 	}
 
-	addEl(container, plot.svg as unknown as HTMLElement)
+	let boxplotCol = lineColBase
+
+	addBoxplot(plot, data, ["day"], (row) => row.day, (row) => row.titre, 20, boxplotCol, boxplotCol)
+
+	addEl(container, plot.canvas as HTMLElement)
 	return container
 }
 
