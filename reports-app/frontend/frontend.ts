@@ -2065,7 +2065,7 @@ const createTitrePlot = (data: any[]) => {
 		xTicks: [0, 7, 14, 220],
 	})
 
-	let individuals = summariseAos({
+	let lineGroups = summariseAos({
 		data: data,
 		groups: ALL_GMT_GROUPS.concat("pid").filter(x => x !== "day"),
 		defaultCounts: {day0: null, day7: null, day14: null, day220: null},
@@ -2080,23 +2080,23 @@ const createTitrePlot = (data: any[]) => {
 		}
 	})
 
-	let indThreshold = 100
+	let lineThreshold = 100
 	let lineAlpha = "00"
-	if (individuals.length <= indThreshold) {
+	if (lineGroups.length <= lineThreshold) {
 		let lineAlphaMin = 10
-		lineAlpha = Math.round((Math.exp(-0.02 * individuals.length) * (255 - lineAlphaMin) + lineAlphaMin)).toString(16).padStart(2, "0")
+		lineAlpha = Math.round((Math.exp(-0.02 * lineGroups.length) * (255 - lineAlphaMin) + lineAlphaMin)).toString(16).padStart(2, "0")
 	}
 	let lineColBase = "#61de2a"
 	let lineCol = lineColBase + lineAlpha
 
 	let pointAlphaMin = 10
-	let pointAlpha = Math.round((Math.exp(-0.02 * individuals.length) * (255 - pointAlphaMin) + pointAlphaMin)).toString(16).padStart(2, "0")
+	let pointAlpha = Math.round((Math.exp(-0.02 * lineGroups.length) * (255 - pointAlphaMin) + pointAlphaMin)).toString(16).padStart(2, "0")
 
-	for (let ind of individuals) {
+	for (let lineGroup of lineGroups) {
 		let yJitter = randUnif(-10, 10)
 		let xJitter = randUnif(-10, 10)
 
-		let titres = [ind.day0, ind.day7, ind.day14, ind.day220]
+		let titres = [lineGroup.day0, lineGroup.day7, lineGroup.day14, lineGroup.day220]
 		let yCoords = titres.map((x) => x !== null ? plot.scaleYToPx(x) + yJitter : null)
 		let xCoords = [0, 7, 14, 220].map((x) => plot.scaleXToPx(x) + xJitter)
 
@@ -2124,7 +2124,7 @@ const createTitrePlot = (data: any[]) => {
 	let boxplotCol = "#ffa600"
 	let boxplotMeanCol = boxplotCol
 
-	if (individuals.length > 1) {
+	if (lineGroups.length > 1) {
 		addBoxplot(plot, data, ["day"], (row) => row.day, (row) => row.titre, 30, boxplotCol, boxplotMeanCol)
 	}
 
