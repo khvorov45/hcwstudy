@@ -1048,9 +1048,18 @@ const initParticipants = (sidebarWidthPx: number) => {
 	return { container: container, table: table }
 }
 
+const TITRES_HELP_HEIGHT = 100
+
 const initTitres = (sidebarWidthPx: number) => {
-	let container = createDiv()
-	container.style.height = `calc(100vh)`
+	let container2 = createDiv()
+	let help = addDiv(container2)
+	help.style.height = TITRES_HELP_HEIGHT + "px"
+	help.style.overflow = "scroll"
+	addTextline(help, "GMT, GMR tables and the titre plot only use the data displayed in the Titres table (so you can filter the titres table and change everything else on the page).")
+	addTextline(help, "Boxplots: minimum - quartile 25 - quartile 75 - maximum. Solid midline: median. Dashed midline: mean")
+
+	let container = addDiv(container2)
+	container.style.height = `calc(100vh - ${TITRES_HELP_HEIGHT}px)`
 	container.style.width = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
 	container.style.overflow = "hidden"
 	container.style.display = "flex"
@@ -1058,7 +1067,7 @@ const initTitres = (sidebarWidthPx: number) => {
 
 	let top = addDiv(container)
 	top.style.maxWidth = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
-	top.style.maxHeight = `calc(100vh / 2)`
+	top.style.maxHeight = `calc(100vh / 2 - ${TITRES_HELP_HEIGHT / 2}px)`
 	top.style.flex = "1 0"
 	top.style.display = "flex"
 	top.style.overflow = "hidden"
@@ -1081,7 +1090,7 @@ const initTitres = (sidebarWidthPx: number) => {
 
 	let gmrTable = addEl(right, <HTMLElement>table.cloneNode(true))
 
-	return { container: container, table: table, gmtTable: gmtTable, gmrTable: gmrTable, plot: plot }
+	return { container: container2, table: table, gmtTable: gmtTable, gmrTable: gmrTable, plot: plot }
 }
 
 const initCounts = (sidebarWidthPx: number) => {
@@ -1589,7 +1598,7 @@ const createTitreGMTTable = (titreData: any[], groups: string[]) => {
 		aos: titreSummary,
 		colSpecInit: colSpec,
 		title: "GMT",
-		getTableHeightInit: () => window.innerHeight / 4 - SCROLLBAR_WIDTHS[0],
+		getTableHeightInit: () => (window.innerHeight - TITRES_HELP_HEIGHT) / 4 - SCROLLBAR_WIDTHS[0],
 	})
 
 	return tableResult.table
@@ -1646,7 +1655,7 @@ const createTitreGMRTable = (titreData: any[], groups: string[]) => {
 		aos: ratioSummary,
 		colSpecInit: colSpec,
 		title: "GMR",
-		getTableHeightInit: () => window.innerHeight / 4 - SCROLLBAR_WIDTHS[0],
+		getTableHeightInit: () => (window.innerHeight - TITRES_HELP_HEIGHT) / 4 - SCROLLBAR_WIDTHS[0],
 	})
 
 	return tableResult.table
@@ -1689,8 +1698,8 @@ const drawRect = (renderer: CanvasRenderingContext2D, rect: Rect, color: string)
 }
 
 const drawLine = (
-	renderer: CanvasRenderingContext2D, 
-	x1: number, y1: number, x2: number, y2: number, 
+	renderer: CanvasRenderingContext2D,
+	x1: number, y1: number, x2: number, y2: number,
 	color: string, thiccness: number, dashSegments: number[]
 ) => {
 	renderer.strokeStyle = color
@@ -1708,18 +1717,34 @@ const drawLine = (
 	renderer.setLineDash([])
 }
 
+
+const drawDoubleLine = (
+	renderer: CanvasRenderingContext2D,
+	x1: number, y1: number, x2: number, y2: number,
+	color: string, color2: string, thiccness: number, dashSegments: number[]
+) => {
+	let singleThicc = thiccness / 2
+
+	let lineVec = {x: x2 - x1, y: y2 - y1}
+	let linePerpVec = {x: lineVec.y, y: lineVec.x}
+	let dx = linePerpVec.x / (linePerpVec.x + linePerpVec.y) * singleThicc
+	let dy = linePerpVec.y / (linePerpVec.x + linePerpVec.y) * singleThicc
+
+	drawLine(renderer, x1, y1, x2, y2, color, singleThicc, dashSegments)
+	drawLine(renderer, x1 + dx, y1 + dy, x2 + dx, y2 + dy, color2, singleThicc, dashSegments)
+}
+
+
+const rectShrink = (rect: Rect, amount: number) => {
+	return {l: rect.l + amount, r: rect.r - amount, t: rect.t + amount, b: rect.b - amount}
+}
+
 const drawRectOutline = (renderer: CanvasRenderingContext2D, rect: Rect, color: string, thiccness: number) => {
-	renderer.fillStyle = color
-	let l = rect.l - thiccness / 2
-	let r = rect.r - thiccness / 2
-	let t = rect.t - thiccness / 2
-	let b = rect.b - thiccness / 2
-	let w = rect.r - rect.l + thiccness
-	let h = rect.b - rect.t + thiccness
-	renderer.fillRect(l, t, thiccness, h)
-	renderer.fillRect(r, t, thiccness, h)
-	renderer.fillRect(l, t, w, thiccness)
-	renderer.fillRect(l, b, w, thiccness)
+	let halfThicc = thiccness / 2
+	drawLine(renderer, rect.l - halfThicc, rect.t, rect.r + halfThicc, rect.t, color, thiccness, [])
+	drawLine(renderer, rect.r, rect.t, rect.r, rect.b, color, thiccness, [])
+	drawLine(renderer, rect.l - halfThicc, rect.b, rect.r + halfThicc, rect.b, color, thiccness, [])
+	drawLine(renderer, rect.l, rect.t, rect.l, rect.b, color, thiccness, [])
 }
 
 const toRadians = (val: number) => val / 360 * 2 * Math.PI
@@ -1842,6 +1867,8 @@ const addBoxplot = <X, Y>(
 		addRow: (row, summ) => {summ.yVals.push(plot.scaleYToPx(getY(row)))}
 	}, (summ) => {summ.stats = getSortedStats(summ.yVals)})
 
+	let altColor = "#000000"
+
 	for (let boxplotData of summary) {
 
 		let xVal = getX(boxplotData)
@@ -1851,57 +1878,59 @@ const addBoxplot = <X, Y>(
 
 		let medianChonkiness = 10
 		let meanChonkiness = 15
-		let boxLineThiccness = 3
+		let boxLineThiccness = 4
+		let singleThicc = boxLineThiccness / 2
 
-		drawRectOutline(
+		let boxplotBody = {l: boxLeft, b: boxplotData.stats.q75, r: boxRight, t: boxplotData.stats.q25}
+		drawRectOutline(plot.renderer, boxplotBody, color, singleThicc)
+		drawRectOutline(plot.renderer, rectShrink(boxplotBody, singleThicc), altColor, singleThicc)
+
+		drawDoubleLine(
 			plot.renderer,
-			{l: boxLeft, b: boxplotData.stats.q75, r: boxRight, t: boxplotData.stats.q25},
+			boxLeft - medianChonkiness,
+			boxplotData.stats.median,
+			boxRight + medianChonkiness,
+			boxplotData.stats.median,
 			color,
+			altColor,
 			boxLineThiccness,
+			[]
 		)
 
-		drawRect(
-			plot.renderer,
-			{
-				l: boxLeft - medianChonkiness,
-				r: boxRight + medianChonkiness,
-				b: boxplotData.stats.median + boxLineThiccness / 2,
-				t: boxplotData.stats.median - boxLineThiccness / 2,
-			},
-			color,
-		)
-
-		drawLine(
+		drawDoubleLine(
 			plot.renderer,
 			boxLeft - meanChonkiness,
 			boxplotData.stats.mean,
 			boxRight + meanChonkiness,
 			boxplotData.stats.mean,
 			meanColor,
+			altColor,
 			boxLineThiccness,
 			[3, 3]
 		)
 
-		drawRect(
-			plot.renderer, 
-			{
-				l: xCoord - boxLineThiccness / 2,
-				r: xCoord + boxLineThiccness / 2,
-				b: boxplotData.stats.max,
-				t: boxplotData.stats.q75,
-			},
+		drawDoubleLine(
+			plot.renderer,
+			xCoord,
+			boxplotData.stats.q75,
+			xCoord,
+			boxplotData.stats.max,
 			color,
+			altColor,
+			boxLineThiccness,
+			[]
 		)
 
-		drawRect(
-			plot.renderer, 
-			{
-				l: xCoord - boxLineThiccness / 2,
-				r: xCoord + boxLineThiccness / 2,
-				b: boxplotData.stats.q25,
-				t: boxplotData.stats.min,
-			},
+		drawDoubleLine(
+			plot.renderer,
+			xCoord,
+			boxplotData.stats.min,
+			xCoord,
+			boxplotData.stats.q25,
 			color,
+			altColor,
+			boxLineThiccness,
+			[]
 		)
 	}
 }
@@ -2018,21 +2047,21 @@ const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
 const createTitrePlot = (data: any[]) => {
 	let container = createDiv()
 	container.style.maxWidth = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
-	container.style.maxHeight = `calc(100vh / 2)`
+	container.style.maxHeight = `calc(100vh / 2 - ${TITRES_HELP_HEIGHT / 2}px)`
 	container.style.overflow = "hidden"
 
 	let plot = beginPlot({
 		width: window.innerWidth - SIDEBAR_WIDTH_PX,
-		height: window.innerHeight / 2,
-		padAxis: {l: 50, r: 10, t: 10, b: 50},
+		height: window.innerHeight / 2 - TITRES_HELP_HEIGHT / 2,
+		padAxis: {l: 70, r: 10, t: 10, b: 50},
 		padData: {l: 50, r: 50, t: 10, b: 10},
 		xMin: 0,
 		xMax: 220,
 		yMin: 5,
-		yMax: 5120,
+		yMax: 10240,
 		scaleYData: Math.log,
 		scaleXData: ((x) => x == 220 ? 50 : x),
-		yTicks: [5, 10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120],
+		yTicks: [5, 10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120, 10240],
 		xTicks: [0, 7, 14, 220],
 	})
 
@@ -2057,12 +2086,19 @@ const createTitrePlot = (data: any[]) => {
 		let lineAlphaMin = 10
 		lineAlpha = Math.round((Math.exp(-0.02 * individuals.length) * (255 - lineAlphaMin) + lineAlphaMin)).toString(16).padStart(2, "0")
 	}
-	let lineColBase = "#ff69b4"
+	let lineColBase = "#61de2a"
 	let lineCol = lineColBase + lineAlpha
+
+	let pointAlphaMin = 10
+	let pointAlpha = Math.round((Math.exp(-0.02 * individuals.length) * (255 - pointAlphaMin) + pointAlphaMin)).toString(16).padStart(2, "0")
+
 	for (let ind of individuals) {
+		let yJitter = randUnif(-10, 10)
+		let xJitter = randUnif(-10, 10)
+
 		let titres = [ind.day0, ind.day7, ind.day14, ind.day220]
-		let yCoords = titres.map((x) => x !== null ? plot.scaleYToPx(x) : null)
-		let xCoords = [0, 7, 14, 220].map(plot.scaleXToPx)
+		let yCoords = titres.map((x) => x !== null ? plot.scaleYToPx(x) + yJitter : null)
+		let xCoords = [0, 7, 14, 220].map((x) => plot.scaleXToPx(x) + xJitter)
 
 		if (lineAlpha !== "00") {
 			drawPath(plot.renderer, yCoords, xCoords, lineCol)
@@ -2073,7 +2109,7 @@ const createTitrePlot = (data: any[]) => {
 			let xCoord = xCoords[titreIndex]
 			let pointSize = 5
 			let pointHalfSize = pointSize / 2
-			let pointCol = "#ff69b4"
+			let pointCol = lineColBase + pointAlpha
 			if (yCoord !== null) {
 				drawRect(
 					plot.renderer,
@@ -2085,10 +2121,12 @@ const createTitrePlot = (data: any[]) => {
 		}
 	}
 
-	let boxplotCol = lineColBase
-	let boxplotMeanCol = "#61de2a"
+	let boxplotCol = "#ffa600"
+	let boxplotMeanCol = boxplotCol
 
-	addBoxplot(plot, data, ["day"], (row) => row.day, (row) => row.titre, 20, boxplotCol, boxplotMeanCol)
+	if (individuals.length > 1) {
+		addBoxplot(plot, data, ["day"], (row) => row.day, (row) => row.titre, 30, boxplotCol, boxplotMeanCol)
+	}
 
 	addEl(container, plot.canvas as HTMLElement)
 	return container
