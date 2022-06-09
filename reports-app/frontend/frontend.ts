@@ -1567,7 +1567,7 @@ const createTitreTable = (data: Data, onFilterChange: (filteredData: any[]) => v
 			vax2022: {access: "study_year_vac_2022"},
 		},
 		title: "Titres",
-		getTableHeightInit: () => window.innerHeight / 2 - SCROLLBAR_WIDTHS[0],
+		getTableHeightInit: () => (window.innerHeight - TITRES_HELP_HEIGHT) / 2 - SCROLLBAR_WIDTHS[0],
 		onFilterChange: onFilterChange,
 	})
 
