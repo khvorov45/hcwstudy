@@ -107,6 +107,16 @@ const arrLinSearch = <T>(arr: T[], item: T) => {
 	return result
 }
 
+const arrMax = (arr: number[]) => arr.reduce((a, c) => a > c ? a : c)
+
+const arrZeroed = (count: number) => {
+	let arr = []
+	for (let index = 0; index < count; index += 1) {
+		arr.push(0)
+	}
+	return arr
+}
+
 const arrRemoveIndex = (arr: any[], index: number) => {
 	arr.splice(index, 1)
 }
@@ -1056,7 +1066,7 @@ const initTitres = (sidebarWidthPx: number) => {
 	help.style.height = TITRES_HELP_HEIGHT + "px"
 	help.style.overflow = "scroll"
 	addTextline(help, "GMT, GMR tables and the titre plot only use the data displayed in the Titres table (so you can filter the titres table and change everything else on the page).")
-	addTextline(help, "Boxplots: minimum - quartile 25 - quartile 75 - maximum. Solid midline: median. Dashed midline: mean")
+	addTextline(help, "Boxplots: minimum - quartile 25 - quartile 75 - maximum. Solid midline: median. Dashed midline: mean. Right side: histogram.")
 
 	let container = addDiv(container2)
 	container.style.height = `calc(100vh - ${TITRES_HELP_HEIGHT}px)`
@@ -1717,21 +1727,28 @@ const drawLine = (
 	renderer.setLineDash([])
 }
 
+const getLineShift = (x1: number, y1: number, x2: number, y2: number, thiccness: number) => {
+	let lineVec = {x: x2 - x1, y: y2 - y1}
+	let linePerpVec = {x: lineVec.y, y: lineVec.x}
+	let dx = linePerpVec.x / (linePerpVec.x + linePerpVec.y) * thiccness
+	let dy = linePerpVec.y / (linePerpVec.x + linePerpVec.y) * thiccness
+	return {dx: dx, dy: dy}
+}
 
 const drawDoubleLine = (
 	renderer: CanvasRenderingContext2D,
 	x1: number, y1: number, x2: number, y2: number,
-	color: string, color2: string, thiccness: number, dashSegments: number[]
+	color: string, color2: string, thiccness: number, dashSegments: number[],
+	flipShade?: boolean
 ) => {
-	let singleThicc = thiccness / 2
+	let {dx, dy} = getLineShift(x1, y1, x2, y2, thiccness)
+	if (flipShade) {
+		dx = -dx
+		dy = -dy
+	}
 
-	let lineVec = {x: x2 - x1, y: y2 - y1}
-	let linePerpVec = {x: lineVec.y, y: lineVec.x}
-	let dx = linePerpVec.x / (linePerpVec.x + linePerpVec.y) * singleThicc
-	let dy = linePerpVec.y / (linePerpVec.x + linePerpVec.y) * singleThicc
-
-	drawLine(renderer, x1, y1, x2, y2, color, singleThicc, dashSegments)
-	drawLine(renderer, x1 + dx, y1 + dy, x2 + dx, y2 + dy, color2, singleThicc, dashSegments)
+	drawLine(renderer, x1, y1, x2, y2, color, thiccness, dashSegments)
+	drawLine(renderer, x1 + dx, y1 + dy, x2 + dx, y2 + dy, color2, thiccness, dashSegments)
 }
 
 
@@ -1856,7 +1873,9 @@ const addBoxplot = <X, Y>(
 	getY: (row: any) => Y,
 	boxWidth: number,
 	color: string,
-	meanColor: string
+	altColor: string,
+	meanColor: string,
+	lineThiccness: number,
 ) => {
 
 	let summary = summariseAos({
@@ -1867,33 +1886,30 @@ const addBoxplot = <X, Y>(
 		addRow: (row, summ) => {summ.yVals.push(plot.scaleYToPx(getY(row)))}
 	}, (summ) => {summ.stats = getSortedStats(summ.yVals)})
 
-	let altColor = "#000000"
 
 	for (let boxplotData of summary) {
 
 		let xVal = getX(boxplotData)
 		let xCoord = plot.scaleXToPx(xVal)
-		let boxLeft = xCoord - boxWidth / 2
-		let boxRight = xCoord + boxWidth / 2
+		let boxLeft = xCoord - boxWidth
+		let boxRight = xCoord
 
 		let medianChonkiness = 10
 		let meanChonkiness = 15
-		let boxLineThiccness = 4
-		let singleThicc = boxLineThiccness / 2
 
 		let boxplotBody = {l: boxLeft, b: boxplotData.stats.q75, r: boxRight, t: boxplotData.stats.q25}
-		drawRectOutline(plot.renderer, boxplotBody, color, singleThicc)
-		drawRectOutline(plot.renderer, rectShrink(boxplotBody, singleThicc), altColor, singleThicc)
+		drawRectOutline(plot.renderer, boxplotBody, color, lineThiccness)
+		drawRectOutline(plot.renderer, rectShrink(boxplotBody, lineThiccness), altColor, lineThiccness)
 
 		drawDoubleLine(
 			plot.renderer,
 			boxLeft - medianChonkiness,
 			boxplotData.stats.median,
-			boxRight + medianChonkiness,
+			boxRight,
 			boxplotData.stats.median,
 			color,
 			altColor,
-			boxLineThiccness,
+			lineThiccness,
 			[]
 		)
 
@@ -1901,11 +1917,11 @@ const addBoxplot = <X, Y>(
 			plot.renderer,
 			boxLeft - meanChonkiness,
 			boxplotData.stats.mean,
-			boxRight + meanChonkiness,
+			boxRight,
 			boxplotData.stats.mean,
 			meanColor,
 			altColor,
-			boxLineThiccness,
+			lineThiccness,
 			[3, 3]
 		)
 
@@ -1917,8 +1933,9 @@ const addBoxplot = <X, Y>(
 			boxplotData.stats.max,
 			color,
 			altColor,
-			boxLineThiccness,
-			[]
+			lineThiccness,
+			[],
+			true,
 		)
 
 		drawDoubleLine(
@@ -1929,8 +1946,9 @@ const addBoxplot = <X, Y>(
 			boxplotData.stats.q25,
 			color,
 			altColor,
-			boxLineThiccness,
-			[]
+			lineThiccness,
+			[],
+			true,
 		)
 	}
 }
@@ -2050,6 +2068,9 @@ const createTitrePlot = (data: any[]) => {
 	container.style.maxHeight = `calc(100vh / 2 - ${TITRES_HELP_HEIGHT / 2}px)`
 	container.style.overflow = "hidden"
 
+	let allDays = [0, 7, 14, 220]
+	let allTitres = [5, 10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120, 10240]
+
 	let plot = beginPlot({
 		width: window.innerWidth - SIDEBAR_WIDTH_PX,
 		height: window.innerHeight / 2 - TITRES_HELP_HEIGHT / 2,
@@ -2061,8 +2082,8 @@ const createTitrePlot = (data: any[]) => {
 		yMax: 10240,
 		scaleYData: Math.log,
 		scaleXData: ((x) => x == 220 ? 50 : x),
-		yTicks: [5, 10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120, 10240],
-		xTicks: [0, 7, 14, 220],
+		yTicks: allTitres,
+		xTicks: allDays,
 	})
 
 	let lineGroups = summariseAos({
@@ -2092,13 +2113,15 @@ const createTitrePlot = (data: any[]) => {
 	let pointAlphaMin = 10
 	let pointAlpha = Math.round((Math.exp(-0.02 * lineGroups.length) * (255 - pointAlphaMin) + pointAlphaMin)).toString(16).padStart(2, "0")
 
+	let dayTitreCounts = allDays.map(day => arrZeroed(allTitres.length))
+
 	for (let lineGroup of lineGroups) {
 		let yJitter = randUnif(-10, 10)
 		let xJitter = randUnif(-10, 10)
 
 		let titres = [lineGroup.day0, lineGroup.day7, lineGroup.day14, lineGroup.day220]
 		let yCoords = titres.map((x) => x !== null ? plot.scaleYToPx(x) + yJitter : null)
-		let xCoords = [0, 7, 14, 220].map((x) => plot.scaleXToPx(x) + xJitter)
+		let xCoords = allDays.map((x) => plot.scaleXToPx(x) + xJitter)
 
 		if (lineAlpha !== "00") {
 			drawPath(plot.renderer, yCoords, xCoords, lineCol)
@@ -2117,15 +2140,77 @@ const createTitrePlot = (data: any[]) => {
 						t: yCoord - pointHalfSize, b: yCoord + pointHalfSize},
 					pointCol
 				)
+				dayTitreCounts[titreIndex][allTitres.indexOf(titres[titreIndex])] += 1
 			}
 		}
 	}
 
+	let dayTitresCounts01 = dayTitreCounts.map(arr => {
+		let max = arrMax(arr)
+		return arr.map(val => val / max)
+	})
+
+	let boxLineThiccness = 2
 	let boxplotCol = "#ffa600"
+	let distColor = "#de61a8"
+	let altColor = "#000000"
+
+	let titrePxStep = plot.scaleYToPx(allTitres[0]) - plot.scaleYToPx(allTitres[1])
+	for (let dayIndex = 0; dayIndex < allDays.length; dayIndex += 1) {
+		let dayCounts01 = dayTitresCounts01[dayIndex]
+		let day = allDays[dayIndex]
+		let xCoord = plot.scaleXToPx(day)
+		let prevBarRight = null
+		for (let count01Index = 0; count01Index < allTitres.length; count01Index += 1) {
+			let count01 = dayCounts01[count01Index]
+			let titre = allTitres[count01Index]
+			let yCoord = plot.scaleYToPx(titre)
+
+			let barSize = 50
+			let barRight = xCoord + boxLineThiccness + barSize * count01
+
+			let down = titrePxStep / 2
+			let up = down
+			if (count01Index == 0) {
+				down = down / 2
+			} else if (count01Index == allTitres.length - 1) {
+				up = up / 2
+			}
+
+			drawDoubleLine(
+				plot.renderer, barRight, yCoord - up, barRight, yCoord + down,
+				distColor, altColor, boxLineThiccness, [], true,
+			)
+
+			if (prevBarRight !== null) {
+				let halfThicc = boxLineThiccness / 2
+				let vLeft = prevBarRight
+				let vRight = barRight
+				if (vLeft > vRight) {
+					let temp = vLeft
+					vLeft = vRight
+					vRight = temp
+				}
+				drawLine(
+					plot.renderer, vLeft - halfThicc, yCoord + down, vRight + halfThicc, yCoord + down,
+					distColor, boxLineThiccness, [],
+				)
+			}
+
+			prevBarRight = barRight
+		}
+	}
+
+	let boxHalfWidth = 15
+	let distWidth = 15
+
 	let boxplotMeanCol = boxplotCol
 
 	if (lineGroups.length > 1) {
-		addBoxplot(plot, data, ["day"], (row) => row.day, (row) => row.titre, 30, boxplotCol, boxplotMeanCol)
+		addBoxplot(
+			plot, data, ["day"], (row) => row.day, (row) => row.titre,
+			boxHalfWidth * 2, boxplotCol, altColor, boxplotMeanCol, boxLineThiccness
+		)
 	}
 
 	addEl(container, plot.canvas as HTMLElement)
