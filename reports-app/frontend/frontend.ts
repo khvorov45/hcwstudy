@@ -1066,7 +1066,7 @@ const initTitres = (sidebarWidthPx: number) => {
 	help.style.height = TITRES_HELP_HEIGHT + "px"
 	help.style.overflow = "scroll"
 	addTextline(help, "GMT, GMR tables and the titre plot only use the data displayed in the Titres table (so you can filter the titres table and change everything else on the page).")
-	addTextline(help, "Boxplots: minimum - quartile 25 - quartile 75 - maximum. Solid midline: median. Dashed midline: mean. Right side: histogram.")
+	addTextline(help, "Boxplots: minimum - quartile 25 - quartile 75 - maximum. Solid midline: median. Dashed midline: mean (vertical dashed line - 95% CI for mean). Right side: histogram. Numbers: titre measurement counts.")
 
 	let container = addDiv(container2)
 	container.style.height = `calc(100vh - ${TITRES_HELP_HEIGHT}px)`
@@ -1769,14 +1769,23 @@ const toRadians = (val: number) => val / 360 * 2 * Math.PI
 const drawText = (
 	renderer: CanvasRenderingContext2D, text: string, xCoord: number, yCoord: number,
 	color: string, angle: number, baseline: CanvasTextBaseline, textAlign: CanvasTextAlign,
+	outlineColor?: string
 ) => {
 	renderer.fillStyle = color
-	renderer.font = "16px sans-serif"
 
 	renderer.textBaseline = baseline
 	renderer.textAlign = textAlign
 	renderer.translate(xCoord, yCoord)
 	renderer.rotate(toRadians(angle))
+
+	renderer.font = "16px sans-serif"
+	if (outlineColor !== undefined) {
+		renderer.miterLimit = 2
+		renderer.lineJoin = "round"
+		renderer.lineWidth = 3
+		renderer.strokeStyle = outlineColor
+		renderer.strokeText(text, 0, 0)
+	}
 	renderer.fillText(text, 0, 0)
 
 	renderer.setTransform(1, 0, 0, 1, 0, 0)
@@ -1812,6 +1821,7 @@ type BoxplotStats = {
 	q75: number,
 	iqr: number,
 	mean: number,
+	meanSe: number,
 }
 
 const arrSum = (arr: number[]) => {
@@ -1860,6 +1870,7 @@ const getSortedStats = (arr: number[]) => {
 			q75: q75,
 			iqr: q75 - q25,
 			mean: arrMean(arrSorted),
+			meanSe: arrSd(arrSorted) / Math.sqrt(arr.length),
 		}
 	}
 	return result
@@ -1871,7 +1882,7 @@ const addBoxplot = <X, Y>(
 	xNames: string[],
 	getX: (row: any) => X,
 	getY: (row: any) => Y,
-	boxWidth: number,
+	totalBoxWidth: number,
 	color: string,
 	altColor: string,
 	meanColor: string,
@@ -1886,6 +1897,10 @@ const addBoxplot = <X, Y>(
 		addRow: (row, summ) => {summ.yVals.push(plot.scaleYToPx(getY(row)))}
 	}, (summ) => {summ.stats = getSortedStats(summ.yVals)})
 
+	totalBoxWidth = Math.max(totalBoxWidth, 0)
+	let boxWidth = totalBoxWidth / 2
+	let meanChonkiness = boxWidth
+	let medianChonkiness = boxWidth / 2
 
 	for (let boxplotData of summary) {
 
@@ -1893,9 +1908,6 @@ const addBoxplot = <X, Y>(
 		let xCoord = plot.scaleXToPx(xVal)
 		let boxLeft = xCoord - boxWidth
 		let boxRight = xCoord
-
-		let medianChonkiness = 10
-		let meanChonkiness = 15
 
 		let boxplotBody = {l: boxLeft, b: boxplotData.stats.q75, r: boxRight, t: boxplotData.stats.q25}
 		drawRectOutline(plot.renderer, boxplotBody, color, lineThiccness)
@@ -1919,6 +1931,18 @@ const addBoxplot = <X, Y>(
 			boxplotData.stats.mean,
 			boxRight,
 			boxplotData.stats.mean,
+			meanColor,
+			altColor,
+			lineThiccness,
+			[3, 3]
+		)
+
+		drawDoubleLine(
+			plot.renderer,
+			boxLeft - meanChonkiness / 2,
+			boxplotData.stats.mean + boxplotData.stats.meanSe * 1.96,
+			boxLeft - meanChonkiness / 2,
+			boxplotData.stats.mean - boxplotData.stats.meanSe * 1.96,
 			meanColor,
 			altColor,
 			lineThiccness,
@@ -2019,6 +2043,9 @@ const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
 
 	for (let xTick of spec.xTicks) {
 		let xCoord = scaleXToPx(xTick)
+		if (xTick as unknown as number === 220) {
+			console.log(xCoord, scaleXData(xTick))
+		}
 		drawRect(
 			renderer,
 			{l: xCoord, r: xCoord + axisThiccness,
@@ -2076,12 +2103,12 @@ const createTitrePlot = (data: any[]) => {
 		height: window.innerHeight / 2 - TITRES_HELP_HEIGHT / 2,
 		padAxis: {l: 70, r: 10, t: 10, b: 50},
 		padData: {l: 50, r: 50, t: 10, b: 10},
-		xMin: 0,
-		xMax: 220,
+		xMin: -3.5,
+		xMax: 223.5,
 		yMin: 5,
 		yMax: 10240,
 		scaleYData: Math.log,
-		scaleXData: ((x) => x == 220 ? 50 : x),
+		scaleXData: (x) => x >= 220 ? x - 170 : x,
 		yTicks: allTitres,
 		xTicks: allDays,
 	})
@@ -2150,24 +2177,40 @@ const createTitrePlot = (data: any[]) => {
 		return arr.map(val => val / max)
 	})
 
+	let dayPxStep = plot.scaleXToPx(allDays[1]) - plot.scaleXToPx(allDays[0])
+
 	let boxLineThiccness = 2
 	let boxplotCol = "#ffa600"
 	let distColor = "#de61a8"
 	let altColor = "#000000"
 
+	let gapX = 10
+	let boxWidth = dayPxStep / 2 - gapX
+	let distWidth = boxWidth
+
+	let boxplotMeanCol = boxplotCol
+
+	if (lineGroups.length > 1) {
+		addBoxplot(
+			plot, data, ["day"], (row) => parseInt(row.day), (row) => row.titre,
+			boxWidth, boxplotCol, altColor, boxplotMeanCol, boxLineThiccness
+		)
+	}
+
 	let titrePxStep = plot.scaleYToPx(allTitres[0]) - plot.scaleYToPx(allTitres[1])
 	for (let dayIndex = 0; dayIndex < allDays.length; dayIndex += 1) {
 		let dayCounts01 = dayTitresCounts01[dayIndex]
+		let dayCounts = dayTitreCounts[dayIndex]
 		let day = allDays[dayIndex]
 		let xCoord = plot.scaleXToPx(day)
 		let prevBarRight = null
 		for (let count01Index = 0; count01Index < allTitres.length; count01Index += 1) {
 			let count01 = dayCounts01[count01Index]
+			let count = dayCounts[count01Index]
 			let titre = allTitres[count01Index]
 			let yCoord = plot.scaleYToPx(titre)
 
-			let barSize = 50
-			let barRight = xCoord + boxLineThiccness + barSize * count01
+			let barRight = xCoord + boxLineThiccness + distWidth * count01
 
 			let down = titrePxStep / 2
 			let up = down
@@ -2197,20 +2240,15 @@ const createTitrePlot = (data: any[]) => {
 				)
 			}
 
+			let countTextCol = "#bfbdb6"
+			let lineCountsPad = 5
+			drawText(
+				plot.renderer, `${count}`, barRight - boxLineThiccness, yCoord, countTextCol, 0, "middle", "end",
+				altColor
+			)
+
 			prevBarRight = barRight
 		}
-	}
-
-	let boxHalfWidth = 15
-	let distWidth = 15
-
-	let boxplotMeanCol = boxplotCol
-
-	if (lineGroups.length > 1) {
-		addBoxplot(
-			plot, data, ["day"], (row) => row.day, (row) => row.titre,
-			boxHalfWidth * 2, boxplotCol, altColor, boxplotMeanCol, boxLineThiccness
-		)
 	}
 
 	addEl(container, plot.canvas as HTMLElement)
