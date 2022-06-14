@@ -2884,6 +2884,12 @@ const main = async () => {
 		switchToCurrentDataPage(state)
 	})
 
+	window.addEventListener("resize", (event) => {
+		if (state.currentDataPage == "titres") {
+			updateTitrePlot(state)
+		}
+	})
+
 	// NOTE(sen) Attempt to login from local storage
 	{
 		let password = localStorage.getItem("password")
