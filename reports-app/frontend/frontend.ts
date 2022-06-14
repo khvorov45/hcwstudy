@@ -2043,9 +2043,6 @@ const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
 
 	for (let xTick of spec.xTicks) {
 		let xCoord = scaleXToPx(xTick)
-		if (xTick as unknown as number === 220) {
-			console.log(xCoord, scaleXData(xTick))
-		}
 		drawRect(
 			renderer,
 			{l: xCoord, r: xCoord + axisThiccness,
