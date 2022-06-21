@@ -842,62 +842,6 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 	return { table: table, width: tableWidthPx }
 }
 
-const initPassword = (state: State) => {
-	let container = createDiv()
-	let label = addDiv(container)
-	let input = <HTMLInputElement>addEl(container, createEl("input"))
-	let button = addDiv(container)
-	let buttonText = addDiv(button)
-	let errorText = addDiv(container)
-
-	input.type = "password"
-	input.style.width = "75vw"
-	input.style.height = "2em"
-
-	label.textContent = "Password"
-	buttonText.textContent = "Submit"
-
-	container.style.width = "75vw"
-	container.style.margin = "auto"
-	container.style.marginTop = "5vh"
-
-	button.style.cursor = "pointer"
-	button.style.border = "1px solid var(--color-border)"
-	button.style.height = "50px"
-	button.style.width = "50%"
-	button.style.margin = "auto"
-	button.style.marginTop = "10px"
-	button.style.display = "flex"
-	button.style.alignItems = "center"
-	button.style.justifyContent = "center"
-
-	errorText.style.color = "var(--color-error)"
-	errorText.style.textAlign = "center"
-	errorText.style.marginTop = "10px"
-
-	button.addEventListener("click", async (e) => {
-		if (buttonText.textContent !== "...") {
-			errorText.textContent = ""
-			if (input.value === "") {
-				errorText.textContent = "Password is empty"
-			} else {
-				buttonText.textContent = "..."
-				let fetchResult = await fetchData(input.value)
-				if (!fetchResult.success) {
-					errorText.textContent = "Not recognized"
-				} else {
-					localStorage.setItem("password", input.value)
-					setGlobalData(state, fetchResult.data)
-					switchToCurrentDataPage(state)
-				}
-				buttonText.textContent = "Submit"
-			}
-		}
-	})
-
-	return container
-}
-
 const initLoading = () => {
 	let loading = createDiv()
 	loading.style.fontSize = "40px"
@@ -908,73 +852,6 @@ const initLoading = () => {
 	loading.style.margin = "auto"
 	loading.textContent = "Loading..."
 	return loading
-}
-
-const initSidebar = (state: State, widthPx: number, initDataPage: DataPageID) => {
-	let sidebar = createDiv()
-	sidebar.style.width = widthPx + "px"
-	sidebar.style.height = "100vh"
-	sidebar.style.flexShrink = "0"
-	sidebar.style.display = "flex"
-	sidebar.style.flexDirection = "column"
-	sidebar.style.justifyContent = "space-between"
-	sidebar.style.overflowX = "hidden"
-	sidebar.style.overflowY = "scroll"
-
-	let top = addDiv(sidebar)
-
-	let linksContainer = addEl(top, createSwitch(
-		initDataPage,
-		ALL_DATAPAGE_IDS,
-		(dataPage) => {
-			let dest: string = dataPage
-
-			switch (dataPage) {
-				case "counts": {
-					dest = getCountsPageURL(state.settings.counts)
-				} break
-				case "bleeds": {
-					dest = dataPage + "?year=" + state.settings.bleeds.year
-				} break
-				case "weekly-surveys": {
-					dest = dataPage + "?year=" + state.settings.weeklySurveys.year
-				} break
-				case "titres": {
-					dest = getTitresPageURL(state.settings.titres)
-				}
-			}
-
-			window.history.pushState(null, "", dest)
-			switchDataPage(state, dataPage)
-		},
-		(dataPageOpt, optEl, updateSelected) => {
-			window.addEventListener("popstate", () => {
-				let dataPage = getDataPageFromURL()
-				if (dataPage !== dataPageOpt) {
-					optEl.style.background = "var(--color-background)"
-				} else {
-					optEl.style.background = "var(--color-selected)"
-				}
-				updateSelected(dataPage)
-			})
-		}
-	))
-
-	let pageSpecific = addDiv(top)
-	pageSpecific.style.marginTop = "20px"
-
-	let bottom = addDiv(sidebar)
-	let logout = addDiv(bottom)
-	logout.textContent = "Logout"
-	logout.style.cursor = "pointer"
-	logout.addEventListener("mouseover", (event) => logout.style.backgroundColor = "var(--color-selected)")
-	logout.addEventListener("mouseleave", (event) => logout.style.backgroundColor = "inherit")
-	logout.addEventListener("click", (event) => {
-		localStorage.removeItem("password")
-		switchToPassword(state)
-	})
-
-	return { sidebar: sidebar, pageSpecific: pageSpecific }
 }
 
 const initDataContainer = (sidebarWidthPx: number) => {
@@ -1059,219 +936,6 @@ const initParticipants = (sidebarWidthPx: number) => {
 }
 
 const TITRES_HELP_HEIGHT = 100
-
-const initTitres = (sidebarWidthPx: number) => {
-	let container2 = createDiv()
-	let help = addDiv(container2)
-	help.style.height = TITRES_HELP_HEIGHT + "px"
-	help.style.overflow = "scroll"
-	addTextline(help, "GMT, GMR tables and the titre plot only use the data displayed in the Titres table (so you can filter the titres table and change everything else on the page).")
-	addTextline(help, "Boxplots: minimum - quartile 25 - quartile 75 - maximum. Solid midline: median. Dashed midline: mean (vertical dashed line - 95% CI for mean). Right side: histogram. Numbers: titre measurement counts.")
-
-	let container = addDiv(container2)
-	container.style.height = `calc(100vh - ${TITRES_HELP_HEIGHT}px)`
-	container.style.width = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
-	container.style.overflow = "hidden"
-	container.style.display = "flex"
-	container.style.flexDirection = "column"
-
-	let top = addDiv(container)
-	top.style.maxWidth = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
-	top.style.maxHeight = `calc(100vh / 2 - ${TITRES_HELP_HEIGHT / 2}px)`
-	top.style.flex = "1 0"
-	top.style.display = "flex"
-	top.style.overflow = "hidden"
-	let bottom = addEl(container, <HTMLElement>top.cloneNode(true))
-
-	let left = addDiv(top)
-	left.style.maxWidth = `calc((100vw - ${SIDEBAR_WIDTH_PX}px) / 2)`
-	left.style.flex = "1 0"
-	left.style.overflow = "hidden"
-	let right = addEl(top, <HTMLElement>left.cloneNode(true))
-
-	let table = addDiv(left)
-	table.style.flex = "1 0"
-	table.style.display = "flex"
-
-	let plot = addEl(bottom, <HTMLElement>table.cloneNode(true))
-
-	let gmtTable = addEl(right, <HTMLElement>table.cloneNode(true))
-	gmtTable.style.height = "50%"
-
-	let gmrTable = addEl(right, <HTMLElement>table.cloneNode(true))
-
-	return { container: container2, table: table, gmtTable: gmtTable, gmrTable: gmrTable, plot: plot }
-}
-
-const initCounts = (sidebarWidthPx: number) => {
-	let counts = createDiv()
-	counts.style.width = `calc(100vw - ${sidebarWidthPx}px)`
-	counts.style.overflowX = "hidden"
-	counts.style.display = "flex"
-	let table = addDiv(counts)
-	table.style.maxWidth = `calc(100vw - ${sidebarWidthPx}px)`
-	return { counts: counts, table: table }
-}
-
-const initCountsSettings = (state: State, init: CountsSettings) => {
-	let container = createDiv()
-
-	let tableSwitch = addEl(container, createSwitch(
-		init.table,
-		<CountTableID[]>ALL_COUNTS_TABLES,
-		(table) => {
-			state.settings.counts.table = table
-			window.history.pushState(null, "", getCountsPageURL(state.settings.counts))
-			updateCountsTable(state)
-		},
-		(table, el, updateSelected) => {
-			window.addEventListener("popstate", () => {
-				let settings = getCountSettingsFromURL(state.settings.counts)
-				if (settings.table === table) {
-					el.style.backgroundColor = "var(--color-selected)"
-				} else {
-					el.style.backgroundColor = "var(--color-background)"
-				}
-				updateSelected(settings.table)
-			})
-		},
-	))
-
-	let groupSwitchContainer = addDiv(container)
-
-	let recordsSwitch = createSwitch(
-		init.groupsRecords,
-		<RecordGroups[]>ALL_RECORD_GROUPS,
-		(groups) => {
-			state.settings.counts.groupsRecords = groups
-			window.history.pushState(null, "", getCountsPageURL(state.settings.counts))
-			updateCountsTable(state)
-		},
-		(group, el, updateSelected) => {
-			window.addEventListener("popstate", () => {
-				let settings = getCountSettingsFromURL(state.settings.counts)
-				if (settings.groupsRecords.includes(group)) {
-					el.style.backgroundColor = "var(--color-selected)"
-				} else {
-					el.style.backgroundColor = "var(--color-background)"
-				}
-				updateSelected(settings.groupsRecords)
-			})
-		},
-	)
-	recordsSwitch.style.marginTop = "20px"
-
-	let bleedsSwitch = createSwitch(
-		init.groupsBleeds,
-		<BleedsGroups[]>ALL_BLEEDS_GROUPS,
-		(groups) => {
-			state.settings.counts.groupsBleeds = groups
-			window.history.pushState(null, "", getCountsPageURL(state.settings.counts))
-			updateCountsTable(state)
-		},
-		(group, el, updateSelected) => {
-			window.addEventListener("popstate", () => {
-				let settings = getCountSettingsFromURL(state.settings.counts)
-				if (settings.groupsBleeds.includes(group)) {
-					el.style.backgroundColor = "var(--color-selected)"
-				} else {
-					el.style.backgroundColor = "var(--color-background)"
-				}
-				updateSelected(settings.groupsBleeds)
-			})
-		},
-	)
-	bleedsSwitch.style.marginTop = "20px"
-
-	let postinfBleedsSwitch = createSwitch(
-		init.groupsPostinfBleeds,
-		<PostinfBleedsGroups[]>ALL_POSTINF_BLEEDS_GROUPS,
-		(groups) => {
-			state.settings.counts.groupsPostinfBleeds = groups
-			window.history.pushState(null, "", getCountsPageURL(state.settings.counts))
-			updateCountsTable(state)
-		},
-		(group, el, updateSelected) => {
-			window.addEventListener("popstate", () => {
-				let settings = getCountSettingsFromURL(state.settings.counts)
-				if (settings.groupsBleeds.includes(group)) {
-					el.style.backgroundColor = "var(--color-selected)"
-				} else {
-					el.style.backgroundColor = "var(--color-background)"
-				}
-				updateSelected(settings.groupsPostinfBleeds)
-			})
-		},
-	)
-	postinfBleedsSwitch.style.marginTop = "20px"
-
-	return {
-		container: container,
-		groupSwitchContainer: groupSwitchContainer,
-		recordsSwitch: recordsSwitch,
-		bleedsSwitch: bleedsSwitch,
-		postinfBleedsSwitch: postinfBleedsSwitch,
-	}
-}
-
-const initTitresSettings = (state: State, init: TitresSettings) => {
-	let container = createDiv()
-
-	let gmtGroupsSwitchLabel = addDiv(container)
-	gmtGroupsSwitchLabel.textContent = "GMT groups"
-
-	let gmtGroupsSwitch = createSwitch(
-		init.groupsGMTs,
-		<GMTGroups[]>ALL_GMT_GROUPS,
-		(groups) => {
-			state.settings.titres.groupsGMTs = groups
-			window.history.pushState(null, "", getTitresPageURL(state.settings.titres))
-			updateGMTs(state)
-		},
-		(group, el, updateSelected) => {
-			window.addEventListener("popstate", () => {
-				let settings = getTitresSettingsFromURL(state.settings.titres)
-				if (settings.groupsGMTs.includes(group)) {
-					el.style.backgroundColor = "var(--color-selected)"
-				} else {
-					el.style.backgroundColor = "var(--color-background)"
-				}
-				updateSelected(settings.groupsGMTs)
-			})
-		},
-	)
-
-	addEl(container, gmtGroupsSwitch)
-
-	let gmrGroupsSwitchLabel = addDiv(container)
-	gmrGroupsSwitchLabel.textContent = "GMR groups"
-	gmrGroupsSwitchLabel.style.marginTop = "30px"
-
-	let gmrGroupsSwitch = createSwitch(
-		init.groupsGMRs,
-		<GMRGroups[]>ALL_GMR_GROUPS,
-		(groups) => {
-			state.settings.titres.groupsGMRs = groups
-			window.history.pushState(null, "", getTitresPageURL(state.settings.titres))
-			updateGMRs(state)
-		},
-		(group, el, updateSelected) => {
-			window.addEventListener("popstate", () => {
-				let settings = getTitresSettingsFromURL(state.settings.titres)
-				if (settings.groupsGMRs.includes(group)) {
-					el.style.backgroundColor = "var(--color-selected)"
-				} else {
-					el.style.backgroundColor = "var(--color-background)"
-				}
-				updateSelected(settings.groupsGMRs)
-			})
-		},
-	)
-
-	addEl(container, gmrGroupsSwitch)
-
-	return container
-}
 
 const getParticipantsKey = (row: any, group: string) => {
 	let key = row[group]
@@ -2364,15 +2028,6 @@ const fetchData = async (password: string) => {
 	return { success: success, data: <Data>data }
 }
 
-const setGlobalData = (state: State, data: any) => {
-	state.data = data
-	updateCountsTable(state)
-	updateBleedsTable(state)
-	updateSurveyTables(state)
-	updateParticipantsTable(state)
-	updateTitres(state)
-}
-
 const getDataPageFromURL = () => {
 	let path = window.location.pathname.slice(1)
 	let result: DataPageID = "counts"
@@ -2578,37 +2233,6 @@ const getSurveysYearFromURL = (def: YearID) => {
 	return urlYear
 }
 
-const switchDataPage = (state: State, name: DataPageID) => {
-	let oldDataPage = state.currentDataPage
-	state.currentDataPage = name
-	switch (name) {
-		case "weekly-surveys": {
-			replaceChildren(state.elements.sidebar.pageSpecific, state.elements.weeklySurveySettings)
-			replaceChildren(state.elements.dataContainer, state.elements.weeklySurveys.hscrollContainer)
-		} break
-		case "bleeds": {
-			replaceChildren(state.elements.sidebar.pageSpecific, state.elements.bleedsSettings)
-			replaceChildren(state.elements.dataContainer, state.elements.bleeds.bleeds)
-		} break
-		case "counts": {
-			replaceChildren(state.elements.sidebar.pageSpecific, state.elements.countsSettings.container)
-			replaceChildren(state.elements.dataContainer, state.elements.counts.counts)
-		} break
-		case "participants": {
-			removeChildren(state.elements.sidebar.pageSpecific)
-			replaceChildren(state.elements.dataContainer, state.elements.participants.container)
-		} break
-		case "titres": {
-			replaceChildren(state.elements.sidebar.pageSpecific, state.elements.titresSettings)
-			replaceChildren(state.elements.dataContainer, state.elements.titres.container)
-		} break;
-		default: {
-			console.error("data page", name, "does not exist")
-			state.currentDataPage = oldDataPage
-		}
-	}
-}
-
 const createLoadingPage = () => {
 	let loading = createDiv()
 	loading.style.fontSize = "40px"
@@ -2674,239 +2298,6 @@ const createPasswordPage = (onValidPassword: (data: Data) => void) => {
 	})
 
 	return container
-}
-
-const switchToPassword = (state: State) => replaceChildren(state.domMain, state.elements.password)
-const switchToLoading = (state: State) => replaceChildren(state.domMain, state.elements.loading)
-const switchToCurrentDataPage = (state: State) => {
-	removeChildren(state.domMain)
-	addEl(state.domMain, state.elements.sidebar.sidebar)
-	addEl(state.domMain, state.elements.dataContainer)
-	switchDataPage(state, state.currentDataPage)
-}
-
-const updateCountsTable = (state: State) => {
-	let tableEl = createDiv()
-	let switchEl = createDiv()
-
-	switch (state.settings.counts.table) {
-		case "records": {
-			tableEl = createCountsRecordsTable(state.data, state.settings.counts.groupsRecords)
-			switchEl = state.elements.countsSettings.recordsSwitch
-		} break;
-
-		case "routine-bleeds": {
-			tableEl = createCountsBleedsTable(state.data, state.settings.counts.groupsBleeds)
-			switchEl = state.elements.countsSettings.bleedsSwitch
-		} break;
-
-		case "postinfection-bleeds": {
-			tableEl = createCountsPostinfBleedsTable(state.data, state.settings.counts.groupsPostinfBleeds)
-			switchEl = state.elements.countsSettings.postinfBleedsSwitch
-		} break;
-
-		default: console.error("unexpected counts table name", state.settings.counts.table)
-	}
-
-	replaceChildren(state.elements.counts.table, tableEl)
-	replaceChildren(state.elements.countsSettings.groupSwitchContainer, switchEl)
-}
-
-const updateBleedsTable = (state: State) => replaceChildren(
-	state.elements.bleeds.table,
-	createBleedsTable(DOWNLOAD_CSV, state.data, state.settings.bleeds.year)
-)
-
-const updateSurveyTables = (state: State) => {
-	replaceChildren(
-		state.elements.weeklySurveys.datesContainer,
-		state.elements.weeklySurveys.datesTables[state.settings.weeklySurveys.year]
-	)
-	let completions = {}
-	replaceChildren(
-		state.elements.weeklySurveys.surveys,
-		createSurveyTable(completions, state.data, state.settings.weeklySurveys.year)
-	)
-	replaceChildren(
-		state.elements.weeklySurveys.completions,
-		createCompletionsTable(completions)
-	)
-}
-
-const updateParticipantsTable = (state: State) => replaceChildren(
-	state.elements.participants.table,
-	createParticipantsTable(DOWNLOAD_CSV, state.data)
-)
-
-const updateGMTs = (state: State) => replaceChildren(
-	state.elements.titres.gmtTable,
-	createTitreGMTTable(state.filteredTitreData, state.settings.titres.groupsGMTs)
-)
-
-const updateGMRs = (state: State) => replaceChildren(
-	state.elements.titres.gmrTable,
-	createTitreGMRTable(state.filteredTitreData, state.settings.titres.groupsGMRs)
-)
-
-const updateTitrePlot = (state: State) => replaceChildren(
-	state.elements.titres.plot,
-	createTitrePlot(state.filteredTitreData)
-)
-
-const updateTitres = (state: State) => {
-	let titreTable = createTitreTable(state.data, (filteredData) => {
-		state.filteredTitreData = filteredData
-		updateGMTs(state)
-		updateGMRs(state)
-		updateTitrePlot(state)
-	})
-	replaceChildren(state.elements.titres.table, titreTable)
-}
-
-type State = {
-	data: any,
-	filteredTitreData: any[],
-	domMain: HTMLElement,
-	currentDataPage: DataPageID,
-	elements: {
-		loading: HTMLElement,
-		password: HTMLElement,
-		sidebar: {
-			sidebar: HTMLElement,
-			pageSpecific: HTMLElement,
-		},
-		weeklySurveySettings: HTMLElement,
-		bleedsSettings: HTMLElement,
-		countsSettings: {
-			container: HTMLElement,
-			groupSwitchContainer: HTMLElement,
-			recordsSwitch: HTMLElement,
-			bleedsSwitch: HTMLElement,
-			postinfBleedsSwitch: HTMLElement,
-		},
-		titresSettings: HTMLElement,
-		dataContainer: HTMLElement,
-		weeklySurveys: {
-			hscrollContainer: HTMLElement,
-			container: HTMLElement,
-			surveys: HTMLElement,
-			completions: HTMLElement,
-			datesContainer: HTMLElement,
-			datesTables: {
-				2020: HTMLElement
-				2021: HTMLElement
-				2022: HTMLElement
-			},
-		},
-		bleeds: {
-			bleeds: HTMLElement,
-			table: HTMLElement,
-		},
-		counts: {
-			counts: HTMLElement,
-			table: HTMLElement,
-		},
-		participants: {
-			container: HTMLElement,
-			table: HTMLElement,
-		},
-		titres: {
-			container: HTMLElement,
-			table: HTMLElement,
-			gmtTable: HTMLElement,
-			gmrTable: HTMLElement,
-			plot: HTMLElement,
-		},
-	},
-	settings: {
-		weeklySurveys: { year: YearID },
-		bleeds: { year: YearID },
-		counts: CountsSettings,
-		titres: TitresSettings,
-	},
-}
-
-const initState = (state: State) => {
-	state.data = {}
-	state.filteredTitreData = []
-
-	state.domMain = document.getElementById("main")!
-	state.currentDataPage = getDataPageFromURL()
-
-	const initYear: YearID = 2022
-	const initYearBleeds: YearID = getBleedsYearFromURL(initYear)
-	const initYearSurvey: YearID = getSurveysYearFromURL(initYear)
-	const initCountsSettingsVal: CountsSettings = getCountSettingsFromURL({
-		table: "records", groupsRecords: ["site"], groupsBleeds: ["year"], groupsPostinfBleeds: ["year"],
-	})
-	const initTitresSettingsVal: TitresSettings = getTitresSettingsFromURL({
-		groupsGMTs: ["year", "day"], groupsGMRs: ["year"],
-	})
-
-	state.elements = {
-		loading: initLoading(),
-		password: initPassword(state),
-
-		sidebar: initSidebar(state, SIDEBAR_WIDTH_PX, state.currentDataPage),
-
-		weeklySurveySettings: createSwitch(
-			initYearSurvey,
-			<YearID[]>YEARS,
-			(year) => {
-				state.settings.weeklySurveys.year = year
-				window.history.pushState(null, "", `weekly-surveys?year=${year}`)
-				updateSurveyTables(state)
-			},
-			(year, el, updateSelected) => {
-				window.addEventListener("popstate", () => {
-					let urlYear = getSurveysYearFromURL(state.settings.weeklySurveys.year)
-					if (urlYear == year) {
-						el.style.backgroundColor = "var(--color-selected)"
-					} else {
-						el.style.backgroundColor = "var(--color-background)"
-					}
-					updateSelected(urlYear)
-				})
-			},
-		),
-
-		bleedsSettings: createSwitch(
-			initYearBleeds, YEARS,
-			(year) => {
-				state.settings.bleeds.year = year
-				window.history.pushState(null, "", `bleeds?year=${year}`)
-				updateBleedsTable(state)
-			},
-			(year, el, updateSelected) => {
-				window.addEventListener("popstate", () => {
-					let urlYear = getBleedsYearFromURL(state.settings.bleeds.year)
-					if (urlYear == year) {
-						el.style.backgroundColor = "var(--color-selected)"
-					} else {
-						el.style.backgroundColor = "var(--color-background)"
-					}
-					updateSelected(urlYear)
-				})
-			},
-		),
-
-		countsSettings: initCountsSettings(state, initCountsSettingsVal),
-		titresSettings: initTitresSettings(state, initTitresSettingsVal),
-
-		dataContainer: initDataContainer(SIDEBAR_WIDTH_PX),
-		weeklySurveys: initSurveys(SIDEBAR_WIDTH_PX),
-		bleeds: initBleeds(SIDEBAR_WIDTH_PX),
-		counts: initCounts(SIDEBAR_WIDTH_PX),
-		participants: initParticipants(SIDEBAR_WIDTH_PX),
-		titres: initTitres(SIDEBAR_WIDTH_PX)
-	}
-
-	state.settings = {
-		weeklySurveys: { year: initYearSurvey },
-		bleeds: { year: initYearBleeds },
-		counts: initCountsSettingsVal,
-		titres: initTitresSettingsVal,
-	}
 }
 
 type Data = {
@@ -3436,13 +2827,22 @@ const goToCurrentURL = (domMain: HTMLElement, data: Data, onLogout: () => void) 
 }
 
 const main = async () => {
-	/*
-	window.addEventListener("resize", (event) => {
-		if (state.currentDataPage == "titres") {
-			updateTitrePlot(state)
-		}
-	})
-	*/
+
+	const historyChangeStateAndDispatchEvent = function(type: string) {
+		//@ts-ignore
+	    const orig: any = history[type];
+	    return function() {
+	    	//@ts-ignore
+	        const rv = orig.apply(this, arguments);
+	        const e: any = new Event(type);
+	        e.arguments = arguments;
+	        window.dispatchEvent(e);
+	        return rv;
+	    };
+	};
+
+	history.pushState = historyChangeStateAndDispatchEvent('pushState')
+	history.replaceState = historyChangeStateAndDispatchEvent('replaceState')
 
 	// NOTE(sen) Attempt to login from local storage
 	const domMain = document.getElementById("main")!
@@ -3461,22 +2861,6 @@ const main = async () => {
 		}
 	}
 }
-
-const historyChangeStateAndDispatchEvent = function(type: string) {
-	//@ts-ignore
-    const orig: any = history[type];
-    return function() {
-    	//@ts-ignore
-        const rv = orig.apply(this, arguments);
-        const e: any = new Event(type);
-        e.arguments = arguments;
-        window.dispatchEvent(e);
-        return rv;
-    };
-};
-
-history.pushState = historyChangeStateAndDispatchEvent('pushState')
-history.replaceState = historyChangeStateAndDispatchEvent('replaceState')
 
 main()
 
