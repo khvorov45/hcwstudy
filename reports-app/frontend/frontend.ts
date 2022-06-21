@@ -296,7 +296,7 @@ const YEARS_ = [2020, 2021, 2022] as const
 const YEARS = YEARS_ as unknown as number[]
 type YearID = (typeof YEARS_)[number]
 
-const ALL_DATAPAGE_IDS_ = ["pariticpants", "weekly-surveys", "bleeds", "counts", "titres"] as const
+const ALL_DATAPAGE_IDS_ = ["participants", "weekly-surveys", "bleeds", "counts", "titres"] as const
 const ALL_DATAPAGE_IDS = ALL_DATAPAGE_IDS_ as unknown as string[]
 type DataPageID = (typeof ALL_DATAPAGE_IDS_)[number]
 
@@ -1308,7 +1308,7 @@ const addCountsExplanatoryNotes = (node: HTMLElement, groups: string[]) => {
 	}
 }
 
-const createCountsRecordsTable = (data: Data, groups: string[]) => {
+const createCountsRecordsTable = (data: Data, groups: RecordGroups[]) => {
 
 	let withdrawalData = data.withdrawn
 
@@ -1384,7 +1384,7 @@ const createCountsRecordsTable = (data: Data, groups: string[]) => {
 	return countsTableContainer
 }
 
-const createCountsBleedsTable = (data: Data, groups: string[]) => {
+const createCountsBleedsTable = (data: Data, groups: BleedsGroups[]) => {
 
 	let groupedCounts = summarise({
 		data: data.bleed_dates,
@@ -1437,7 +1437,7 @@ const createCountsBleedsTable = (data: Data, groups: string[]) => {
 	return countsTableContainer
 }
 
-const createCountsPostinfBleedsTable = (data: Data, groups: string[]) => {
+const createCountsPostinfBleedsTable = (data: Data, groups: PostinfBleedsGroups[]) => {
 
 	let groupedCounts = summarise({
 		data: data.postinf_bleed_dates,
@@ -2252,7 +2252,7 @@ const createTitrePlot = (data: any[]) => {
 	return container
 }
 
-const createSurveyTable = (completions: { [key: string]: number[] }, data: any, year: number) => {
+const createSurveyTable = (completions: { [key: string]: number[] }, data: Data, year: number) => {
 	let tableContainer = createDiv()
 
 	let tableResult = createTableElementFromAos({
@@ -2275,6 +2275,7 @@ const createCompletionsTable = (completions: { [key: string]: number[] }) => {
 
 	let collapsed = []
 	for (let [pid, completedSurveys] of Object.entries(completions)) {
+		completedSurveys = completedSurveys.sort((a, b) => a - b)
 		let collapsedCompletions = ""
 		if (completedSurveys.length > 0) {
 			collapsedCompletions += completedSurveys[0]
@@ -2360,7 +2361,7 @@ const fetchData = async (password: string) => {
 		}
 	}
 
-	return { success: success, data: data }
+	return { success: success, data: <Data>data }
 }
 
 const setGlobalData = (state: State, data: any) => {
@@ -2593,7 +2594,7 @@ const switchDataPage = (state: State, name: DataPageID) => {
 			replaceChildren(state.elements.sidebar.pageSpecific, state.elements.countsSettings.container)
 			replaceChildren(state.elements.dataContainer, state.elements.counts.counts)
 		} break
-		case "pariticpants": {
+		case "participants": {
 			removeChildren(state.elements.sidebar.pageSpecific)
 			replaceChildren(state.elements.dataContainer, state.elements.participants.container)
 		} break
@@ -2606,6 +2607,73 @@ const switchDataPage = (state: State, name: DataPageID) => {
 			state.currentDataPage = oldDataPage
 		}
 	}
+}
+
+const createLoadingPage = () => {
+	let loading = createDiv()
+	loading.style.fontSize = "40px"
+	loading.style.display = "flex"
+	loading.style.alignItems = "center"
+	loading.style.justifyContent = "center"
+	loading.style.height = "100vh"
+	loading.style.margin = "auto"
+	loading.textContent = "Loading..."
+	return loading
+}
+
+const createPasswordPage = (onValidPassword: (data: Data) => void) => {
+	let container = createDiv()
+	let label = addDiv(container)
+	let input = <HTMLInputElement>addEl(container, createEl("input"))
+	let button = addDiv(container)
+	let buttonText = addDiv(button)
+	let errorText = addDiv(container)
+
+	input.type = "password"
+	input.style.width = "75vw"
+	input.style.height = "2em"
+
+	label.textContent = "Password"
+	buttonText.textContent = "Submit"
+
+	container.style.width = "75vw"
+	container.style.margin = "auto"
+	container.style.marginTop = "5vh"
+
+	button.style.cursor = "pointer"
+	button.style.border = "1px solid var(--color-border)"
+	button.style.height = "50px"
+	button.style.width = "50%"
+	button.style.margin = "auto"
+	button.style.marginTop = "10px"
+	button.style.display = "flex"
+	button.style.alignItems = "center"
+	button.style.justifyContent = "center"
+
+	errorText.style.color = "var(--color-error)"
+	errorText.style.textAlign = "center"
+	errorText.style.marginTop = "10px"
+
+	button.addEventListener("click", async (e) => {
+		if (buttonText.textContent !== "...") {
+			errorText.textContent = ""
+			if (input.value === "") {
+				errorText.textContent = "Password is empty"
+			} else {
+				buttonText.textContent = "..."
+				let fetchResult = await fetchData(input.value)
+				if (!fetchResult.success) {
+					errorText.textContent = "Not recognized"
+				} else {
+					localStorage.setItem("password", input.value)
+					onValidPassword(fetchResult.data)
+				}
+				buttonText.textContent = "Submit"
+			}
+		}
+	})
+
+	return container
 }
 
 const switchToPassword = (state: State) => replaceChildren(state.domMain, state.elements.password)
@@ -2851,59 +2919,545 @@ type Data = {
 	titres: any[],
 }
 
-const main = async () => {
+type Pages = {
+	participants: ParticipantsSettings,
+	"weekly-surveys": WeeklySurveySettings,
+	bleeds: BleedsSettings,
+	counts: CountsSettings,
+	titres: TitresSettings,
+}
 
-	const state: any = {}
-	initState(<State>state)
+type PageInfoParticipants = {
+	page: "participants",
+	settings: ParticipantsSettings,
+}
+type ParticipantsSettings = {}
 
-	window.addEventListener("popstate", (event) => {
-		state.currentDataPage = getDataPageFromURL()
+type PageInfoWeeklySurveys = {
+	page: "weekly-surveys",
+	settings: WeeklySurveySettings,
+}
+type WeeklySurveySettings = {year: YearID}
 
-		switch (state.currentDataPage) {
-			case "counts": {
-				state.settings.counts = getCountSettingsFromURL(state.settings.counts)
-				updateCountsTable(state)
-			} break
+type PageInfoBleeds = {
+	page: "bleeds",
+	settings: BleedsSettings,
+}
+type BleedsSettings = {year: YearID}
 
-			case "bleeds": {
-				state.settings.bleeds.year = getBleedsYearFromURL(state.settings.bleeds.year)
-				updateBleedsTable(state)
-			} break
+type PageInfoCounts = {
+	page: "counts",
+	settings: CountsSettings,
+}
 
-			case "weekly-surveys": {
-				state.settings.weeklySurveys.year = getSurveysYearFromURL(state.settings.weeklySurveys.year)
-				updateSurveyTables(state)
-			} break
+type PageInfoTitres = {
+	page: "titres",
+	settings: TitresSettings,
+}
 
-			case "titres": {
-				state.settings.titres = getTitresSettingsFromURL(state.settings.titres)
-				updateTitres(state)
-			} break
-		}
+type PageInfo = PageInfoParticipants | PageInfoWeeklySurveys | PageInfoBleeds |
+	PageInfoCounts | PageInfoTitres
 
-		switchToCurrentDataPage(state)
+const updatePageFromURL = (pages: Pages): DataPageID => {
+	let page = getDataPageFromURL()
+	switch (page) {
+	case "participants": pages.participants = {}; break
+	case "counts": pages.counts = getCountSettingsFromURL(pages.counts); break
+	case "bleeds": pages.bleeds.year = getBleedsYearFromURL(pages.bleeds.year); break
+	case "weekly-surveys": pages["weekly-surveys"].year = getSurveysYearFromURL(pages["weekly-surveys"].year); break
+	case "titres": pages.titres = getTitresSettingsFromURL(pages.titres); break
+	default: console.error("unexpected page:", page); page = "counts"; break
+	}
+	return page
+}
+
+const createSidebar = (
+	activePage: DataPageID,
+	pageSpecific: HTMLElement,
+	onDatapageChange: (page: DataPageID) => void,
+	onLogout: () => void,
+) => {
+	const sidebar = createDiv()
+	sidebar.style.width = SIDEBAR_WIDTH_PX + "px"
+	sidebar.style.height = "100vh"
+	sidebar.style.flexShrink = "0"
+	sidebar.style.display = "flex"
+	sidebar.style.flexDirection = "column"
+	sidebar.style.justifyContent = "space-between"
+	sidebar.style.overflowX = "hidden"
+	sidebar.style.overflowY = "scroll"
+
+	const top = addDiv(sidebar)
+
+	const linksContainer = addEl(top, createSwitch(activePage, ALL_DATAPAGE_IDS, onDatapageChange))
+	linksContainer.style.marginBottom = "20px"
+
+	addEl(top, pageSpecific)
+
+	let bottom = addDiv(sidebar)
+	let logout = addDiv(bottom)
+	logout.textContent = "Logout"
+	logout.style.cursor = "pointer"
+	logout.addEventListener("mouseover", (event) => logout.style.backgroundColor = "var(--color-selected)")
+	logout.addEventListener("mouseleave", (event) => logout.style.backgroundColor = "inherit")
+	logout.addEventListener("click", (event) => {
+		localStorage.removeItem("password")
+		onLogout()
 	})
 
+	return sidebar
+}
+
+const createDatapageContainer = () => {
+	const container = createDiv()
+	container.style.display = "flex"
+	return container
+}
+
+const createParticipantsPage = (data: Data, onDatapageChange: (page: DataPageID) => void, onLogout: () => void) => {
+	const page = createDatapageContainer()
+	const settings = createDiv()
+
+	addEl(page, createSidebar("participants", settings, onDatapageChange, onLogout))
+
+	let container = addDiv(page)
+	container.style.width = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
+	let table = addDiv(container)
+	table.style.maxWidth = container.style.width
+
+	let tableResult = createTableElementFromAos({
+		aos: data.participants,
+		colSpecInit: {
+			pid: {},
+			site: {},
+			email: { width: 450 },
+			mobile: { width: 200 },
+			gender: {},
+			atsi: { width: 50 },
+			dob: {},
+			date_screening: { width: 150 },
+			age_screening: { width: 150, format: (x) => x.toFixed(0) },
+			recruitment_year: { width: 150 },
+		},
+		title: "Participants",
+	})
+	addEl(table, tableResult.table)
+
+	return page
+}
+
+const createCountsTable = (data: Data, settings: CountsSettings) => {
+	let tableEl = createDiv()
+	switch (settings.table) {
+		case "records": {
+			tableEl = createCountsRecordsTable(data, settings.groupsRecords)
+		} break;
+
+		case "routine-bleeds": {
+			tableEl = createCountsBleedsTable(data, settings.groupsBleeds)
+		} break;
+
+		case "postinfection-bleeds": {
+			tableEl = createCountsPostinfBleedsTable(data, settings.groupsPostinfBleeds)
+		} break;
+
+		default: console.error("unexpected counts table name", settings.table)
+	}
+	return tableEl
+}
+
+const createCountsSwitch = (parent: HTMLElement, data: Data, settings: CountsSettings) => {
+	let switchEl = createDiv()
+	let createTable = () => createDiv()
+
+	switch (settings.table) {
+		case "records": {
+			createTable = () => createCountsRecordsTable(data, settings.groupsRecords)
+			switchEl = createSwitch(
+				settings.groupsRecords,
+				<RecordGroups[]>ALL_RECORD_GROUPS,
+				(groups) => {
+					settings.groupsRecords = groups
+					window.history.pushState(null, "", getCountsPageURL(settings))
+					replaceChildren(parent, createTable())
+				},
+			)
+		} break;
+
+		case "routine-bleeds": {
+			createTable = () => createCountsBleedsTable(data, settings.groupsRecords)
+			switchEl = createSwitch(
+				settings.groupsBleeds,
+				<BleedsGroups[]>ALL_BLEEDS_GROUPS,
+				(groups) => {
+					settings.groupsBleeds = groups
+					window.history.pushState(null, "", getCountsPageURL(settings))
+					replaceChildren(parent, createTable())
+				},
+			)
+		} break;
+
+		case "postinfection-bleeds": {
+			createTable = () => createCountsPostinfBleedsTable(data, settings.groupsRecords)
+			switchEl = createSwitch(
+				settings.groupsPostinfBleeds,
+				<PostinfBleedsGroups[]>ALL_POSTINF_BLEEDS_GROUPS,
+				(groups) => {
+					settings.groupsPostinfBleeds = groups
+					window.history.pushState(null, "", getCountsPageURL(settings))
+					replaceChildren(parent, createTable())
+				},
+			)
+		} break;
+
+		default: console.error("unexpected counts table name", settings.table)
+	}
+
+	return switchEl
+}
+
+const createCountsPage = (
+	data: Data,
+	settings: CountsSettings,
+	onDatapageChange: (page: DataPageID) => void,
+	onLogout: () => void,
+) => {
+	const counts = createDiv()
+	counts.style.width = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
+	counts.style.overflowX = "hidden"
+	counts.style.display = "flex"
+
+	let tableParent = addDiv(counts)
+	tableParent.style.maxWidth = counts.style.width
+	addEl(tableParent, createCountsTable(data, settings))
+
+	const switchParent = createDiv()
+	addEl(switchParent, createCountsSwitch(tableParent, data, settings))
+
+	const updateTableAndSwitch = () => {
+		replaceChildren(tableParent, createCountsTable(data, settings))
+		replaceChildren(switchParent, createCountsSwitch(tableParent, data, settings))
+	}
+
+	let switchContainer = createDiv()
+
+	let tableSwitch = addEl(switchContainer, createSwitch(
+		settings.table,
+		<CountTableID[]>ALL_COUNTS_TABLES,
+		(table) => {
+			settings.table = table
+			window.history.pushState(null, "", getCountsPageURL(settings))
+			updateTableAndSwitch()
+		},
+	))
+	tableSwitch.style.marginBottom = "20px"
+
+	addEl(switchContainer, switchParent)
+
+	const page = createDatapageContainer()
+	addEl(page, createSidebar("counts", switchContainer, onDatapageChange, onLogout))
+	addEl(page, counts)
+
+	return page
+}
+
+const createBleedsPage = (
+	data: Data,
+	settings: BleedsSettings,
+	onDatapageChange: (page: DataPageID) => void,
+	onLogout: () => void,
+) => {
+	const bleeds = createDiv()
+	bleeds.style.width = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
+	bleeds.style.display = "flex"
+
+	const tableParent = addDiv(bleeds)
+	tableParent.style.maxWidth = bleeds.style.width
+
+	addEl(tableParent, createBleedsTable(DOWNLOAD_CSV, data, settings.year))
+
+	const yearSwitch = createSwitch (
+		settings.year, YEARS,
+		(year) => {
+			settings.year = year
+			window.history.pushState(null, "", `bleeds?year=${year}`)
+			replaceChildren(tableParent, createBleedsTable(DOWNLOAD_CSV, data, settings.year))
+		},
+	)
+
+	const page = createDatapageContainer()
+	addEl(page, createSidebar("bleeds", yearSwitch, onDatapageChange, onLogout))
+	addEl(page, bleeds)
+
+	return page
+}
+
+const createWeeklySurveysPage = (
+	data: Data,
+	settings: WeeklySurveySettings,
+	onDatapageChange: (page: DataPageID) => void,
+	onLogout: () => void,
+) => {
+	let hscrollContainer = createDiv()
+	hscrollContainer.style.width = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
+	hscrollContainer.style.overflowX = "scroll"
+	hscrollContainer.style.overflowY = "hidden"
+
+	let container = addDiv(hscrollContainer)
+	container.style.display = "flex"
+	container.style.height = `calc(100vh - ${SCROLLBAR_WIDTHS[0]}px)`
+
+	const getDates = (weekCount: number, start: string, end: string, send: string) => {
+		let result: any[] = []
+		let startDate = new Date(start)
+		let endDate = new Date(end)
+		let sendDate = new Date(send)
+		for (let index = 0; index < weekCount; index += 1) {
+			let row = {
+				week: `${index + 1}`,
+				start: formatDate(addDays(startDate, index * 7)),
+				end: formatDate(addDays(endDate, index * 7)),
+				send: formatDate(addDays(sendDate, index * 7)),
+			}
+			result.push(row)
+		}
+		return result
+	}
+
+	let surveyDates = {
+		2020: createTableElementFromAos({
+			aos: getDates(32, "2020-04-06", "2020-04-12", "2020-04-13"),
+			colSpecInit: {week: {}, start: {}, end: {}, send: {}},
+			title: "Weekly survey dates 2020",
+		}),
+
+		2021: createTableElementFromAos({
+			aos: getDates(52, "2021-01-04", "2021-01-10", "2021-01-11"),
+			colSpecInit: {week: {}, start: {}, end: {}, send: {}},
+			title: "Weekly survey dates 2021",
+		}),
+
+		2022: createTableElementFromAos({
+			aos: getDates(52, "2022-01-03", "2022-01-09", "2022-01-10"),
+			colSpecInit: {week: {}, start: {}, end: {}, send: {}},
+			title: "Weekly survey dates 2022",
+		})
+	}
+
+	const datesTableParent = addDiv(container)
+	const surveysTableParent = addDiv(container)
+	const completionsTableParent = addDiv(container)
+
+	const updateTables = (year: YearID) => {
+		replaceChildren(datesTableParent, surveyDates[year].table)
+		const completions = {}
+		replaceChildren(surveysTableParent, createSurveyTable(completions, data, year))
+		replaceChildren(completionsTableParent, createCompletionsTable(completions))
+	}
+
+	updateTables(settings.year)
+
+	const yearSwitch = createSwitch (
+		settings.year, YEARS,
+		(year) => {
+			settings.year = year
+			window.history.pushState(null, "", `weekly-surveys?year=${year}`)
+			updateTables(year)
+		},
+	)
+
+	const page = createDatapageContainer()
+	addEl(page, createSidebar("weekly-surveys", yearSwitch, onDatapageChange, onLogout))
+	addEl(page, hscrollContainer)
+
+	return page
+}
+
+let globalListnerCreateTitresPageUpdatePlot = () => {}
+
+const createTitresPage = (
+	data: Data,
+	settings: TitresSettings,
+	onDatapageChange: (page: DataPageID) => void,
+	onLogout: () => void
+) => {
+	let container2 = createDiv()
+	let help = addDiv(container2)
+	help.style.height = TITRES_HELP_HEIGHT + "px"
+	help.style.overflow = "scroll"
+	addTextline(help, "GMT, GMR tables and the titre plot only use the data displayed in the Titres table (so you can filter the titres table and change everything else on the page).")
+	addTextline(help, "Boxplots: minimum - quartile 25 - quartile 75 - maximum. Solid midline: median. Dashed midline: mean (vertical dashed line - 95% CI for mean). Right side: histogram. Numbers: titre measurement counts.")
+
+	let container = addDiv(container2)
+	container.style.height = `calc(100vh - ${TITRES_HELP_HEIGHT}px)`
+	container.style.width = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
+	container.style.overflow = "hidden"
+	container.style.display = "flex"
+	container.style.flexDirection = "column"
+
+	let top = addDiv(container)
+	top.style.maxWidth = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
+	top.style.maxHeight = `calc(100vh / 2 - ${TITRES_HELP_HEIGHT / 2}px)`
+	top.style.flex = "1 0"
+	top.style.display = "flex"
+	top.style.overflow = "hidden"
+	let bottom = addEl(container, <HTMLElement>top.cloneNode(true))
+
+	let left = addDiv(top)
+	left.style.maxWidth = `calc((100vw - ${SIDEBAR_WIDTH_PX}px) / 2)`
+	left.style.flex = "1 0"
+	left.style.overflow = "hidden"
+	let right = addEl(top, <HTMLElement>left.cloneNode(true))
+
+	let tableParent = addDiv(left)
+	tableParent.style.flex = "1 0"
+	tableParent.style.display = "flex"
+
+	let plotParent = addEl(bottom, <HTMLElement>tableParent.cloneNode(true))
+
+	let gmtTableParent = addEl(right, <HTMLElement>tableParent.cloneNode(true))
+	gmtTableParent.style.height = "50%"
+
+	let gmrTableParent = addEl(right, <HTMLElement>tableParent.cloneNode(true))
+
+	let latestFilteredData: any[] = []
+
+	const updateGMTs = () => replaceChildren(gmtTableParent, createTitreGMTTable(latestFilteredData, settings.groupsGMTs))
+	const updateGMRs = () => replaceChildren(gmrTableParent, createTitreGMRTable(latestFilteredData, settings.groupsGMRs))
+	const updatePlot = () => replaceChildren(plotParent, createTitrePlot(latestFilteredData))
+
+	window.removeEventListener("resize", globalListnerCreateTitresPageUpdatePlot)
+	window.addEventListener("resize", updatePlot)
+	globalListnerCreateTitresPageUpdatePlot = updatePlot
+
+	addEl(tableParent, createTitreTable(data, (filteredData) => {
+		latestFilteredData = filteredData
+		updateGMTs()
+		updateGMRs()
+		updatePlot()
+	}))
+
+	let settingsEl = createDiv()
+
+	let gmtGroupsSwitchLabel = addDiv(settingsEl)
+	gmtGroupsSwitchLabel.textContent = "GMT groups"
+
+	let gmtGroupsSwitch = createSwitch(
+		settings.groupsGMTs,
+		<GMTGroups[]>ALL_GMT_GROUPS,
+		(groups) => {
+			settings.groupsGMTs = groups
+			window.history.pushState(null, "", getTitresPageURL(settings))
+			updateGMTs()
+		},
+	)
+
+	addEl(settingsEl, gmtGroupsSwitch)
+
+	let gmrGroupsSwitchLabel = addDiv(settingsEl)
+	gmrGroupsSwitchLabel.textContent = "GMR groups"
+	gmrGroupsSwitchLabel.style.marginTop = "30px"
+
+	let gmrGroupsSwitch = createSwitch(
+		settings.groupsGMRs,
+		<GMRGroups[]>ALL_GMR_GROUPS,
+		(groups) => {
+			settings.groupsGMRs = groups
+			window.history.pushState(null, "", getTitresPageURL(settings))
+			updateGMRs()
+		},
+	)
+
+	addEl(settingsEl, gmrGroupsSwitch)
+
+	const page = createDatapageContainer()
+	addEl(page, createSidebar("titres", settingsEl, onDatapageChange, onLogout))
+	addEl(page, container2)
+
+	return page
+}
+
+const createDatapage = (page: DataPageID, pages: Pages, data: Data, onDatapageChange: (page: DataPageID) => void, onLogout: () => void) => {
+	var pageEl = createDiv()
+	switch (page) {
+	case "participants": pageEl = createParticipantsPage(data, onDatapageChange, onLogout); break
+	case "counts": pageEl = createCountsPage(data, pages.counts, onDatapageChange, onLogout); break
+	case "bleeds": pageEl = createBleedsPage(data, pages.bleeds, onDatapageChange, onLogout); break
+	case "weekly-surveys": pageEl = createWeeklySurveysPage(data, pages["weekly-surveys"], onDatapageChange, onLogout); break
+	case "titres": pageEl = createTitresPage(data, pages.titres, onDatapageChange, onLogout); break
+	default: console.error("unexpected page:", page); break
+	}
+	return pageEl
+}
+
+const getURLFromPageInfo = (page: DataPageID, pages: Pages): string => {
+	switch (page) {
+	case "participants": return "participants"; break
+	case "counts": return getCountsPageURL(pages.counts); break
+	case "bleeds": return `bleeds?year=${pages.bleeds.year}`; break
+	case "weekly-surveys": return `weekly-surveys?year=${pages["weekly-surveys"].year}`; break
+	case "titres": return getTitresPageURL(pages.titres); break
+	default: console.error("unexpected page:", page); return getCountsPageURL(pages.counts); break
+	}
+}
+
+const goToPage = (domMain: HTMLElement, page: DataPageID, pages: Pages, data: Data, onLogout: () => void) => {
+	replaceChildren(domMain, createDatapage(page, pages, data, (page) => {
+		const newURL = getURLFromPageInfo(page, pages)
+		window.history.pushState(null, "", newURL)
+		goToPage(domMain, page, pages, data, onLogout)
+	}, onLogout))
+}
+
+const goToCurrentURL = (domMain: HTMLElement, data: Data, onLogout: () => void) => {
+
+	const defCountsSettings: CountsSettings = {
+		table: "records", groupsRecords: ["site"], groupsBleeds: ["year"], groupsPostinfBleeds: ["year"],
+	}
+	const defYear = 2022
+	const defTitresSettings: TitresSettings = {
+		groupsGMTs: ["year", "day"], groupsGMRs: ["year"],
+	}
+
+	const pages: Pages = {
+		participants: {},
+		"weekly-surveys": {year: defYear},
+		bleeds: {year: defYear},
+		counts: defCountsSettings,
+		titres: defTitresSettings
+	}
+
+	const updatePagesAndGoToCurrent = () => {
+		const urlPage = updatePageFromURL(pages)
+		goToPage(domMain, urlPage, pages, data, onLogout)
+	}
+	window.addEventListener("popstate", updatePagesAndGoToCurrent)
+	updatePagesAndGoToCurrent()
+}
+
+const main = async () => {
+	/*
 	window.addEventListener("resize", (event) => {
 		if (state.currentDataPage == "titres") {
 			updateTitrePlot(state)
 		}
 	})
+	*/
 
 	// NOTE(sen) Attempt to login from local storage
-	{
-		let password = localStorage.getItem("password")
-		if (password === null) {
-			switchToPassword(state)
+	const domMain = document.getElementById("main")!
+	const onPasswordFail = () => replaceChildren(domMain, createPasswordPage(onPasswordSuccess))
+	const onPasswordSuccess = (data: Data) => goToCurrentURL(domMain, data, onPasswordFail)
+	let password = localStorage.getItem("password")
+	if (password === null) {
+		onPasswordFail()
+	} else {
+		replaceChildren(domMain, createLoadingPage())
+		let fetchResult = await fetchData(password)
+		if (!fetchResult.success) {
+			onPasswordFail()
 		} else {
-			switchToLoading(state)
-			let fetchResult = await fetchData(password)
-			if (!fetchResult.success) {
-				switchToPassword(state)
-			} else {
-				setGlobalData(state, fetchResult.data)
-				switchToCurrentDataPage(state)
-			}
+			onPasswordSuccess(fetchResult.data)
 		}
 	}
 }
