@@ -957,9 +957,9 @@ weekly_surveys <- weekly_surveys_raw %>%
   )
 
 weekly_surveys_no_duplicates <- weekly_surveys %>%
-  group_by(pid, year, survey_index, date, complete) %>%
+  group_by(pid, year, survey_index) %>%
   filter(n() == 1 | complete == 2) %>%
-  summarise(.groups = "drop", ari = as.integer(any(ari == 1)))
+  ungroup()
 
 check_no_rows(
   weekly_surveys_no_duplicates %>%
