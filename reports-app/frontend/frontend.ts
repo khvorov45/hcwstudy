@@ -658,6 +658,15 @@ type TableColSpecFinal<RowType> = {
 
 const MISSING_STRING = "(missing)"
 
+let globalResizeListeners: any[] = []
+
+const clearPageListners = () => {
+	for (let listner of globalResizeListeners) {
+		window.removeEventListener("resize", listner)
+	}
+	globalResizeListeners = []
+}
+
 const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 	{aos, colSpecInit, defaults, title, forRow, getTableHeightInit, onFilterChange}: {
 		aos: RowType[],
@@ -744,6 +753,8 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 		tableWidthPx += colSpec[colname].width
 	}
 
+	let regenBody = () => {}
+
 	if (aos.length > 0) {
 
 		let hscrollContainer = addDiv(table)
@@ -804,25 +815,14 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 			rowHeight: TABLE_ROW_HEIGHT_PX,
 		});
 
-		window.addEventListener("resize", () => {
+		regenBody = () => {
 			let newTableBodyHeight = getTableBodyHeight(getTableHeight())
 			if (newTableBodyHeight != tableBodyHeight) {
 				tableBodyHeight = newTableBodyHeight
 				tableBodyContainer.style.maxHeight = newTableBodyHeight + "px"
 				virtualizedList.resize(newTableBodyHeight)
 			}
-		})
-
-		const resetScroll = () => {
-			try {
-				virtualizedList.scrollToIndex(1, 0)
-				virtualizedList.scrollToIndex(0, 0)
-			} catch (e) {}
 		}
-
-		window.addEventListener("popstate", resetScroll)
-		window.addEventListener("pushState", resetScroll)
-		window.addEventListener("replaceState", resetScroll)
 
 		for (let rowIndex = 0; rowIndex < aos.length; rowIndex += 1) {
 			let rowData = aos[rowIndex]
@@ -839,7 +839,10 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 		}
 	}
 
-	return { table: table, width: tableWidthPx }
+	window.addEventListener("resize", regenBody)
+	globalResizeListeners.push(regenBody)
+
+	return { table: table, width: tableWidthPx, regenBody: regenBody }
 }
 
 const initLoading = () => {
@@ -2664,8 +2667,6 @@ const createWeeklySurveysPage = (
 	return page
 }
 
-let globalListnerCreateTitresPageUpdatePlot = () => {}
-
 const createTitresPage = (
 	data: Data,
 	settings: TitresSettings,
@@ -2717,9 +2718,8 @@ const createTitresPage = (
 	const updateGMRs = () => replaceChildren(gmrTableParent, createTitreGMRTable(latestFilteredData, settings.groupsGMRs))
 	const updatePlot = () => replaceChildren(plotParent, createTitrePlot(latestFilteredData))
 
-	window.removeEventListener("resize", globalListnerCreateTitresPageUpdatePlot)
 	window.addEventListener("resize", updatePlot)
-	globalListnerCreateTitresPageUpdatePlot = updatePlot
+	globalResizeListeners.push(updatePlot)
 
 	addEl(tableParent, createTitreTable(data, (filteredData) => {
 		latestFilteredData = filteredData
@@ -2769,6 +2769,7 @@ const createTitresPage = (
 }
 
 const createDatapage = (page: DataPageID, pages: Pages, data: Data, onDatapageChange: (page: DataPageID) => void, onLogout: () => void) => {
+	clearPageListners()
 	var pageEl = createDiv()
 	switch (page) {
 	case "participants": pageEl = createParticipantsPage(data, onDatapageChange, onLogout); break
@@ -2822,6 +2823,8 @@ const goToCurrentURL = (domMain: HTMLElement, data: Data, onLogout: () => void) 
 		const urlPage = updatePageFromURL(pages)
 		goToPage(domMain, urlPage, pages, data, onLogout)
 	}
+
+	// NOTE(sen) Only called once
 	window.addEventListener("popstate", updatePagesAndGoToCurrent)
 	updatePagesAndGoToCurrent()
 }
