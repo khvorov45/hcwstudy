@@ -1661,6 +1661,8 @@ type PlotSpec<X, Y, XF> = {
 	xTicks: X[],
 	yTicks: Y[],
 	xFacets: XF[],
+	xLabel: string,
+	yLabel: string,
 }
 
 const beginPlot = <X, Y, XF>(spec: PlotSpec<X, Y, XF>) => {
@@ -1675,6 +1677,8 @@ const beginPlot = <X, Y, XF>(spec: PlotSpec<X, Y, XF>) => {
 	let scaleYData = spec.scaleYData ?? ((y) => y as unknown as number)
 
 	const plotMetrics: any = {}
+	plotMetrics.top = spec.padAxis.t + spec.padData.t
+	plotMetrics.bottom = spec.height - spec.padAxis.b - spec.padData.b
 	plotMetrics.left = spec.padAxis.l + spec.padData.l
 	plotMetrics.right = spec.width - spec.padAxis.r - spec.padData.r
 	plotMetrics.facetPadTotal = Math.max(spec.xFacets.length - 1, 0) * spec.padFacet
@@ -1720,11 +1724,24 @@ const beginPlot = <X, Y, XF>(spec: PlotSpec<X, Y, XF>) => {
 		axisCol,
 	)
 
+	// NOTE(sen) Axis labels
+
+	let axisTextCol = axisCol
+	drawText(
+		renderer, spec.xLabel, 
+		(plotMetrics.right - plotMetrics.left) / 2 + plotMetrics.left, spec.height,
+		axisTextCol, 0, "bottom", "center", 
+	)
+	drawText(
+		renderer, spec.yLabel, 
+		0, (plotMetrics.bottom - plotMetrics.top) / 2 + plotMetrics.top,
+		axisTextCol, -90, "top", "center", 
+	)
+
 	// NOTE(sen) Ticks and grid
 
 	let tickLength = 5
 	let tickToText = 5
-	let axisTextCol = axisCol
 
 	for (let xFacet of spec.xFacets) {
 		for (let xTick of spec.xTicks) {
@@ -1820,6 +1837,8 @@ const createTitrePlot = (data: any[]) => {
 		yTicks: allTitres,
 		xTicks: allDays,
 		xFacets: allYears,
+		xLabel: "Day",
+		yLabel: "Titre",
 	})
 
 	let lineGroups = summariseAos({
