@@ -1338,11 +1338,11 @@ const createTitreGMRTable = (titreData: any[], groups: string[]) => {
 	return tableResult.table
 }
 
-type Plot<X, Y> = {
+type Plot<X, Y, XF> = {
 	canvas: HTMLCanvasElement,
 	renderer: CanvasRenderingContext2D,
-	spec: PlotSpec<X, Y>,
-	scaleXToPx: (x: X) => number,
+	spec: PlotSpec<X, Y, XF>,
+	scaleXToPx: (x: X, xFacet: XF) => number,
 	scaleYToPx: (y: Y) => number,
 }
 
@@ -1543,11 +1543,12 @@ const getSortedStats = (arr: number[]) => {
 	return result
 }
 
-const addBoxplot = <X, Y>(
-	plot: Plot<X, Y>,
+const addBoxplot = <X, Y, XF>(
+	plot: Plot<X, Y, XF>,
 	data: any[],
 	xNames: string[],
 	getX: (row: any) => X,
+	getXFacet: (row: any) => XF,
 	getY: (row: any) => Y,
 	totalBoxWidth: number,
 	color: string,
@@ -1572,7 +1573,8 @@ const addBoxplot = <X, Y>(
 	for (let boxplotData of summary) {
 
 		let xVal = getX(boxplotData)
-		let xCoord = plot.scaleXToPx(xVal)
+		let xFacet = getXFacet(boxplotData)
+		let xCoord = plot.scaleXToPx(xVal, xFacet)
 		let boxLeft = xCoord - boxWidth
 		let boxRight = xCoord
 
@@ -1644,22 +1646,24 @@ const addBoxplot = <X, Y>(
 	}
 }
 
-type PlotSpec<X, Y> = {
+type PlotSpec<X, Y, XF> = {
 	width: number,
 	height: number,
 	scaleXData?: (x: X) => number,
 	scaleYData?: (y: Y) => number,
 	padAxis: Rect,
 	padData: Rect,
+	padFacet: number,
 	xMin: X,
 	xMax: X,
 	yMin: Y,
 	yMax: Y,
 	xTicks: X[],
 	yTicks: Y[],
+	xFacets: XF[],
 }
 
-const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
+const beginPlot = <X, Y, XF>(spec: PlotSpec<X, Y, XF>) => {
 
 	let canvas = <HTMLCanvasElement>createEl("canvas")
 	canvas.width = spec.width
@@ -1670,10 +1674,24 @@ const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
 	let scaleXData = spec.scaleXData ?? ((x) => x as unknown as number)
 	let scaleYData = spec.scaleYData ?? ((y) => y as unknown as number)
 
-	let scaleXToPx = (val: X) => scale(
-		scaleXData(val), scaleXData(spec.xMin), scaleXData(spec.xMax),
-		spec.padAxis.l + spec.padData.l, spec.width - spec.padAxis.r - spec.padData.r
-	)
+	const plotMetrics: any = {}
+	plotMetrics.left = spec.padAxis.l + spec.padData.l
+	plotMetrics.right = spec.width - spec.padAxis.r - spec.padData.r
+	plotMetrics.facetPadTotal = Math.max(spec.xFacets.length - 1, 0) * spec.padFacet
+	plotMetrics.facetRange = (plotMetrics.right - plotMetrics.left - plotMetrics.facetPadTotal) / spec.xFacets.length
+
+	let scaleXToPx = (val: X, xFacet: XF) => {
+		const facetIndex = spec.xFacets.indexOf(xFacet)
+
+		const facetLeft = plotMetrics.left + facetIndex * plotMetrics.facetRange + facetIndex * spec.padFacet
+		const facetRight = facetLeft + plotMetrics.facetRange
+
+		const result = scale(
+			scaleXData(val), scaleXData(spec.xMin), scaleXData(spec.xMax),
+			facetLeft, facetRight,
+		)
+		return result
+	}
 
 	let scaleYToPx = (val: Y) => {
 		let result = scale(
@@ -1708,24 +1726,26 @@ const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
 	let tickToText = 5
 	let axisTextCol = axisCol
 
-	for (let xTick of spec.xTicks) {
-		let xCoord = scaleXToPx(xTick)
-		drawRect(
-			renderer,
-			{l: xCoord, r: xCoord + axisThiccness,
-				t: spec.height - spec.padAxis.b, b: spec.height - spec.padAxis.b + tickLength},
-			axisCol
-		)
-		drawText(
-			renderer,
-			`${xTick}`,
-			xCoord,
-			spec.height - spec.padAxis.b + tickLength + tickToText,
-			axisTextCol,
-			0,
-			"hanging",
-			"center",
-		)
+	for (let xFacet of spec.xFacets) {
+		for (let xTick of spec.xTicks) {
+			let xCoord = scaleXToPx(xTick, xFacet)
+			drawRect(
+				renderer,
+				{l: xCoord, r: xCoord + axisThiccness,
+					t: spec.height - spec.padAxis.b, b: spec.height - spec.padAxis.b + tickLength},
+				axisCol
+			)
+			drawText(
+				renderer,
+				`${xTick}`,
+				xCoord,
+				spec.height - spec.padAxis.b + tickLength + tickToText,
+				axisTextCol,
+				0,
+				"hanging",
+				"center",
+			)
+		}
 	}
 
 	for (let yTick of spec.yTicks) {
@@ -1748,33 +1768,58 @@ const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
 		)
 	}
 
-	let result: Plot<X, Y> = {canvas: canvas, renderer: renderer, spec: spec,
+
+	// NOTE(sen) Facet separators
+
+	const facetSepColor = "#555555"
+	const facetSepThiccness = 1
+
+	for (let facetGapIndex = 0; facetGapIndex < spec.xFacets.length - 1; facetGapIndex += 1) {
+		const facetGap = plotMetrics.left + (facetGapIndex + 1) * plotMetrics.facetRange + facetGapIndex * spec.padFacet + spec.padFacet / 2
+		drawLine(
+			renderer, facetGap, spec.padAxis.t, facetGap, spec.height - spec.padAxis.b,
+			facetSepColor, facetSepThiccness, [],
+		)
+	}
+
+	// NOTE(sen) Facet labels
+
+	for (let facetIndex = 0; facetIndex < spec.xFacets.length; facetIndex += 1) {
+		const xFacet = spec.xFacets[facetIndex]
+		const facetCenter = plotMetrics.left + facetIndex * (plotMetrics.facetRange + spec.padFacet) + plotMetrics.facetRange / 2
+		drawText(renderer, `${xFacet}`, facetCenter, spec.padAxis.t, axisTextCol, 0, "hanging", "center")
+	}
+
+	let result: Plot<X, Y, XF> = {canvas: canvas, renderer: renderer, spec: spec,
 		scaleXToPx: scaleXToPx, scaleYToPx: scaleYToPx}
 	return result
 }
 
 const createTitrePlot = (data: any[]) => {
 	let container = createDiv()
-	container.style.maxWidth = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
-	container.style.maxHeight = `calc(100vh / 2 - ${TITRES_HELP_HEIGHT / 2}px)`
+	container.style.maxWidth = `calc(100vw - ${SIDEBAR_WIDTH_PX + SCROLLBAR_WIDTHS[1]}px)`
+	//container.style.maxHeight = `calc(100vh / 2 - ${TITRES_HELP_HEIGHT / 2}px)`
 	container.style.overflow = "hidden"
 
 	let allDays = [0, 7, 14, 220]
 	let allTitres = [5, 10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120, 10240]
+	const allYears = [2020, 2021] as YearID[]
 
 	let plot = beginPlot({
-		width: window.innerWidth - SIDEBAR_WIDTH_PX,
-		height: window.innerHeight / 2 - TITRES_HELP_HEIGHT / 2,
+		width: window.innerWidth - SIDEBAR_WIDTH_PX - SCROLLBAR_WIDTHS[1],
+		height: window.innerHeight / 2, //- TITRES_HELP_HEIGHT / 2,
 		padAxis: {l: 70, r: 10, t: 10, b: 50},
-		padData: {l: 50, r: 50, t: 10, b: 10},
+		padData: {l: 50, r: 50, t: 30, b: 10},
+		padFacet: 40,
 		xMin: -3.5,
 		xMax: 223.5,
 		yMin: 5,
 		yMax: 10240,
 		scaleYData: Math.log,
-		scaleXData: (x) => x >= 220 ? x - 170 : x,
+		scaleXData: (x) => x >= 220 ? x - 220 + 35 : x,
 		yTicks: allTitres,
 		xTicks: allDays,
+		xFacets: allYears,
 	})
 
 	let lineGroups = summariseAos({
@@ -1804,7 +1849,7 @@ const createTitrePlot = (data: any[]) => {
 	let pointAlphaMin = 10
 	let pointAlpha = Math.round((Math.exp(-0.02 * lineGroups.length) * (255 - pointAlphaMin) + pointAlphaMin)).toString(16).padStart(2, "0")
 
-	let dayTitreCounts = allDays.map(day => arrZeroed(allTitres.length))
+	let yearDayTitreCounts = allYears.map(year => allDays.map(day => arrZeroed(allTitres.length)))
 
 	for (let lineGroup of lineGroups) {
 		let yJitter = randUnif(-10, 10)
@@ -1812,7 +1857,8 @@ const createTitrePlot = (data: any[]) => {
 
 		let titres = [lineGroup.day0, lineGroup.day7, lineGroup.day14, lineGroup.day220]
 		let yCoords = titres.map((x) => x !== null ? plot.scaleYToPx(x) + yJitter : null)
-		let xCoords = allDays.map((x) => plot.scaleXToPx(x) + xJitter)
+		const year = parseInt(lineGroup.year) as YearID
+		let xCoords = allDays.map((x) => plot.scaleXToPx(x, year) + xJitter)
 
 		if (lineAlpha !== "00") {
 			drawPath(plot.renderer, yCoords, xCoords, lineCol)
@@ -1831,17 +1877,19 @@ const createTitrePlot = (data: any[]) => {
 						t: yCoord - pointHalfSize, b: yCoord + pointHalfSize},
 					pointCol
 				)
-				dayTitreCounts[titreIndex][allTitres.indexOf(titres[titreIndex])] += 1
+
+				const dayIndex = titreIndex
+				yearDayTitreCounts[allYears.indexOf(year)][dayIndex][allTitres.indexOf(titres[titreIndex])] += 1
 			}
 		}
 	}
 
-	let dayTitresCounts01 = dayTitreCounts.map(arr => {
+	const yearDayTitresCounts01 = yearDayTitreCounts.map(arrYear => arrYear.map(arr => {
 		let max = arrMax(arr)
 		return arr.map(val => val / max)
-	})
+	}))
 
-	let dayPxStep = plot.scaleXToPx(allDays[1]) - plot.scaleXToPx(allDays[0])
+	let dayPxStep = plot.scaleXToPx(allDays[1], 2020) - plot.scaleXToPx(allDays[0], 2020)
 
 	let boxLineThiccness = 2
 	let boxplotCol = "#ffa600"
@@ -1856,62 +1904,69 @@ const createTitrePlot = (data: any[]) => {
 
 	if (lineGroups.length > 1) {
 		addBoxplot(
-			plot, data, ["day"], (row) => parseInt(row.day), (row) => row.titre,
+			plot, data, ["day", "year"],
+			(row) => parseInt(row.day),
+			(row) => parseInt(row.year) as YearID,
+			(row) => row.titre,
 			boxWidth, boxplotCol, altColor, boxplotMeanCol, boxLineThiccness
 		)
 	}
 
 	let titrePxStep = plot.scaleYToPx(allTitres[0]) - plot.scaleYToPx(allTitres[1])
-	for (let dayIndex = 0; dayIndex < allDays.length; dayIndex += 1) {
-		let dayCounts01 = dayTitresCounts01[dayIndex]
-		let dayCounts = dayTitreCounts[dayIndex]
-		let day = allDays[dayIndex]
-		let xCoord = plot.scaleXToPx(day)
-		let prevBarRight = null
-		for (let count01Index = 0; count01Index < allTitres.length; count01Index += 1) {
-			let count01 = dayCounts01[count01Index]
-			let count = dayCounts[count01Index]
-			let titre = allTitres[count01Index]
-			let yCoord = plot.scaleYToPx(titre)
+	for (let yearIndex = 0; yearIndex < allYears.length; yearIndex += 1) {
+		const year = allYears[yearIndex]
 
-			let barRight = xCoord + boxLineThiccness + distWidth * count01
+		for (let dayIndex = 0; dayIndex < allDays.length; dayIndex += 1) {
+			let dayCounts01 = yearDayTitresCounts01[yearIndex][dayIndex]
+			let dayCounts = yearDayTitreCounts[yearIndex][dayIndex]
+			let day = allDays[dayIndex]
+			let xCoord = plot.scaleXToPx(day, year)
+			let prevBarRight = null
+			for (let count01Index = 0; count01Index < allTitres.length; count01Index += 1) {
+				let count01 = dayCounts01[count01Index]
+				let count = dayCounts[count01Index]
+				let titre = allTitres[count01Index]
+				let yCoord = plot.scaleYToPx(titre)
 
-			let down = titrePxStep / 2
-			let up = down
-			if (count01Index == 0) {
-				down = down / 2
-			} else if (count01Index == allTitres.length - 1) {
-				up = up / 2
-			}
+				let barRight = xCoord + boxLineThiccness + distWidth * count01
 
-			drawDoubleLine(
-				plot.renderer, barRight, yCoord - up, barRight, yCoord + down,
-				distColor, altColor, boxLineThiccness, [], true,
-			)
-
-			if (prevBarRight !== null) {
-				let halfThicc = boxLineThiccness / 2
-				let vLeft = prevBarRight
-				let vRight = barRight
-				if (vLeft > vRight) {
-					let temp = vLeft
-					vLeft = vRight
-					vRight = temp
+				let down = titrePxStep / 2
+				let up = down
+				if (count01Index == 0) {
+					down = down / 2
+				} else if (count01Index == allTitres.length - 1) {
+					up = up / 2
 				}
-				drawLine(
-					plot.renderer, vLeft - halfThicc, yCoord + down, vRight + halfThicc, yCoord + down,
-					distColor, boxLineThiccness, [],
+
+				drawDoubleLine(
+					plot.renderer, barRight, yCoord - up, barRight, yCoord + down,
+					distColor, altColor, boxLineThiccness, [], true,
 				)
+
+				if (prevBarRight !== null) {
+					let halfThicc = boxLineThiccness / 2
+					let vLeft = prevBarRight
+					let vRight = barRight
+					if (vLeft > vRight) {
+						let temp = vLeft
+						vLeft = vRight
+						vRight = temp
+					}
+					drawLine(
+						plot.renderer, vLeft - halfThicc, yCoord + down, vRight + halfThicc, yCoord + down,
+						distColor, boxLineThiccness, [],
+					)
+				}
+
+				let countTextCol = "#bfbdb6"
+				let lineCountsPad = 5
+				drawText(
+					plot.renderer, `${count}`, barRight - boxLineThiccness, yCoord, countTextCol, 0, "middle", "end",
+					altColor
+				)
+
+				prevBarRight = barRight
 			}
-
-			let countTextCol = "#bfbdb6"
-			let lineCountsPad = 5
-			drawText(
-				plot.renderer, `${count}`, barRight - boxLineThiccness, yCoord, countTextCol, 0, "middle", "end",
-				altColor
-			)
-
-			prevBarRight = barRight
 		}
 	}
 
@@ -2674,29 +2729,33 @@ const createTitresPage = (
 	onLogout: () => void
 ) => {
 	let container2 = createDiv()
+	container2.style.overflowX = "hidden"
+	container2.style.overflowY = "scroll"
+	container2.style.height = "100vh"
+
 	let help = addDiv(container2)
-	help.style.height = TITRES_HELP_HEIGHT + "px"
-	help.style.overflow = "scroll"
+	//help.style.height = TITRES_HELP_HEIGHT + "px"
+	//help.style.overflow = "scroll"
 	addTextline(help, "GMT, GMR tables and the titre plot only use the data displayed in the Titres table (so you can filter the titres table and change everything else on the page).")
 	addTextline(help, "Boxplots: minimum - quartile 25 - quartile 75 - maximum. Solid midline: median. Dashed midline: mean (vertical dashed line - 95% CI for mean). Right side: histogram. Numbers: titre measurement counts.")
 
-	let container = addDiv(container2)
-	container.style.height = `calc(100vh - ${TITRES_HELP_HEIGHT}px)`
-	container.style.width = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
-	container.style.overflow = "hidden"
-	container.style.display = "flex"
-	container.style.flexDirection = "column"
+	//let container = addDiv(container2)
+	//container.style.height = `calc(100vh - ${TITRES_HELP_HEIGHT}px)`
+	//container.style.width = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
+	//container.style.overflow = "hidden"
+	//container.style.display = "flex"
+	//container.style.flexDirection = "column"
 
-	let top = addDiv(container)
-	top.style.maxWidth = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
-	top.style.maxHeight = `calc(100vh / 2 - ${TITRES_HELP_HEIGHT / 2}px)`
+	let top = addDiv(container2)
+	top.style.maxWidth = `calc(100vw - ${SIDEBAR_WIDTH_PX + SCROLLBAR_WIDTHS[1]}px)`
+	//top.style.maxHeight = "1500px" //`calc(100vh / 2 - ${TITRES_HELP_HEIGHT / 2}px)`
 	top.style.flex = "1 0"
 	top.style.display = "flex"
 	top.style.overflow = "hidden"
-	let bottom = addEl(container, <HTMLElement>top.cloneNode(true))
+	let bottom = addEl(container2, <HTMLElement>top.cloneNode(true))
 
 	let left = addDiv(top)
-	left.style.maxWidth = `calc((100vw - ${SIDEBAR_WIDTH_PX}px) / 2)`
+	left.style.maxWidth = `calc((100vw - ${SIDEBAR_WIDTH_PX + SCROLLBAR_WIDTHS[1]}px) / 2)`
 	left.style.flex = "1 0"
 	left.style.overflow = "hidden"
 	let right = addEl(top, <HTMLElement>left.cloneNode(true))
