@@ -330,6 +330,18 @@ const ALL_GMR_GROUPS_ = ["year", "site", "virus", "subtype", "eggcell",
 const ALL_GMR_GROUPS = ALL_GMR_GROUPS_ as unknown as string[]
 type GMRGroups = (typeof ALL_GMR_GROUPS_)[number]
 
+const ALL_TITRE_FACETS_ = ["year", "subtype", "eggcell"] as const
+const ALL_TITRE_FACETS = ALL_TITRE_FACETS_ as unknown as string[]
+type TitreFacets = (typeof ALL_TITRE_FACETS_)[number]
+
+const ALL_SUBTYPES_ = ["H1", "H3", "BVic", "BYam"] as const
+const ALL_SUBTYPES = ALL_SUBTYPES_ as unknown as string[]
+type Subtypes = (typeof ALL_SUBTYPES_)[number]
+
+const ALL_EGGCELL_ = ["egg", "cell"] as const
+const ALL_EGGCELL = ALL_EGGCELL_ as unknown as string[]
+type EggCell = (typeof ALL_EGGCELL_)[number]
+
 const DOWNLOAD_CSV: { [key: string]: string } = {}
 
 const createEl = (name: string) => document.createElement(name)
@@ -1241,20 +1253,22 @@ const createTitreTable = (data: Data, onFilterChange: (filteredData: any[]) => v
 	return tableResult.table
 }
 
+const getTitreKey = (row: any, group: string) => {
+	let result = null
+	switch (group) {
+	case "eggcell": {result = row.virus_egg_cell} break
+	default: {result = getParticipantsKey(row, group)} break
+	}
+	return result
+}
+
 const createTitreGMTTable = (titreData: any[], groups: string[]) => {
 
 	let titreSummary = summariseAos({
 		data: titreData,
 		groups: groups,
 		defaultCounts: {titres: 0, logtitreSum: 0},
-		getKey: (row, group) => {
-			let result = row[group]
-			switch (group) {
-			case "eggcell": {result = row.virus_egg_cell} break
-			case "recruited": {result = row.recruitment_year} break
-			}
-			return result
-		},
+		getKey: getTitreKey,
 		addRow: (row, counts) => {counts.titres += 1, counts.logtitreSum += Math.log(row.titre)}
 	}, (row) => {
 		row.logmean = row.logtitreSum / row.titres
@@ -1288,14 +1302,7 @@ const createTitreGMRTable = (titreData: any[], groups: string[]) => {
 		data: titreData,
 		groups: ["pid"].concat(ALL_GMR_GROUPS),
 		defaultCounts: {d0: null, d14: null},
-		getKey: (row, group) => {
-			let result = row[group]
-			switch (group) {
-			case "eggcell": {result = row.virus_egg_cell} break
-			case "recruited": {result = row.recruitment_year} break
-			}
-			return result
-		},
+		getKey: getTitreKey,
 		addRow: (row, counts) => {
 			switch (row.day) {
 			case 0: counts.d0 = row.titre; break;
@@ -1342,8 +1349,9 @@ type Plot<X, Y, XF> = {
 	canvas: HTMLCanvasElement,
 	renderer: CanvasRenderingContext2D,
 	spec: PlotSpec<X, Y, XF>,
-	scaleXToPx: (x: X, xFacet: XF) => number,
+	scaleXToPx: (x: X, xFacets: XF[]) => number,
 	scaleYToPx: (y: Y) => number,
+	allXTicksXCoords: number[]
 }
 
 type Rect = {
@@ -1433,6 +1441,8 @@ const drawRectOutline = (renderer: CanvasRenderingContext2D, rect: Rect, color: 
 
 const toRadians = (val: number) => val / 360 * 2 * Math.PI
 
+const CANVAS_FONT_HEIGHT = 16
+
 const drawText = (
 	renderer: CanvasRenderingContext2D, text: string, xCoord: number, yCoord: number,
 	color: string, angle: number, baseline: CanvasTextBaseline, textAlign: CanvasTextAlign,
@@ -1445,7 +1455,7 @@ const drawText = (
 	renderer.translate(xCoord, yCoord)
 	renderer.rotate(toRadians(angle))
 
-	renderer.font = "16px sans-serif"
+	renderer.font = `${CANVAS_FONT_HEIGHT}px sans-serif`
 	if (outlineColor !== undefined) {
 		renderer.miterLimit = 2
 		renderer.lineJoin = "round"
@@ -1545,25 +1555,15 @@ const getSortedStats = (arr: number[]) => {
 
 const addBoxplot = <X, Y, XF>(
 	plot: Plot<X, Y, XF>,
-	data: any[],
-	xNames: string[],
+	summary: {stats: BoxplotStats}[],
 	getX: (row: any) => X,
-	getXFacet: (row: any) => XF,
-	getY: (row: any) => Y,
+	getXFacets: (row: any) => XF[],
 	totalBoxWidth: number,
 	color: string,
 	altColor: string,
 	meanColor: string,
 	lineThiccness: number,
 ) => {
-
-	let summary = summariseAos({
-		data: data,
-		groups: xNames,
-		defaultCounts: () => ({yVals: [] as number[]}),
-		getKey: (row, group) => row[group],
-		addRow: (row, summ) => {summ.yVals.push(plot.scaleYToPx(getY(row)))}
-	}, (summ) => {summ.stats = getSortedStats(summ.yVals)})
 
 	totalBoxWidth = Math.max(totalBoxWidth, 0)
 	let boxWidth = totalBoxWidth / 2
@@ -1573,8 +1573,8 @@ const addBoxplot = <X, Y, XF>(
 	for (let boxplotData of summary) {
 
 		let xVal = getX(boxplotData)
-		let xFacet = getXFacet(boxplotData)
-		let xCoord = plot.scaleXToPx(xVal, xFacet)
+		let xFacets = getXFacets(boxplotData)
+		let xCoord = plot.scaleXToPx(xVal, xFacets)
 		let boxLeft = xCoord - boxWidth
 		let boxRight = xCoord
 
@@ -1660,7 +1660,7 @@ type PlotSpec<X, Y, XF> = {
 	yMax: Y,
 	xTicks: X[],
 	yTicks: Y[],
-	xFacets: XF[],
+	xFacetSets: XF[][],
 	xLabel: string,
 	yLabel: string,
 }
@@ -1681,14 +1681,36 @@ const beginPlot = <X, Y, XF>(spec: PlotSpec<X, Y, XF>) => {
 	plotMetrics.bottom = spec.height - spec.padAxis.b - spec.padData.b
 	plotMetrics.left = spec.padAxis.l + spec.padData.l
 	plotMetrics.right = spec.width - spec.padAxis.r - spec.padData.r
-	plotMetrics.facetPadTotal = Math.max(spec.xFacets.length - 1, 0) * spec.padFacet
-	plotMetrics.facetRange = (plotMetrics.right - plotMetrics.left - plotMetrics.facetPadTotal) / spec.xFacets.length
 
-	let scaleXToPx = (val: X, xFacet: XF) => {
-		const facetIndex = spec.xFacets.indexOf(xFacet)
+	plotMetrics.xPanelsPerInc = [] as number[]
+	if (spec.xFacetSets.length > 0) {
+		plotMetrics.xPanelsPerInc[spec.xFacetSets.length - 1] = 1
+	}
+	for (let xFacetSetIndex = spec.xFacetSets.length - 2; xFacetSetIndex >= 0; xFacetSetIndex -= 1) {
+		const xFacetSet = spec.xFacetSets[xFacetSetIndex]
+		const nextIndex = xFacetSetIndex + 1
+		plotMetrics.xPanelsPerInc[xFacetSetIndex] = spec.xFacetSets[nextIndex].length * plotMetrics.xPanelsPerInc[nextIndex]
+	}
 
-		const facetLeft = plotMetrics.left + facetIndex * plotMetrics.facetRange + facetIndex * spec.padFacet
-		const facetRight = facetLeft + plotMetrics.facetRange
+	plotMetrics.totalPanelsX = 1
+	if (spec.xFacetSets.length > 0) {
+		plotMetrics.totalPanelsX = plotMetrics.xPanelsPerInc[0] * spec.xFacetSets[0].length
+	}
+
+	plotMetrics.xFacetPadTotal = (plotMetrics.totalPanelsX - 1) * spec.padFacet
+	plotMetrics.xFacetRange = (plotMetrics.right - plotMetrics.left - plotMetrics.xFacetPadTotal) / plotMetrics.totalPanelsX
+
+	let scaleXToPx = (val: X, xFacets: XF[]) => {
+		let panelIndex = 0
+		for (let xFacetIndex = 0; xFacetIndex < xFacets.length; xFacetIndex += 1) {
+			const xFacet = xFacets[xFacetIndex]
+			const xFacetSet = spec.xFacetSets[xFacetIndex]
+			const thisIndex = xFacetSet.indexOf(xFacet)
+			panelIndex += plotMetrics.xPanelsPerInc[xFacetIndex] * thisIndex
+		}
+
+		const facetLeft = plotMetrics.left + panelIndex * plotMetrics.xFacetRange + panelIndex * spec.padFacet
+		const facetRight = facetLeft + plotMetrics.xFacetRange
 
 		const result = scale(
 			scaleXData(val), scaleXData(spec.xMin), scaleXData(spec.xMax),
@@ -1728,14 +1750,14 @@ const beginPlot = <X, Y, XF>(spec: PlotSpec<X, Y, XF>) => {
 
 	let axisTextCol = axisCol
 	drawText(
-		renderer, spec.xLabel, 
+		renderer, spec.xLabel,
 		(plotMetrics.right - plotMetrics.left) / 2 + plotMetrics.left, spec.height,
-		axisTextCol, 0, "bottom", "center", 
+		axisTextCol, 0, "bottom", "center",
 	)
 	drawText(
-		renderer, spec.yLabel, 
+		renderer, spec.yLabel,
 		0, (plotMetrics.bottom - plotMetrics.top) / 2 + plotMetrics.top,
-		axisTextCol, -90, "top", "center", 
+		axisTextCol, -90, "top", "center",
 	)
 
 	// NOTE(sen) Ticks and grid
@@ -1743,9 +1765,25 @@ const beginPlot = <X, Y, XF>(spec: PlotSpec<X, Y, XF>) => {
 	let tickLength = 5
 	let tickToText = 5
 
-	for (let xFacet of spec.xFacets) {
+	let xFacetIndices = [] as number[]
+	for (let xFacetIndex = 0; xFacetIndex < spec.xFacetSets.length; xFacetIndex += 1) {
+		xFacetIndices.push(0)
+	}
+
+	let allXTicksXCoords = []
+
+	let moreFacets = true
+	while (moreFacets) {
+
+		let xFacets = [] as XF[]
+		for (let xFacetSetIndex = 0; xFacetSetIndex < spec.xFacetSets.length; xFacetSetIndex += 1) {
+			const setValueIndex = xFacetIndices[xFacetSetIndex]
+			xFacets.push(spec.xFacetSets[xFacetSetIndex][setValueIndex])
+		}
+
 		for (let xTick of spec.xTicks) {
-			let xCoord = scaleXToPx(xTick, xFacet)
+			let xCoord = scaleXToPx(xTick, xFacets)
+			allXTicksXCoords.push(xCoord)
 			drawRect(
 				renderer,
 				{l: xCoord, r: xCoord + axisThiccness,
@@ -1762,6 +1800,21 @@ const beginPlot = <X, Y, XF>(spec: PlotSpec<X, Y, XF>) => {
 				"hanging",
 				"center",
 			)
+		}
+
+		let xFacetCurrentSetIndex = xFacetIndices.length - 1
+		while (true) {
+			if (xFacetCurrentSetIndex == -1) {
+				moreFacets = false
+				break
+			}
+			xFacetIndices[xFacetCurrentSetIndex] += 1
+			if (xFacetIndices[xFacetCurrentSetIndex] == spec.xFacetSets[xFacetCurrentSetIndex].length) {
+				xFacetIndices[xFacetCurrentSetIndex] = 0
+				xFacetCurrentSetIndex -= 1
+			} else {
+				break
+			}
 		}
 	}
 
@@ -1785,48 +1838,68 @@ const beginPlot = <X, Y, XF>(spec: PlotSpec<X, Y, XF>) => {
 		)
 	}
 
-
-	// NOTE(sen) Facet separators
-
+	// NOTE(sen) Facet labels and separators
 	const facetSepColor = "#555555"
 	const facetSepThiccness = 1
-
-	for (let facetGapIndex = 0; facetGapIndex < spec.xFacets.length - 1; facetGapIndex += 1) {
-		const facetGap = plotMetrics.left + (facetGapIndex + 1) * plotMetrics.facetRange + facetGapIndex * spec.padFacet + spec.padFacet / 2
-		drawLine(
-			renderer, facetGap, spec.padAxis.t, facetGap, spec.height - spec.padAxis.b,
-			facetSepColor, facetSepThiccness, [],
-		)
-	}
-
-	// NOTE(sen) Facet labels
-
-	for (let facetIndex = 0; facetIndex < spec.xFacets.length; facetIndex += 1) {
-		const xFacet = spec.xFacets[facetIndex]
-		const facetCenter = plotMetrics.left + facetIndex * (plotMetrics.facetRange + spec.padFacet) + plotMetrics.facetRange / 2
-		drawText(renderer, `${xFacet}`, facetCenter, spec.padAxis.t, axisTextCol, 0, "hanging", "center")
+	let repeatLabels = 1
+	for (let facetSetIndex = 0; facetSetIndex < spec.xFacetSets.length; facetSetIndex += 1) {
+		const facetSetValues = spec.xFacetSets[facetSetIndex]
+		const panelsPerInc = plotMetrics.xPanelsPerInc[facetSetIndex]
+		const facetValueSpan = panelsPerInc * plotMetrics.xFacetRange + (panelsPerInc - 1) * spec.padFacet
+		const yOffset = facetSetIndex * CANVAS_FONT_HEIGHT
+		const sepThiccness = facetSepThiccness * (spec.xFacetSets.length - facetSetIndex)
+		let xOffset = plotMetrics.left
+		for (let repeatIndex = 0; repeatIndex < repeatLabels; repeatIndex += 1) {
+			for (let setValueIndex = 0; setValueIndex < facetSetValues.length; setValueIndex += 1) {
+				const xFacet = facetSetValues[setValueIndex]
+				const facetStart = xOffset + setValueIndex * (facetValueSpan + spec.padFacet)
+				const facetCenter = facetStart + facetValueSpan / 2
+				const facetGap = facetStart + facetValueSpan + spec.padFacet / 2
+				drawText(renderer, `${xFacet}`, facetCenter, yOffset, axisTextCol, 0, "top", "center")
+				if (setValueIndex < facetSetValues.length - 1) {
+					drawLine(
+						renderer, facetGap, yOffset, facetGap, spec.height - spec.padAxis.b - axisThiccness,
+						facetSepColor, sepThiccness, [],
+					)
+				}
+			}
+			xOffset += (facetValueSpan + spec.padFacet) * facetSetValues.length
+		}
+		repeatLabels *= facetSetValues.length
 	}
 
 	let result: Plot<X, Y, XF> = {canvas: canvas, renderer: renderer, spec: spec,
-		scaleXToPx: scaleXToPx, scaleYToPx: scaleYToPx}
+		scaleXToPx: scaleXToPx, scaleYToPx: scaleYToPx, allXTicksXCoords: allXTicksXCoords}
+
 	return result
 }
 
-const createTitrePlot = (data: any[]) => {
+const createTitrePlot = (data: any[], settings: TitresSettings) => {
 	let container = createDiv()
 	container.style.maxWidth = `calc(100vw - ${SIDEBAR_WIDTH_PX + SCROLLBAR_WIDTHS[1]}px)`
-	//container.style.maxHeight = `calc(100vh / 2 - ${TITRES_HELP_HEIGHT / 2}px)`
 	container.style.overflow = "hidden"
 
 	let allDays = [0, 7, 14, 220]
 	let allTitres = [5, 10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120, 10240]
 	const allYears = [2020, 2021] as YearID[]
 
+	let xFacets: any[][] = []
+	if (settings.xFacets.length > 0) {
+		for (let xFacetIndex = 0; xFacetIndex < settings.xFacets.length; xFacetIndex += 1) {
+			const xFacet = settings.xFacets[xFacetIndex]
+			switch (xFacet) {
+			case "year": xFacets[xFacetIndex] = allYears; break
+			case "subtype": xFacets[xFacetIndex] = ALL_SUBTYPES; break
+			case "eggcell": xFacets[xFacetIndex] = ALL_EGGCELL; break
+			}
+		}
+	}
+
 	let plot = beginPlot({
 		width: window.innerWidth - SIDEBAR_WIDTH_PX - SCROLLBAR_WIDTHS[1],
 		height: window.innerHeight / 2, //- TITRES_HELP_HEIGHT / 2,
-		padAxis: {l: 70, r: 10, t: 10, b: 50},
-		padData: {l: 50, r: 50, t: 30, b: 10},
+		padAxis: {l: 70, r: 10, t: 30, b: 50},
+		padData: {l: 50, r: 50, t: 10, b: 10},
 		padFacet: 40,
 		xMin: -3.5,
 		xMax: 223.5,
@@ -1836,7 +1909,7 @@ const createTitrePlot = (data: any[]) => {
 		scaleXData: (x) => x >= 220 ? x - 220 + 35 : x,
 		yTicks: allTitres,
 		xTicks: allDays,
-		xFacets: allYears,
+		xFacetSets: xFacets,
 		xLabel: "Day",
 		yLabel: "Titre",
 	})
@@ -1845,7 +1918,7 @@ const createTitrePlot = (data: any[]) => {
 		data: data,
 		groups: ALL_GMT_GROUPS.concat("pid").filter(x => x !== "day"),
 		defaultCounts: {day0: null, day7: null, day14: null, day220: null},
-		getKey: getParticipantsKey,
+		getKey: getTitreKey,
 		addRow: (row, counts) => {
 			switch (row.day) {
 			case 0: {counts.day0 = row.titre} break;
@@ -1868,16 +1941,28 @@ const createTitrePlot = (data: any[]) => {
 	let pointAlphaMin = 10
 	let pointAlpha = Math.round((Math.exp(-0.02 * lineGroups.length) * (255 - pointAlphaMin) + pointAlphaMin)).toString(16).padStart(2, "0")
 
-	let yearDayTitreCounts = allYears.map(year => allDays.map(day => arrZeroed(allTitres.length)))
-
 	for (let lineGroup of lineGroups) {
 		let yJitter = randUnif(-10, 10)
 		let xJitter = randUnif(-10, 10)
 
 		let titres = [lineGroup.day0, lineGroup.day7, lineGroup.day14, lineGroup.day220]
 		let yCoords = titres.map((x) => x !== null ? plot.scaleYToPx(x) + yJitter : null)
+
+		let groupXFacets: any[] = []
+		for (let xFacet of settings.xFacets) {
+			let value = null
+			switch (xFacet) {
+			case "year": value = parseInt(lineGroup.year); break
+			case "subtype": value = lineGroup.subtype; break
+			case "eggcell": value = lineGroup.eggcell; break
+			}
+			if (value !== null) {
+				groupXFacets.push(value)
+			}
+		}
 		const year = parseInt(lineGroup.year) as YearID
-		let xCoords = allDays.map((x) => plot.scaleXToPx(x, year) + xJitter)
+
+		let xCoords = allDays.map((x) => plot.scaleXToPx(x, groupXFacets) + xJitter)
 
 		if (lineAlpha !== "00") {
 			drawPath(plot.renderer, yCoords, xCoords, lineCol)
@@ -1898,17 +1983,12 @@ const createTitrePlot = (data: any[]) => {
 				)
 
 				const dayIndex = titreIndex
-				yearDayTitreCounts[allYears.indexOf(year)][dayIndex][allTitres.indexOf(titres[titreIndex])] += 1
 			}
 		}
 	}
 
-	const yearDayTitresCounts01 = yearDayTitreCounts.map(arrYear => arrYear.map(arr => {
-		let max = arrMax(arr)
-		return arr.map(val => val / max)
-	}))
-
-	let dayPxStep = plot.scaleXToPx(allDays[1], 2020) - plot.scaleXToPx(allDays[0], 2020)
+	let dayPxStep = plot.allXTicksXCoords[1] - plot.allXTicksXCoords[0]
+	let titrePxStep = plot.scaleYToPx(5) - plot.scaleYToPx(10)
 
 	let boxLineThiccness = 2
 	let boxplotCol = "#ffa600"
@@ -1921,30 +2001,53 @@ const createTitrePlot = (data: any[]) => {
 
 	let boxplotMeanCol = boxplotCol
 
-	if (lineGroups.length > 1) {
+	if (lineGroups.length > 1 && boxWidth >= 15) {
+
+		let summary = summariseAos({
+			data: data,
+			groups: ["day"].concat(settings.xFacets),
+			defaultCounts: () => ({yVals: [] as number[], titreCounts: {} as any}),
+			getKey: getTitreKey,
+			addRow: (row, summ) => {
+				summ.yVals.push(plot.scaleYToPx(row.titre))
+				if (summ.titreCounts[row.titre] === undefined) {
+					summ.titreCounts[row.titre] = 0
+				}
+				summ.titreCounts[row.titre] += 1
+			}
+		}, (summ) => {
+			summ.day = parseInt(summ.day);
+			summ.stats = getSortedStats(summ.yVals)
+			if (summ.year !== undefined) {summ.year = parseInt(summ.year)}
+		})
+
+		const getXFacets = (row: any) => settings.xFacets.map(xFacet => row[xFacet])
+		const getX = (row: any) => row.day
 		addBoxplot(
-			plot, data, ["day", "year"],
-			(row) => parseInt(row.day),
-			(row) => parseInt(row.year) as YearID,
-			(row) => row.titre,
+			plot,
+			summary,
+			getX,
+			getXFacets,
 			boxWidth, boxplotCol, altColor, boxplotMeanCol, boxLineThiccness
 		)
-	}
 
-	let titrePxStep = plot.scaleYToPx(allTitres[0]) - plot.scaleYToPx(allTitres[1])
-	for (let yearIndex = 0; yearIndex < allYears.length; yearIndex += 1) {
-		const year = allYears[yearIndex]
+		for (let summaryRow of summary) {
+			const xVal = getX(summaryRow)
+			const xFacets = getXFacets(summaryRow)
+			const xCoord = plot.scaleXToPx(xVal, xFacets)
 
-		for (let dayIndex = 0; dayIndex < allDays.length; dayIndex += 1) {
-			let dayCounts01 = yearDayTitresCounts01[yearIndex][dayIndex]
-			let dayCounts = yearDayTitreCounts[yearIndex][dayIndex]
-			let day = allDays[dayIndex]
-			let xCoord = plot.scaleXToPx(day, year)
+			const titreCountMax = arrMax(Object.values(summaryRow.titreCounts))
+			const titresSorted = Object.keys(summaryRow.titreCounts).map(x => parseInt(x)).sort((a, b) => a - b)
+			const titreCounts01: any = []
+			for (let key of titresSorted) {
+				titreCounts01.push(summaryRow.titreCounts[key] / titreCountMax)
+			}
+
 			let prevBarRight = null
 			for (let count01Index = 0; count01Index < allTitres.length; count01Index += 1) {
-				let count01 = dayCounts01[count01Index]
-				let count = dayCounts[count01Index]
-				let titre = allTitres[count01Index]
+				let count01 = titreCounts01[count01Index]
+				let titre = titresSorted[count01Index]
+				let count = summaryRow.titreCounts[titre]
 				let yCoord = plot.scaleYToPx(titre)
 
 				let barRight = xCoord + boxLineThiccness + distWidth * count01
@@ -2126,6 +2229,8 @@ type CountsSettings = {
 type TitresSettings = {
 	groupsGMTs: GMTGroups[],
 	groupsGMRs: GMRGroups[],
+	xFacets: TitreFacets[],
+	yFacets: TitreFacets[],
 }
 
 const getCountsPageURL = (settings: CountsSettings) => {
@@ -2139,7 +2244,9 @@ const getCountsPageURL = (settings: CountsSettings) => {
 const getTitresPageURL = (settings: TitresSettings) => {
 	let groupsGMTs = `groupsGMTs=${settings.groupsGMTs.join(",")}`
 	let groupsGMRs = `groupsGMRs=${settings.groupsGMRs.join(",")}`
-	let result = `titres?${groupsGMTs}&${groupsGMRs}`
+	let xFacets = `xFacets=${settings.xFacets.join(",")}`
+	let yFacets = `yFacets=${settings.yFacets.join(",")}`
+	let result = `titres?${groupsGMTs}&${groupsGMRs}&${xFacets}&${yFacets}`
 	return result
 }
 
@@ -2247,6 +2354,8 @@ const getCountSettingsFromURL = (def: CountsSettings) => {
 const getTitresSettingsFromURL = (def: TitresSettings) => {
 	let urlGroupsGMTs = def.groupsGMTs
 	let urlGroupsGMRs = def.groupsGMRs
+	let urlXFacets = def.xFacets
+	let urlYFacets = def.yFacets
 
 	if (window.location.pathname === "/titres") {
 		let params = new URLSearchParams(window.location.search)
@@ -2257,11 +2366,19 @@ const getTitresSettingsFromURL = (def: TitresSettings) => {
 		let gmrGroupsRes = getURLArrayParam(params, "groupsGMRs", ALL_GMT_GROUPS, urlGroupsGMRs)
 		urlGroupsGMRs = gmrGroupsRes.urlArr
 
-		let needToFixAddress = gmtGroupsRes.needToFixAddress || gmrGroupsRes.needToFixAddress
+		let xFacetsRes = getURLArrayParam(params, "xFacets", ALL_TITRE_FACETS, urlXFacets)
+		urlXFacets = xFacetsRes.urlArr
+
+		let yFacetsRes = getURLArrayParam(params, "yFacets", ALL_TITRE_FACETS, urlYFacets)
+		urlYFacets = yFacetsRes.urlArr
+
+		let needToFixAddress = gmtGroupsRes.needToFixAddress || gmrGroupsRes.needToFixAddress || xFacetsRes.needToFixAddress || yFacetsRes.needToFixAddress
 		if (needToFixAddress) {
 			window.history.replaceState(null, "", getTitresPageURL({
 				groupsGMTs: urlGroupsGMTs,
 				groupsGMRs: urlGroupsGMRs,
+				xFacets: urlXFacets,
+				yFacets: urlYFacets,
 			}))
 		}
 	}
@@ -2269,6 +2386,8 @@ const getTitresSettingsFromURL = (def: TitresSettings) => {
 	let result: TitresSettings = {
 		groupsGMTs: urlGroupsGMTs,
 		groupsGMRs: urlGroupsGMRs,
+		xFacets: urlXFacets,
+		yFacets: urlYFacets,
 	}
 
 	return result
@@ -2794,7 +2913,7 @@ const createTitresPage = (
 
 	const updateGMTs = () => replaceChildren(gmtTableParent, createTitreGMTTable(latestFilteredData, settings.groupsGMTs))
 	const updateGMRs = () => replaceChildren(gmrTableParent, createTitreGMRTable(latestFilteredData, settings.groupsGMRs))
-	const updatePlot = () => replaceChildren(plotParent, createTitrePlot(latestFilteredData))
+	const updatePlot = () => replaceChildren(plotParent, createTitrePlot(latestFilteredData, settings))
 
 	window.addEventListener("resize", updatePlot)
 	globalResizeListeners.push(updatePlot)
@@ -2838,6 +2957,23 @@ const createTitresPage = (
 	)
 
 	addEl(settingsEl, gmrGroupsSwitch)
+
+
+	let xFacetsSwitchLabel = addDiv(settingsEl)
+	xFacetsSwitchLabel.textContent = "X facets"
+	xFacetsSwitchLabel.style.marginTop = "30px"
+
+	let xFacetsSwitch = createSwitch(
+		settings.xFacets,
+		<TitreFacets[]>ALL_TITRE_FACETS,
+		(groups) => {
+			settings.xFacets = groups
+			window.history.pushState(null, "", getTitresPageURL(settings))
+			updatePlot()
+		},
+	)
+
+	addEl(settingsEl, xFacetsSwitch)
 
 	const page = createDatapageContainer()
 	addEl(page, createSidebar("titres", settingsEl, onDatapageChange, onLogout))
@@ -2886,7 +3022,7 @@ const goToCurrentURL = (domMain: HTMLElement, data: Data, onLogout: () => void) 
 	}
 	const defYear = 2022
 	const defTitresSettings: TitresSettings = {
-		groupsGMTs: ["year", "day"], groupsGMRs: ["year"],
+		groupsGMTs: ["year", "day"], groupsGMRs: ["year"], xFacets: ["year"], yFacets: [],
 	}
 
 	const pages: Pages = {
