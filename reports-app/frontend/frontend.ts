@@ -1555,9 +1555,8 @@ const getSortedStats = (arr: number[]) => {
 
 const addBoxplot = <X, Y, XF>(
 	plot: Plot<X, Y, XF>,
-	summary: {stats: BoxplotStats}[],
-	getX: (row: any) => X,
-	getXFacets: (row: any) => XF[],
+	stats: BoxplotStats,
+	xCoord: number,
 	totalBoxWidth: number,
 	color: string,
 	altColor: string,
@@ -1570,80 +1569,74 @@ const addBoxplot = <X, Y, XF>(
 	let meanChonkiness = boxWidth
 	let medianChonkiness = boxWidth / 2
 
-	for (let boxplotData of summary) {
+	let boxLeft = xCoord - boxWidth
+	let boxRight = xCoord
 
-		let xVal = getX(boxplotData)
-		let xFacets = getXFacets(boxplotData)
-		let xCoord = plot.scaleXToPx(xVal, xFacets)
-		let boxLeft = xCoord - boxWidth
-		let boxRight = xCoord
+	let boxplotBody = {l: boxLeft, b: stats.q75, r: boxRight, t: stats.q25}
+	drawRectOutline(plot.renderer, boxplotBody, color, lineThiccness)
+	drawRectOutline(plot.renderer, rectShrink(boxplotBody, lineThiccness), altColor, lineThiccness)
 
-		let boxplotBody = {l: boxLeft, b: boxplotData.stats.q75, r: boxRight, t: boxplotData.stats.q25}
-		drawRectOutline(plot.renderer, boxplotBody, color, lineThiccness)
-		drawRectOutline(plot.renderer, rectShrink(boxplotBody, lineThiccness), altColor, lineThiccness)
+	drawDoubleLine(
+		plot.renderer,
+		boxLeft - medianChonkiness,
+		stats.median,
+		boxRight,
+		stats.median,
+		color,
+		altColor,
+		lineThiccness,
+		[]
+	)
 
-		drawDoubleLine(
-			plot.renderer,
-			boxLeft - medianChonkiness,
-			boxplotData.stats.median,
-			boxRight,
-			boxplotData.stats.median,
-			color,
-			altColor,
-			lineThiccness,
-			[]
-		)
+	drawDoubleLine(
+		plot.renderer,
+		boxLeft - meanChonkiness,
+		stats.mean,
+		boxRight,
+		stats.mean,
+		meanColor,
+		altColor,
+		lineThiccness,
+		[3, 3]
+	)
 
-		drawDoubleLine(
-			plot.renderer,
-			boxLeft - meanChonkiness,
-			boxplotData.stats.mean,
-			boxRight,
-			boxplotData.stats.mean,
-			meanColor,
-			altColor,
-			lineThiccness,
-			[3, 3]
-		)
+	drawDoubleLine(
+		plot.renderer,
+		boxLeft - meanChonkiness / 2,
+		stats.mean + stats.meanSe * 1.96,
+		boxLeft - meanChonkiness / 2,
+		stats.mean - stats.meanSe * 1.96,
+		meanColor,
+		altColor,
+		lineThiccness,
+		[3, 3]
+	)
 
-		drawDoubleLine(
-			plot.renderer,
-			boxLeft - meanChonkiness / 2,
-			boxplotData.stats.mean + boxplotData.stats.meanSe * 1.96,
-			boxLeft - meanChonkiness / 2,
-			boxplotData.stats.mean - boxplotData.stats.meanSe * 1.96,
-			meanColor,
-			altColor,
-			lineThiccness,
-			[3, 3]
-		)
+	drawDoubleLine(
+		plot.renderer,
+		xCoord,
+		stats.q75,
+		xCoord,
+		stats.max,
+		color,
+		altColor,
+		lineThiccness,
+		[],
+		true,
+	)
 
-		drawDoubleLine(
-			plot.renderer,
-			xCoord,
-			boxplotData.stats.q75,
-			xCoord,
-			boxplotData.stats.max,
-			color,
-			altColor,
-			lineThiccness,
-			[],
-			true,
-		)
-
-		drawDoubleLine(
-			plot.renderer,
-			xCoord,
-			boxplotData.stats.min,
-			xCoord,
-			boxplotData.stats.q25,
-			color,
-			altColor,
-			lineThiccness,
-			[],
-			true,
-		)
-	}
+	drawDoubleLine(
+		plot.renderer,
+		xCoord,
+		stats.min,
+		xCoord,
+		stats.q25,
+		color,
+		altColor,
+		lineThiccness,
+		[],
+		true,
+	)
 }
 
 type PlotSpec<X, Y, XF> = {
@@ -2001,7 +1994,7 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 
 	let boxplotMeanCol = boxplotCol
 
-	if (lineGroups.length > 1 && boxWidth >= 15) {
+	if (boxWidth >= 15) {
 
 		let summary = summariseAos({
 			data: data,
@@ -2021,73 +2014,72 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 			if (summ.year !== undefined) {summ.year = parseInt(summ.year)}
 		})
 
-		const getXFacets = (row: any) => settings.xFacets.map(xFacet => row[xFacet])
-		const getX = (row: any) => row.day
-		addBoxplot(
-			plot,
-			summary,
-			getX,
-			getXFacets,
-			boxWidth, boxplotCol, altColor, boxplotMeanCol, boxLineThiccness
-		)
-
 		for (let summaryRow of summary) {
-			const xVal = getX(summaryRow)
-			const xFacets = getXFacets(summaryRow)
-			const xCoord = plot.scaleXToPx(xVal, xFacets)
+			if (summaryRow.yVals.length >= 10) {
+				const xVal = summaryRow.day
+				const xFacets = settings.xFacets.map(xFacet => summaryRow[xFacet])
+				const xCoord = plot.scaleXToPx(xVal, xFacets)
 
-			const titreCountMax = arrMax(Object.values(summaryRow.titreCounts))
-			const titresSorted = Object.keys(summaryRow.titreCounts).map(x => parseInt(x)).sort((a, b) => a - b)
-			const titreCounts01: any = []
-			for (let key of titresSorted) {
-				titreCounts01.push(summaryRow.titreCounts[key] / titreCountMax)
-			}
-
-			let prevBarRight = null
-			for (let count01Index = 0; count01Index < allTitres.length; count01Index += 1) {
-				let count01 = titreCounts01[count01Index]
-				let titre = titresSorted[count01Index]
-				let count = summaryRow.titreCounts[titre]
-				let yCoord = plot.scaleYToPx(titre)
-
-				let barRight = xCoord + boxLineThiccness + distWidth * count01
-
-				let down = titrePxStep / 2
-				let up = down
-				if (count01Index == 0) {
-					down = down / 2
-				} else if (count01Index == allTitres.length - 1) {
-					up = up / 2
-				}
-
-				drawDoubleLine(
-					plot.renderer, barRight, yCoord - up, barRight, yCoord + down,
-					distColor, altColor, boxLineThiccness, [], true,
+				addBoxplot(
+					plot,
+					summaryRow.stats,
+					xCoord,
+					boxWidth, boxplotCol, altColor, boxplotMeanCol, boxLineThiccness
 				)
 
-				if (prevBarRight !== null) {
-					let halfThicc = boxLineThiccness / 2
-					let vLeft = prevBarRight
-					let vRight = barRight
-					if (vLeft > vRight) {
-						let temp = vLeft
-						vLeft = vRight
-						vRight = temp
+				const titreCountMax = arrMax(Object.values(summaryRow.titreCounts))
+				const titresSorted = Object.keys(summaryRow.titreCounts).map(x => parseInt(x)).sort((a, b) => a - b)
+				const titreCounts01: any = []
+				for (let key of titresSorted) {
+					titreCounts01.push(summaryRow.titreCounts[key] / titreCountMax)
+				}
+
+				let prevBarRight = null
+				for (let count01Index = 0; count01Index < allTitres.length; count01Index += 1) {
+					let count01 = titreCounts01[count01Index]
+					let titre = titresSorted[count01Index]
+					let count = summaryRow.titreCounts[titre]
+					let yCoord = plot.scaleYToPx(titre)
+
+					let barRight = xCoord + boxLineThiccness + distWidth * count01
+
+					let down = titrePxStep / 2
+					let up = down
+					if (count01Index == 0) {
+						down = down / 2
+					} else if (count01Index == allTitres.length - 1) {
+						up = up / 2
 					}
-					drawLine(
-						plot.renderer, vLeft - halfThicc, yCoord + down, vRight + halfThicc, yCoord + down,
-						distColor, boxLineThiccness, [],
+
+					drawDoubleLine(
+						plot.renderer, barRight, yCoord - up, barRight, yCoord + down,
+						distColor, altColor, boxLineThiccness, [], true,
 					)
+
+					if (prevBarRight !== null) {
+						let halfThicc = boxLineThiccness / 2
+						let vLeft = prevBarRight
+						let vRight = barRight
+						if (vLeft > vRight) {
+							let temp = vLeft
+							vLeft = vRight
+							vRight = temp
+						}
+						drawLine(
+							plot.renderer, vLeft - halfThicc, yCoord + down, vRight + halfThicc, yCoord + down,
+							distColor, boxLineThiccness, [],
+						)
+					}
+
+					let countTextCol = "#bfbdb6"
+					let lineCountsPad = 5
+					drawText(
+						plot.renderer, `${count}`, barRight - boxLineThiccness, yCoord, countTextCol, 0, "middle", "end",
+						altColor
+					)
+
+					prevBarRight = barRight
 				}
-
-				let countTextCol = "#bfbdb6"
-				let lineCountsPad = 5
-				drawText(
-					plot.renderer, `${count}`, barRight - boxLineThiccness, yCoord, countTextCol, 0, "middle", "end",
-					altColor
-				)
-
-				prevBarRight = barRight
 			}
 		}
 	}
