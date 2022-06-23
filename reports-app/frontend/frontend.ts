@@ -2577,6 +2577,7 @@ const createSidebar = (
 	let logout = addDiv(bottom)
 	logout.textContent = "Logout"
 	logout.style.cursor = "pointer"
+	logout.style.marginTop = "20px"
 	logout.addEventListener("mouseover", (event) => logout.style.backgroundColor = "var(--color-selected)")
 	logout.addEventListener("mouseleave", (event) => logout.style.backgroundColor = "inherit")
 	logout.addEventListener("click", (event) => {
