@@ -3115,7 +3115,7 @@ const goToCurrentURL = (domMain: HTMLElement, data: Data, onLogout: () => void) 
 	}
 	const defYear = 2022
 	const defTitresSettings: TitresSettings = {
-		groupsGMTs: ["year", "day"], groupsGMRs: ["year"], xFacets: ["year"], yFacets: ["subtype"],
+		groupsGMTs: ["year", "day"], groupsGMRs: ["year"], xFacets: ["year", "eggcell"], yFacets: ["subtype"],
 	}
 
 	const pages: Pages = {
