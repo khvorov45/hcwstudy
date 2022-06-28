@@ -1941,9 +1941,10 @@ const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
 				const facetCenter = facetStart + facetValueSpan / 2
 				const facetGap = facetStart + facetValueSpan + spec.padFacet / 2
 				drawText(renderer, `${yFacet}`, spec.width - xOffset, facetCenter, axisTextCol, 90, "top", "center")
+				drawText(renderer, `${yFacet}`, spec.padAxis.l + xOffset, facetCenter, axisTextCol, -90, "top", "center")
 				if (setValueIndex < facetSetValues.length - 1) {
 					drawLine(
-						renderer, spec.width - xOffset, facetGap, spec.padAxis.l, facetGap,
+						renderer, spec.width - xOffset, facetGap, spec.padAxis.l + xOffset, facetGap,
 						facetSepColor, sepThiccness, [],
 					)
 				}
