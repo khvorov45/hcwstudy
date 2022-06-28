@@ -1864,6 +1864,9 @@ const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
 		}
 	}
 
+	const gridCol = axisCol + "22"
+	const gridThiccness = 1
+
 	let allYTicksYCoords = []
 	for (const yFacetIter = beginFacetIteration(spec.yFacetSets); !yFacetIter.done; nextFacet(yFacetIter)) {
 		let yFacets = getCurrentFacetValues(yFacetIter)
@@ -1876,6 +1879,11 @@ const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
 				{l: spec.padAxis.l - tickLength, r: spec.padAxis.l,
 					t: yCoord - axisThiccness, b: yCoord},
 				axisCol
+			)
+			drawLine(
+				renderer,
+				spec.padAxis.l, yCoord, spec.width - spec.padAxis.r, yCoord,
+				gridCol, gridThiccness, [],
 			)
 			drawText(
 				renderer,
