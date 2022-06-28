@@ -2091,7 +2091,10 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 		let summary = summariseAos({
 			data: data,
 			groups: ["day"].concat(settings.xFacets).concat(settings.yFacets),
-			defaultCounts: () => ({titres: [] as number[], titreCounts: {} as any}),
+			defaultCounts: () => ({
+				titres: [] as number[],
+				titreCounts: allTitres.reduce((acc, titre) => {acc[titre] = 0; return acc}, {} as any)
+			}),
 			getKey: getTitreKey,
 			addRow: (row, summ) => {
 				summ.titres.push(row.titre)
