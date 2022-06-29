@@ -99,7 +99,7 @@ const arrLinSearch = <T>(arr: T[], item: T) => {
 	let result = -1
 	for (let index = 0; index < arr.length; index += 1) {
 		let elem = arr[index]
-		if (elem == item) {
+		if (elem === item) {
 			result = index
 			break
 		}
@@ -226,6 +226,19 @@ const summariseAos = <RowType, CountsType>(
 	spec: SummariseSpec<RowType, CountsType>,
 	modOnCompletion?: (aosRow: any) => void
 ) => {
+	const numberCols: string[] = []
+	for (let group of spec.groups) {
+		for (let dataRow of spec.data) {
+			const dataVal = spec.getKey(dataRow, group)
+			if (dataVal !== null && dataVal !== undefined) {
+				if (isNumber(dataVal)) {
+					numberCols.push(group)
+				}
+				break
+			}
+		}
+	}
+
 	let summaryMap = summarise(spec)
 	let summaryAoa = flattenMap(summaryMap, [])
 
@@ -236,6 +249,18 @@ const summariseAos = <RowType, CountsType>(
 
 	let getDefaultCounts = () => typeof (spec.defaultCounts) === "function" ? (<() => CountsType>spec.defaultCounts)() : {...spec.defaultCounts}
 	let summaryAos = aoaToAos(summaryAoa, namesStart.concat(Object.keys(getDefaultCounts())))
+
+	for (let summaryRow of summaryAos) {
+		for (let numberCol of numberCols) {
+			summaryRow[numberCol] = parseFloat(summaryRow[numberCol])
+		}
+		for (let colname of Object.keys(summaryRow)) {
+			if (summaryRow[colname] === "undefined") {
+				summaryRow[colname] = undefined
+			}
+		}
+	}
+
 	if (modOnCompletion !== undefined) {
 		summaryAos = summaryAos.map(row => {modOnCompletion(row); return row})
 	}
@@ -330,7 +355,7 @@ const ALL_GMR_GROUPS_ = ["year", "site", "virus", "subtype", "eggcell",
 const ALL_GMR_GROUPS = ALL_GMR_GROUPS_ as unknown as string[]
 type GMRGroups = (typeof ALL_GMR_GROUPS_)[number]
 
-const ALL_TITRE_FACETS_ = ["year", "subtype", "eggcell"] as const
+const ALL_TITRE_FACETS_ = ALL_GMT_GROUPS_
 const ALL_TITRE_FACETS = ALL_TITRE_FACETS_ as unknown as string[]
 type TitreFacets = (typeof ALL_TITRE_FACETS_)[number]
 
@@ -1483,6 +1508,11 @@ type BoxplotStats = {
 	meanSe: number,
 }
 
+const arrUnique = <T>(arr: T[]): T[] => {
+	const result = Array.from(new Set(arr))
+	return result
+}
+
 const arrSum = (arr: number[]) => {
 	let sum = 0
 	for (let val of arr) {
@@ -1513,6 +1543,29 @@ const arrSortedAscQuantile = (sorted: number[], q: number) => {
     result += rest * (sorted[base + 1] - sorted[base])
   }
   return result
+}
+
+const numberSort = (x: number, y: number) => (x - y)
+const generalSort = (x: any, y: any) => (x > y ? 1 : x < y ? -1 : 0)
+
+const desiredOrderSort = (ord: any[]) => {
+	return (a: any, b: any) => {
+		let result = 0
+		let ai = ord.indexOf(a)
+		let bi = ord.indexOf(b)
+		if (ai !== -1 || bi !== -1) {
+			if (ai === -1) {
+				result = 1
+			} else if (bi === -1) {
+				result = -1
+			} else if (ai > bi) {
+				result = 1
+			} else if (ai < bi) {
+				result = -1
+			}
+		}
+		return result
+	}
 }
 
 const getSortedStats = (arr: number[]) => {
@@ -1705,7 +1758,7 @@ const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
 		for (let facetIndex = 0; facetIndex < facets.length; facetIndex += 1) {
 			const facet = facets[facetIndex]
 			const facetSet = facetSets[facetIndex]
-			const thisIndex = facetSet.indexOf(facet)
+			const thisIndex = arrLinSearch(facetSet, facet)
 			panelIndex += panelsPerInc[facetIndex] * thisIndex
 		}
 		return panelIndex
@@ -1957,17 +2010,15 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 
 	let allDays = [0, 7, 14, 220]
 	let allTitres = [5, 10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120, 10240]
-	const allYears = [2020, 2021] as YearID[]
 
 	const collectFacetSets = (facets: TitreFacets[]) => {
 		const facetValues: any[][] = []
 		if (facets.length > 0) {
 			for (let xFacetIndex = 0; xFacetIndex < facets.length; xFacetIndex += 1) {
 				const xFacet = facets[xFacetIndex]
+				facetValues[xFacetIndex] = arrUnique(data.map(x => (getTitreKey(x, xFacet)))).sort(generalSort)
 				switch (xFacet) {
-				case "year": facetValues[xFacetIndex] = allYears; break
-				case "subtype": facetValues[xFacetIndex] = ALL_SUBTYPES; break
-				case "eggcell": facetValues[xFacetIndex] = ALL_EGGCELL; break
+				case "subtype": facetValues[xFacetIndex] = facetValues[xFacetIndex].sort(desiredOrderSort(["H1", "H3", "BVic", "BYam"])); break
 				}
 			}
 		}
@@ -2012,7 +2063,7 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 			case 220: {counts.day220 = row.titre} break;
 			}
 		},
-	}, (row) => row.year = parseInt(row.year))
+	})
 
 	const facetCounts: any = {}
 	for (let lineGroup of lineGroups) {
@@ -2041,9 +2092,9 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 		} else if (countInFacet > 500) {
 			lineAlphaNumber = 10
 		} else if (countInFacet > 100) {
-			lineAlphaNumber = 20
+			lineAlphaNumber = 70
 		} else if (countInFacet > 50) {
-			lineAlphaNumber = 40
+			lineAlphaNumber = 85
 		} else if (countInFacet > 10) {
 			lineAlphaNumber = 100
 		} else {
@@ -2059,7 +2110,6 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 		let xJitter = randUnif(-10, 10)
 
 		let titres = [lineGroup.day0, lineGroup.day7, lineGroup.day14, lineGroup.day220]
-
 
 		let yCoords = titres.map((x) => x !== null ? plot.scaleYToPx(x, groupYFacets) + yJitter : null)
 		let xCoords = allDays.map((x) => plot.scaleXToPx(x, groupXFacets) + xJitter)
@@ -2118,9 +2168,6 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 				}
 				summ.titreCounts[row.titre] += 1
 			}
-		}, (summ) => {
-			summ.day = parseInt(summ.day);
-			if (summ.year !== undefined) {summ.year = parseInt(summ.year)}
 		})
 
 		for (let summaryRow of summary) {
