@@ -2014,26 +2014,52 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 		},
 	}, (row) => row.year = parseInt(row.year))
 
-	let lineThreshold = 100
-	let lineAlpha = "00"
-	if (lineGroups.length <= lineThreshold) {
-		let lineAlphaMin = 10
-		lineAlpha = Math.round((Math.exp(-0.02 * lineGroups.length) * (255 - lineAlphaMin) + lineAlphaMin)).toString(16).padStart(2, "0")
+	const facetCounts: any = {}
+	for (let lineGroup of lineGroups) {
+		const groupYFacets = settings.yFacets.map(yFacet => lineGroup[yFacet])
+		const groupXFacets = settings.xFacets.map(xFacet => lineGroup[xFacet])
+		const allFacets = groupXFacets.concat(groupYFacets).join("_")
+		if (facetCounts[allFacets] === undefined) {
+			facetCounts[allFacets] = 0
+		}
+		facetCounts[allFacets] += 1
 	}
-	let lineColBase = "#61de2a"
-	let lineCol = lineColBase + lineAlpha
-
-	let pointAlphaMin = 10
-	let pointAlpha = Math.round((Math.exp(-0.02 * lineGroups.length) * (255 - pointAlphaMin) + pointAlphaMin)).toString(16).padStart(2, "0")
 
 	for (let lineGroup of lineGroups) {
+		const groupYFacets = settings.yFacets.map(yFacet => lineGroup[yFacet])
+		const groupXFacets = settings.xFacets.map(xFacet => lineGroup[xFacet])
+		const allFacets = groupXFacets.concat(groupYFacets).join("_")
+		const countInFacet = facetCounts[allFacets]
+
+		let lineAlphaNumber = 0
+		if (countInFacet > 5000) {
+			lineAlphaNumber = 1
+		} else if (countInFacet > 2000) {
+			lineAlphaNumber = 3
+		} else if (countInFacet > 1000) {
+			lineAlphaNumber = 5
+		} else if (countInFacet > 500) {
+			lineAlphaNumber = 10
+		} else if (countInFacet > 100) {
+			lineAlphaNumber = 20
+		} else if (countInFacet > 50) {
+			lineAlphaNumber = 40
+		} else if (countInFacet > 10) {
+			lineAlphaNumber = 100
+		} else {
+			lineAlphaNumber = 200
+		}
+
+		const lineAlpha = lineAlphaNumber.toString(16).padStart(2, "0")
+		const lineColBase = "#61de2a"
+		const lineCol = lineColBase + lineAlpha
+		const pointAlpha = lineAlpha
+
 		let yJitter = randUnif(-10, 10)
 		let xJitter = randUnif(-10, 10)
 
 		let titres = [lineGroup.day0, lineGroup.day7, lineGroup.day14, lineGroup.day220]
 
-		const groupYFacets = settings.yFacets.map(yFacet => lineGroup[yFacet])
-		const groupXFacets = settings.xFacets.map(xFacet => lineGroup[xFacet])
 
 		let yCoords = titres.map((x) => x !== null ? plot.scaleYToPx(x, groupYFacets) + yJitter : null)
 		let xCoords = allDays.map((x) => plot.scaleXToPx(x, groupXFacets) + xJitter)
