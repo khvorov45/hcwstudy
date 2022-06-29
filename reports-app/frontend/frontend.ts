@@ -1197,28 +1197,6 @@ const createBleedsTable = (downloadCsv: { [key: string]: string }, data: any, ye
 	return tableResult.table
 }
 
-const createParticipantsTable = (downloadCsv: { [key: string]: string }, data: Data) => {
-
-	let tableResult = createTableElementFromAos({
-		aos: data.participants,
-		colSpecInit: {
-			pid: {},
-			site: {},
-			email: { width: 450 },
-			mobile: { width: 200 },
-			gender: {},
-			atsi: { width: 50 },
-			dob: {},
-			date_screening: { width: 150 },
-			age_screening: { width: 150, format: (x) => x.toFixed(0) },
-			recruitment_year: { width: 150 },
-		},
-		title: "Participants",
-	})
-
-	return tableResult.table
-}
-
 const createTitreTable = (data: Data, onFilterChange: (filteredData: any[]) => void) => {
 	let tableResult = createTableElementFromAos({
 		aos: data.titres,
