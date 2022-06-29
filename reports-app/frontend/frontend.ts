@@ -1865,11 +1865,11 @@ const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
 				iter.done = true
 				break
 			}
-			iter.facetIndices[facetCurrentSetIndex] += 1
-			if (iter.facetIndices[facetCurrentSetIndex] == iter.facetSets[facetCurrentSetIndex].length) {
+			if (iter.facetIndices[facetCurrentSetIndex] >= iter.facetSets[facetCurrentSetIndex].length - 1) {
 				iter.facetIndices[facetCurrentSetIndex] = 0
 				facetCurrentSetIndex -= 1
 			} else {
+				iter.facetIndices[facetCurrentSetIndex] += 1
 				break
 			}
 		}
