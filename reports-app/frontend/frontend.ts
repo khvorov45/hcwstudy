@@ -995,11 +995,7 @@ const getParticipantsKey = (row: any, group: string) => {
 	return key
 }
 
-const addCountsExplanatoryNotes = (node: HTMLElement, groups: string[]) => {
-	if (groups.length > 0) {
-		addTextline(node, "all counts apply to the subset defined by (" + groups.join(", ") + ")")
-	}
-
+const addGroupsExplanatoryNotes = (node: HTMLElement, groups: string[]) => {
 	for (let group of groups) {
 		switch (group) {
 			case "recruited": { addTextline(node, "recruited - year the participant was recruited"); } break
@@ -1013,6 +1009,13 @@ const addCountsExplanatoryNotes = (node: HTMLElement, groups: string[]) => {
 			case "covidArm2021": { addTextline(node, "covidArm2021 - covid arm as per 2021 consent"); } break
 		}
 	}
+}
+
+const addCountsExplanatoryNotes = (node: HTMLElement, groups: string[]) => {
+	if (groups.length > 0) {
+		addTextline(node, "all counts apply to the subset defined by (" + groups.join(", ") + ")")
+	}
+	addGroupsExplanatoryNotes(node, groups)
 }
 
 const createCountsRecordsTable = (data: Data, groups: RecordGroups[]) => {
@@ -2091,6 +2094,8 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 			lineAlphaNumber = 5
 		} else if (countInFacet > 500) {
 			lineAlphaNumber = 10
+		} else if (countInFacet > 300) {
+			lineAlphaNumber = 40
 		} else if (countInFacet > 100) {
 			lineAlphaNumber = 70
 		} else if (countInFacet > 50) {
@@ -3028,8 +3033,15 @@ const createTitresPage = (
 	container2.style.width = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
 
 	let help = addDiv(container2)
-	addTextline(help, "GMT, GMR tables and the titre plot only use the data displayed in the Titres table (so you can filter the titres table and change everything else on the page).")
-	addTextline(help, "Boxplots: minimum - quartile 25 - quartile 75 - maximum. Solid midline: median. Dashed midline: mean (vertical dashed line - 95% CI for mean). Right side: histogram. Numbers: titre measurement counts.")
+
+	const fillHelp = () => {
+		removeChildren(help)
+		addTextline(help, "GMT, GMR tables and the titre plot only use the data displayed in the Titres table (so you can filter the titres table and change everything else on the page).")
+		addTextline(help, "Boxplots: minimum - quartile 25 - quartile 75 - maximum. Solid midline: median. Dashed midline: mean (vertical dashed line - 95% CI for mean). Right side: histogram. Numbers: titre measurement counts.")
+		//@ts-ignore
+		addGroupsExplanatoryNotes(help, arrUnique(settings.groupsGMRs.concat(settings.groupsGMTs).concat(settings.xFacets).concat(settings.yFacets)))
+	}
+	fillHelp()
 
 	let top = addDiv(container2)
 	top.style.maxWidth = `calc(100vw - ${SIDEBAR_WIDTH_PX + SCROLLBAR_WIDTHS[1]}px)`
@@ -3079,6 +3091,7 @@ const createTitresPage = (
 		(groups) => {
 			settings.groupsGMTs = groups
 			window.history.pushState(null, "", getTitresPageURL(settings))
+			fillHelp()
 			updateGMTs()
 		},
 	)
@@ -3095,6 +3108,7 @@ const createTitresPage = (
 		(groups) => {
 			settings.groupsGMRs = groups
 			window.history.pushState(null, "", getTitresPageURL(settings))
+			fillHelp()
 			updateGMRs()
 		},
 	)
@@ -3111,6 +3125,7 @@ const createTitresPage = (
 		(groups) => {
 			settings.xFacets = groups
 			window.history.pushState(null, "", getTitresPageURL(settings))
+			fillHelp()
 			updatePlot()
 		},
 	)
@@ -3127,6 +3142,7 @@ const createTitresPage = (
 		(groups) => {
 			settings.yFacets = groups
 			window.history.pushState(null, "", getTitresPageURL(settings))
+			fillHelp()
 			updatePlot()
 		},
 	)
