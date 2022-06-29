@@ -658,14 +658,16 @@ type TableColSpec<RowType> = {
 	format?: (val: any) => string,
 	width?: number,
 	filter?: (row: RowType, val: any) => boolean,
+	filterValProcess?: (val: string) => string,
 }
 
 type TableColSpecFinal<RowType> = {
 	access: (row: RowType) => any,
 	format: (val: any) => string,
 	width: number,
-	filter: (row: RowType, val: any) => boolean,
+	filter: (row: RowType, val: string) => boolean,
 	filterVal: string,
+	filterValProcess: (val: string) => string,
 }
 
 const MISSING_STRING = "(missing)"
@@ -757,6 +759,7 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 				return passed
 			}),
 			filterVal: "",
+			filterValProcess: specInit.filterValProcess ?? defaults?.filterValProcess ?? ((x) => x),
 		}
 	}
 
@@ -777,7 +780,7 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 
 		let headerRow = addEl(hscrollContainer, createTableHeaderRow(colSpec))
 		addEl(hscrollContainer, createTableFilterRow(colSpec, (colname: string, filterVal: any) => {
-			colSpec[colname].filterVal = filterVal
+			colSpec[colname].filterVal = colSpec[colname].filterValProcess(filterVal)
 			aosFiltered = getAosFiltered()
 			virtualizedList.setRowCount(aosFiltered.length)
 		}))
@@ -2696,7 +2699,7 @@ const createParticipantsPage = (data: Data, onDatapageChange: (page: DataPageID)
 		colSpecInit: {
 			pid: {},
 			site: {},
-			email: { width: 450 },
+			email: { width: 450, format: (x) => x?.toLowerCase(), filterValProcess: (val: string) => val.toLowerCase() },
 			mobile: { width: 200 },
 			gender: {},
 			atsi: { width: 50 },
