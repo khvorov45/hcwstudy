@@ -1955,7 +1955,7 @@ const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
 				const facetStart = xOffset + setValueIndex * (facetValueSpan + spec.padFacet)
 				const facetCenter = facetStart + facetValueSpan / 2
 				const facetGap = facetStart + facetValueSpan + spec.padFacet / 2
-				drawText(renderer, `${xFacet}`, facetCenter, yOffset, axisTextCol, 0, "top", "center")
+				drawText(renderer, `${xFacet ?? MISSING_STRING}`, facetCenter, yOffset, axisTextCol, 0, "top", "center")
 				if (setValueIndex < facetSetValues.length - 1) {
 					drawLine(
 						renderer, facetGap, yOffset, facetGap, spec.height - spec.padAxis.b - axisThiccness,
@@ -1985,8 +1985,8 @@ const beginPlot = <X, Y>(spec: PlotSpec<X, Y>) => {
 				const facetStart = yOffset + setValueIndex * (facetValueSpan + spec.padFacet)
 				const facetCenter = facetStart + facetValueSpan / 2
 				const facetGap = facetStart + facetValueSpan + spec.padFacet / 2
-				drawText(renderer, `${yFacet}`, spec.width - xOffset, facetCenter, axisTextCol, 90, "top", "center")
-				drawText(renderer, `${yFacet}`, spec.padAxis.l + xOffset, facetCenter, axisTextCol, -90, "top", "center")
+				drawText(renderer, `${yFacet ?? MISSING_STRING}`, spec.width - xOffset, facetCenter, axisTextCol, 90, "top", "center")
+				drawText(renderer, `${yFacet ?? MISSING_STRING}`, spec.padAxis.l + xOffset, facetCenter, axisTextCol, -90, "top", "center")
 				if (setValueIndex < facetSetValues.length - 1) {
 					drawLine(
 						renderer, spec.width - xOffset, facetGap, spec.padAxis.l + xOffset, facetGap,
