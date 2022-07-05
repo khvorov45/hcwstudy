@@ -110,7 +110,22 @@ weekly_surveys <- read_csv("./data/weekly-surveys.csv", col_types = cols()) %>%
 titres <- read_csv("./data/serology.csv", col_types = cols()) %>%
 	left_join(participants %>% select(-contains("bled202"), -contains("Arm"), -email, -mobile), "pid")
 
-all_data <- list(
+#
+# SECTION Data problems
+#
+
+all_data_problems_files <- list.files("data-problems") %>%
+    .[!str_detect(., "-")] %>%
+    paste0("data-problems/", .)
+
+all_data_problems <- map(all_data_problems_files, ~ read_csv(.x, col_types = cols()))
+names(all_data_problems) <- all_data_problems_files %>% str_replace("data-problems/(.*)\\.csv", "\\1")
+
+#
+# SECTION Full data
+#
+
+all_data <- c(list(
     participants = participants,
     withdrawn = withdrawn,
     bleed_dates = bleed_dates_wide,
@@ -118,7 +133,7 @@ all_data <- list(
     consent = consent,
     weekly_surveys = weekly_surveys,
     titres = titres
-)
+), all_data_problems)
 
 write(jsonlite::toJSON(all_data), "./reports-app/backend/backend-all_data.json")
 
