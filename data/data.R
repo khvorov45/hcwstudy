@@ -873,6 +873,7 @@ withdrawn <- withdrawn_raw %>%
       select(record_id, pid, redcap_project_year),
     c("record_id", "redcap_project_year")
   ) %>%
+  filter(!is.na(withdrawn), withdrawn == 1) %>%
   select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance, -record_id) %>%
   select(pid, everything()) %>%
   mutate(

@@ -27,8 +27,11 @@ consent_conflicts <- consent %>%
   group_by(pid, year, disease) %>%
   filter(length(unique(na.omit(consent))) > 1) %>%
   ungroup() %>%
+  mutate(form = paste(disease, form, sep = "_")) %>%
+  arrange(form) %>%
+  select(-disease, -date) %>%
   pivot_wider(names_from = "form", values_from = "consent") %>%
-  arrange(pid, site, year, disease)
+  arrange(pid, site, year)
 
 save_split(consent_conflicts, "consent_conflicts")
 
@@ -78,7 +81,9 @@ swabs <- read_csv("data/swabs.csv", col_types = cols()) %>%
 	inner_join(participants %>% select(pid, site), "pid")
 
 swabs_missing_date <- swabs %>%
-	filter(is.na(samp_date), !pid %in% withdrawn$pid)
+	filter(is.na(samp_date), !pid %in% withdrawn$pid) %>%
+	group_by(pid, site, year, postinf_instance, samp_date) %>%
+	summarise(.groups = "drop", viruses = paste(swab_virus[swab_result == 1], collapse = ","))
 
 save_split(swabs_missing_date, "swabs_missing_date")
 

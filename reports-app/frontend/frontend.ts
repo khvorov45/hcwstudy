@@ -321,7 +321,7 @@ const YEARS_ = [2020, 2021, 2022] as const
 const YEARS = YEARS_ as unknown as number[]
 type YearID = (typeof YEARS_)[number]
 
-const ALL_DATAPAGE_IDS_ = ["participants", "weekly-surveys", "bleeds", "counts", "titres"] as const
+const ALL_DATAPAGE_IDS_ = ["participants", "weekly-surveys", "bleeds", "counts", "titres", "problems"] as const
 const ALL_DATAPAGE_IDS = ALL_DATAPAGE_IDS_ as unknown as string[]
 type DataPageID = (typeof ALL_DATAPAGE_IDS_)[number]
 
@@ -852,6 +852,7 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 
 				return rowElement
 			},
+			estimatedRowHeight: TABLE_ROW_HEIGHT_PX,
 			rowHeight: TABLE_ROW_HEIGHT_PX,
 		});
 
@@ -882,7 +883,7 @@ const createTableElementFromAos = <RowType extends { [key: string]: any }>(
 	window.addEventListener("resize", regenBody)
 	globalResizeListeners.push(regenBody)
 
-	return { table: table, width: tableWidthPx, regenBody: regenBody }
+	return table
 }
 
 const initLoading = () => {
@@ -956,7 +957,7 @@ const initSurveys = (sidebarWidthPx: number) => {
 		hscrollContainer: hscrollContainer,
 		container: container, surveys: surveys, completions: completions,
 		datesContainer: datesContainer,
-		datesTables: { 2020: surveyDates2020.table, 2021: surveyDates2021.table, 2022: surveyDates2022.table }
+		datesTables: { 2020: surveyDates2020, 2021: surveyDates2021, 2022: surveyDates2022 }
 	}
 }
 
@@ -1079,7 +1080,7 @@ const createCountsRecordsTable = (data: Data, groups: RecordGroups[]) => {
 
 	let descDim = measureEl(countsTableDesc.container, window.innerWidth - SIDEBAR_WIDTH_PX, window.innerHeight)
 
-	let tableResult = createTableElementFromAos({
+	let tableEl = createTableElementFromAos({
 		aos: countsAos,
 		colSpecInit: colSpec,
 		title: "Record counts",
@@ -1089,7 +1090,7 @@ const createCountsRecordsTable = (data: Data, groups: RecordGroups[]) => {
 
 	let countsTableContainer = createDiv()
 	addEl(countsTableContainer, countsTableDesc.container)
-	addEl(countsTableContainer, tableResult.table)
+	addEl(countsTableContainer, tableEl)
 
 	return countsTableContainer
 }
@@ -1132,7 +1133,7 @@ const createCountsBleedsTable = (data: Data, groups: BleedsGroups[]) => {
 
 	let descDim = measureEl(countsTableDesc.container, window.innerWidth - SIDEBAR_WIDTH_PX, window.innerHeight)
 
-	let tableResult = createTableElementFromAos({
+	let tableEl = createTableElementFromAos({
 		aos: countsAos,
 		colSpecInit: colSpec,
 		title: "Routine bleed counts",
@@ -1142,7 +1143,7 @@ const createCountsBleedsTable = (data: Data, groups: BleedsGroups[]) => {
 
 	let countsTableContainer = createDiv()
 	addEl(countsTableContainer, countsTableDesc.container)
-	addEl(countsTableContainer, tableResult.table)
+	addEl(countsTableContainer, tableEl)
 
 	return countsTableContainer
 }
@@ -1177,7 +1178,7 @@ const createCountsPostinfBleedsTable = (data: Data, groups: PostinfBleedsGroups[
 
 	let descDim = measureEl(countsTableDesc.container, window.innerWidth - SIDEBAR_WIDTH_PX, window.innerHeight)
 
-	let tableResult = createTableElementFromAos({
+	let tableEl = createTableElementFromAos({
 		aos: countsAos,
 		colSpecInit: colSpec,
 		title: "Postinfection bleed counts",
@@ -1187,14 +1188,14 @@ const createCountsPostinfBleedsTable = (data: Data, groups: PostinfBleedsGroups[
 
 	let countsTableContainer = createDiv()
 	addEl(countsTableContainer, countsTableDesc.container)
-	addEl(countsTableContainer, tableResult.table)
+	addEl(countsTableContainer, tableEl)
 
 	return countsTableContainer
 }
 
 const createBleedsTable = (downloadCsv: { [key: string]: string }, data: any, year: number) => {
 
-	let tableResult = createTableElementFromAos({
+	let tableEl = createTableElementFromAos({
 		aos: data.bleed_dates.filter((row: any) => {
 			let result = row.year === year
 			if (result) {
@@ -1225,11 +1226,11 @@ const createBleedsTable = (downloadCsv: { [key: string]: string }, data: any, ye
 		title: "Bleed dates",
 	})
 
-	return tableResult.table
+	return tableEl
 }
 
 const createTitreTable = (data: Data, onFilterChange: (filteredData: any[]) => void) => {
-	let tableResult = createTableElementFromAos({
+	let tableEl = createTableElementFromAos({
 		aos: data.titres,
 		colSpecInit: {
 			pid: {},
@@ -1259,7 +1260,7 @@ const createTitreTable = (data: Data, onFilterChange: (filteredData: any[]) => v
 		onFilterChange: onFilterChange,
 	})
 
-	return tableResult.table
+	return tableEl
 }
 
 const getTitreKey = (row: any, group: string) => {
@@ -1294,14 +1295,14 @@ const createTitreGMTTable = (titreData: any[], groups: string[]) => {
 	colSpec.titres = {}
 	colSpec.GMT = {format: (x: any) => x.toFixed(0)}
 
-	let tableResult = createTableElementFromAos({
+	let tableEl = createTableElementFromAos({
 		aos: titreSummary,
 		colSpecInit: colSpec,
 		title: "GMT",
 		getTableHeightInit: () => (window.innerHeight - TITRES_HELP_HEIGHT) / 4 - SCROLLBAR_WIDTHS[0],
 	})
 
-	return tableResult.table
+	return tableEl
 }
 
 const createTitreGMRTable = (titreData: any[], groups: string[]) => {
@@ -1344,14 +1345,14 @@ const createTitreGMRTable = (titreData: any[], groups: string[]) => {
 	colSpec.ratios = {}
 	colSpec.GMR = {format: (x: any) => x.toFixed(2)}
 
-	let tableResult = createTableElementFromAos({
+	let tableEl = createTableElementFromAos({
 		aos: ratioSummary,
 		colSpecInit: colSpec,
 		title: "GMR",
 		getTableHeightInit: () => (window.innerHeight - TITRES_HELP_HEIGHT) / 4 - SCROLLBAR_WIDTHS[0],
 	})
 
-	return tableResult.table
+	return tableEl
 }
 
 type Plot<X, Y> = {
@@ -2302,7 +2303,7 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 const createSurveyTable = (completions: { [key: string]: number[] }, data: Data, year: number) => {
 	let tableContainer = createDiv()
 
-	let tableResult = createTableElementFromAos({
+	let tableEl = createTableElementFromAos({
 		aos: data.weekly_surveys.filter((row: any) => row.year === year && row.complete !== 0),
 		colSpecInit: { pid: {}, site: {}, week: { access: "survey_index" }, date: {}, ari: {} },
 		title: "Completed weekly surveys",
@@ -2314,7 +2315,7 @@ const createSurveyTable = (completions: { [key: string]: number[] }, data: Data,
 		}
 	})
 
-	addEl(tableContainer, tableResult.table)
+	addEl(tableContainer, tableEl)
 	return tableContainer
 }
 
@@ -2365,14 +2366,14 @@ const createCompletionsTable = (completions: { [key: string]: number[] }) => {
 		collapsed.push({ pid: pid, completions: collapsedCompletions })
 	}
 
-	let tableResult = createTableElementFromAos({
+	let tableEl = createTableElementFromAos({
 		aos: collapsed,
 		colSpecInit: { pid: {}, completions: { width: 300 } },
 		title: "Collapsed completions",
 	})
 
 	let tableContainer = createDiv()
-	addEl(tableContainer, tableResult.table)
+	addEl(tableContainer, tableEl)
 
 	return tableContainer
 }
@@ -2715,6 +2716,15 @@ type Data = {
 	weekly_surveys: any[],
 	postinf_bleed_dates: any[],
 	titres: any[],
+	consent_conflicts: any[],
+	consent_multiple: any[],
+	covid_bleeds_no_vax: any[],
+	missing_baseline: any[],
+	missing_bleed_dates: any[],
+	missing_vaccination_history: any[],
+	missing_vaccination_records: any[],
+	swabs_missing_date: any[],
+	withdrawn_missing_date: any[],
 }
 
 type Pages = {
@@ -2723,43 +2733,19 @@ type Pages = {
 	bleeds: BleedsSettings,
 	counts: CountsSettings,
 	titres: TitresSettings,
+	problems: ProblemsSettings,
 }
 
-type PageInfoParticipants = {
-	page: "participants",
-	settings: ParticipantsSettings,
-}
+type ProblemsSettings = {}
 type ParticipantsSettings = {}
-
-type PageInfoWeeklySurveys = {
-	page: "weekly-surveys",
-	settings: WeeklySurveySettings,
-}
 type WeeklySurveySettings = {year: YearID}
-
-type PageInfoBleeds = {
-	page: "bleeds",
-	settings: BleedsSettings,
-}
 type BleedsSettings = {year: YearID}
-
-type PageInfoCounts = {
-	page: "counts",
-	settings: CountsSettings,
-}
-
-type PageInfoTitres = {
-	page: "titres",
-	settings: TitresSettings,
-}
-
-type PageInfo = PageInfoParticipants | PageInfoWeeklySurveys | PageInfoBleeds |
-	PageInfoCounts | PageInfoTitres
 
 const updatePageFromURL = (pages: Pages): DataPageID => {
 	let page = getDataPageFromURL()
 	switch (page) {
 	case "participants": pages.participants = {}; break
+	case "problems": pages.problems = {}; break
 	case "counts": pages.counts = getCountSettingsFromURL(pages.counts); break
 	case "bleeds": pages.bleeds.year = getBleedsYearFromURL(pages.bleeds.year); break
 	case "weekly-surveys": pages["weekly-surveys"].year = getSurveysYearFromURL(pages["weekly-surveys"].year); break
@@ -2824,7 +2810,7 @@ const createParticipantsPage = (data: Data, onDatapageChange: (page: DataPageID)
 	let table = addDiv(container)
 	table.style.maxWidth = container.style.width
 
-	let tableResult = createTableElementFromAos({
+	let tableEl = createTableElementFromAos({
 		aos: data.participants,
 		colSpecInit: {
 			pid: {},
@@ -2840,7 +2826,7 @@ const createParticipantsPage = (data: Data, onDatapageChange: (page: DataPageID)
 		},
 		title: "Participants",
 	})
-	addEl(table, tableResult.table)
+	addEl(table, tableEl)
 
 	return page
 }
@@ -3048,7 +3034,7 @@ const createWeeklySurveysPage = (
 	const completionsTableParent = addDiv(container)
 
 	const updateTables = (year: YearID) => {
-		replaceChildren(datesTableParent, surveyDates[year].table)
+		replaceChildren(datesTableParent, surveyDates[year])
 		const completions = {}
 		replaceChildren(surveysTableParent, createSurveyTable(completions, data, year))
 		replaceChildren(completionsTableParent, createCompletionsTable(completions))
@@ -3225,6 +3211,132 @@ const createTitresPage = (
 	return page
 }
 
+const createProblemsPage = (data: Data, onDatapageChange: (page: DataPageID) => void, onLogout: () => void) => {
+	const container = createDiv()
+	container.style.maxHeight = "100vh"
+	container.style.maxWidth = `calc(100vw - ${SIDEBAR_WIDTH_PX}px)`
+	container.style.overflowY = "scroll"
+
+	const helpEl = addDiv(container)
+	addTextline(helpEl, "If a table is missing then no problems were found. Let me know (sen.khvorov@unimelb.edu.au) of any false flags.")
+	addTextline(helpEl, "Missing data - fill if able, leave missing if not.")
+	addTextline(helpEl, "List of tables:")
+	addTextline(helpEl, "Consent conflicts: Multiple consent forms filled and information on study group conflicts. We don't need the manual form in the presence of the electronic one. You can fix the wrong form or delete it.")
+	addTextline(helpEl, "Covid bleed no vax: Covid bleed recorded but no covid vaccinations recorded.")
+	addTextline(helpEl, "Missing baseline: baseline survey")
+	addTextline(helpEl, "Missing bleed dates: routing bleed dates missing (but we have titres)")
+	addTextline(helpEl, "Missing vaccination history: screening form")
+	addTextline(helpEl, "Missing vaccination records: Missing study year vaccination records (vaccination form)")
+	addTextline(helpEl, "Swabs missing date: missing swab dates")
+	addTextline(helpEl, "Withdrawn missing dates: missing withdrawal dates")
+
+	const tablesContainer = addDiv(container)
+	tablesContainer.style.display = "flex"
+	tablesContainer.style.flexWrap = "wrap"
+
+	if (data.consent_conflicts.length > 0) {
+		addEl(tablesContainer, createTableElementFromAos({
+			aos: data.consent_conflicts,
+			colSpecInit: {
+				pid: {}, year: {}, site: {},
+				fluManual: {access: "flu_manual"},
+				fluElecVac: {access: "flu_electronic_vac"},
+				fluElecUnvac: {access: "flu_electronic_unvac"},
+				covidManual: {access: "covid_manual"},
+				covidElec: {access: "covid_electronic"},
+			},
+			title: "Consent conflicts",
+			getTableHeightInit: () => 500,
+		}))
+	}
+
+	if (data.covid_bleeds_no_vax.length > 0) {
+		addEl(tablesContainer, createTableElementFromAos({
+			aos: data.covid_bleeds_no_vax,
+			colSpecInit: {
+				pid: {}, year: {}, site: {},
+				day: {}, date: {}
+			},
+			title: "Covid bleeds no vax",
+			getTableHeightInit: () => 500,
+		}))
+	}
+
+	if (data.missing_baseline.length > 0) {
+		addEl(tablesContainer, createTableElementFromAos({
+			aos: data.missing_baseline,
+			colSpecInit: {
+				pid: {}, site: {}, gender: {}, dob: {}, atsi: {}, date_screening: {}, email: {width: 300}, mobile: {},
+				recruited: {access: "recruitment_year"}, age_screening: {}
+			},
+			title: "Missing baseline",
+			getTableHeightInit: () => 500,
+		}))
+	}
+
+	if (data.missing_bleed_dates.length > 0) {
+		addEl(tablesContainer, createTableElementFromAos({
+			aos: data.missing_bleed_dates,
+			colSpecInit: {
+				pid: {}, site: {}, year: {}, day: {}, date: {}, virus: {}, titre: {}, subtype: {},
+				eggcell: {access: "virus_egg_cell"},
+			},
+			title: "Missing bleed dates",
+			getTableHeightInit: () => 500,
+		}))
+	}
+
+	if (data.missing_vaccination_history.length > 0) {
+		addEl(tablesContainer, createTableElementFromAos({
+			aos: data.missing_vaccination_history,
+			colSpecInit: {
+				pid: {}, site: {}, year: {access: "recruitment_year"},
+			},
+			title: "Missing vaccination history",
+			getTableHeightInit: () => 500,
+		}))
+	}
+
+	if (data.missing_vaccination_records.length > 0) {
+		addEl(tablesContainer, createTableElementFromAos({
+			aos: data.missing_vaccination_records,
+			colSpecInit: {
+				pid: {}, site: {}, year: {access: "recruitment_year"},
+			},
+			title: "Missing vaccination records",
+			getTableHeightInit: () => 500,
+		}))
+	}
+
+	if (data.swabs_missing_date.length > 0) {
+		addEl(tablesContainer, createTableElementFromAos({
+			aos: data.swabs_missing_date,
+			colSpecInit: {
+				pid: {}, site: {}, year: {}, date: {access: "samp_date"}, viruses: {}
+			},
+			title: "Swabs missing date",
+			getTableHeightInit: () => 500,
+		}))
+	}
+
+	if (data.withdrawn_missing_date.length > 0) {
+		addEl(tablesContainer, createTableElementFromAos({
+			aos: data.withdrawn_missing_date,
+			colSpecInit: {
+				pid: {}, site: {}, year: {access: "redcap_project_year"}, date: {access: "withdrawal_date"},
+			},
+			title: "Withdrawn missing date",
+			getTableHeightInit: () => 500,
+		}))
+	}
+
+	const page = createDatapageContainer()
+	addEl(page, createSidebar("problems", createDiv(), onDatapageChange, onLogout))
+	addEl(page, container)
+
+	return page
+}
+
 const createDatapage = (page: DataPageID, pages: Pages, data: Data, onDatapageChange: (page: DataPageID) => void, onLogout: () => void) => {
 	clearPageListners()
 	var pageEl = createDiv()
@@ -3234,6 +3346,7 @@ const createDatapage = (page: DataPageID, pages: Pages, data: Data, onDatapageCh
 	case "bleeds": pageEl = createBleedsPage(data, pages.bleeds, onDatapageChange, onLogout); break
 	case "weekly-surveys": pageEl = createWeeklySurveysPage(data, pages["weekly-surveys"], onDatapageChange, onLogout); break
 	case "titres": pageEl = createTitresPage(data, pages.titres, onDatapageChange, onLogout); break
+	case "problems": pageEl = createProblemsPage(data, onDatapageChange, onLogout); break
 	default: console.error("unexpected page:", page); break
 	}
 	return pageEl
@@ -3246,6 +3359,7 @@ const getURLFromPageInfo = (page: DataPageID, pages: Pages): string => {
 	case "bleeds": return `bleeds?year=${pages.bleeds.year}`; break
 	case "weekly-surveys": return `weekly-surveys?year=${pages["weekly-surveys"].year}`; break
 	case "titres": return getTitresPageURL(pages.titres); break
+	case "problems": return "problems"; break
 	default: console.error("unexpected page:", page); return getCountsPageURL(pages.counts); break
 	}
 }
@@ -3273,7 +3387,8 @@ const goToCurrentURL = (domMain: HTMLElement, data: Data, onLogout: () => void) 
 		"weekly-surveys": {year: defYear},
 		bleeds: {year: defYear},
 		counts: defCountsSettings,
-		titres: defTitresSettings
+		titres: defTitresSettings,
+		problems: {},
 	}
 
 	const updatePagesAndGoToCurrent = () => {
