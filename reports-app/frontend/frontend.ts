@@ -2081,22 +2081,6 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 		yLabel: "Titre",
 	})
 
-	const titresWide = summariseAos({
-		data: data,
-		groups: ALL_GMT_GROUPS.concat("pid").filter(x => x !== "day" && x !== "year"),
-		defaultCounts: {y2020day0: null, y2020day7: null, y2020day14: null, y2020day220: null,
-			y2021day0: null, y2021day7: null, y2021day14: null, y2021day220: null},
-		getKey: getTitreKey,
-		addRow: (row, titres) => {
-			const colname = `y${row.year}day${row.day}`
-			//@ts-ignore
-			if (titres[colname] !== undefined) {
-				//@ts-ignore
-				titres[colname] = row.titre
-			}
-		},
-	})
-
 	const getLocationInfo = (row: any) => {
 		let result = null
 		if (row.titre !== null) {
