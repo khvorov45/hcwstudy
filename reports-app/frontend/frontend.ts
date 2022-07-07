@@ -1413,6 +1413,19 @@ const drawLine = (
 	renderer.setLineDash([])
 }
 
+const drawCircle = (
+	renderer: CanvasRenderingContext2D, centerX: number, centerY: number, radius: number,
+	color: string, outlineColor: string,
+) => {
+	renderer.beginPath()
+	renderer.arc(centerX, centerY, radius, 0, 2 * Math.PI, false)
+	renderer.fillStyle = color
+	renderer.fill()
+	renderer.lineWidth = 1
+	renderer.strokeStyle = outlineColor
+	renderer.stroke()
+}
+
 const getLineShift = (x1: number, y1: number, x2: number, y2: number, thiccness: number) => {
 	let lineVec = {x: x2 - x1, y: y2 - y1}
 	let linePerpVec = {x: lineVec.y, y: lineVec.x}
@@ -1485,7 +1498,7 @@ const drawPath = (
 ) => {
 	renderer.strokeStyle = color
 	renderer.beginPath()
-	let started = false;
+	let started = false
 	for (let pointIndex = 0; pointIndex < yCoords.length; pointIndex += 1) {
 		let xCoord = xCoords[pointIndex];
 		let yCoord = yCoords[pointIndex];
@@ -1610,46 +1623,11 @@ const addBoxplot = <X, Y>(
 
 	let boxLeft = xCoord - boxWidth
 	let boxRight = xCoord
+	const boxCenter = xCoord - boxWidth / 2
 
 	let boxplotBody = {l: boxLeft, b: stats.q75, r: boxRight, t: stats.q25}
 	drawRectOutline(plot.renderer, boxplotBody, color, lineThiccness)
 	drawRectOutline(plot.renderer, rectShrink(boxplotBody, lineThiccness), altColor, lineThiccness)
-
-	drawDoubleLine(
-		plot.renderer,
-		boxLeft - medianChonkiness,
-		stats.median,
-		boxRight,
-		stats.median,
-		color,
-		altColor,
-		lineThiccness,
-		[]
-	)
-
-	drawDoubleLine(
-		plot.renderer,
-		boxLeft - meanChonkiness,
-		stats.mean,
-		boxRight,
-		stats.mean,
-		meanColor,
-		altColor,
-		lineThiccness,
-		[3, 3]
-	)
-
-	drawDoubleLine(
-		plot.renderer,
-		boxLeft - meanChonkiness / 2,
-		stats.mean + stats.meanSe * 1.96,
-		boxLeft - meanChonkiness / 2,
-		stats.mean - stats.meanSe * 1.96,
-		meanColor,
-		altColor,
-		lineThiccness,
-		[3, 3]
-	)
 
 	drawDoubleLine(
 		plot.renderer,
@@ -1676,6 +1654,33 @@ const addBoxplot = <X, Y>(
 		[],
 		true,
 	)
+
+	// NOTE(sen) Median
+	drawDoubleLine(
+		plot.renderer,
+		boxLeft - medianChonkiness,
+		stats.median,
+		boxRight,
+		stats.median,
+		color,
+		altColor,
+		lineThiccness,
+		[]
+	)
+
+	// NOTE(sen) Mean
+	drawDoubleLine(
+		plot.renderer,
+		boxCenter,
+		stats.mean + stats.meanSe * 1.96,
+		boxCenter,
+		stats.mean - stats.meanSe * 1.96,
+		meanColor,
+		altColor,
+		lineThiccness,
+		[]
+	)
+	drawCircle(plot.renderer, boxCenter, stats.mean, 5, meanColor, altColor)
 }
 
 type PlotDimType = "facet" | "plot" | "tick"
@@ -3082,7 +3087,7 @@ const createTitresPage = (
 	const fillHelp = () => {
 		removeChildren(help)
 		addTextline(help, "GMT, GMR tables and the titre plot only use the data displayed in the Titres table (so you can filter the titres table and change everything else on the page).")
-		addTextline(help, "Boxplots: minimum - quartile 25 - quartile 75 - maximum. Solid midline: median. Dashed midline: mean (vertical dashed line - 95% CI for mean). Right side: histogram. Numbers: titre measurement counts.")
+		addTextline(help, "Boxplots: minimum - quartile 25 - quartile 75 - maximum. Solid midline: median. Circle: mean (vertical line - 95% CI for mean). Right side: histogram. Numbers: titre measurement counts.")
 		//@ts-ignore
 		addGroupsExplanatoryNotes(help, arrUnique(settings.groupsGMRs.concat(settings.groupsGMTs).concat(settings.xFacets).concat(settings.yFacets)))
 	}
