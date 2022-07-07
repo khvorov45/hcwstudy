@@ -2054,8 +2054,8 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 		height: 400,
 		heightType: "facet",
 		padAxis: {l: 70, r: 10, t: 30, b: 50},
-		padData: {l: 50, r: 50, t: 10, b: 10},
-		padFacet: 40,
+		padData: {l: 25, r: 50, t: 25, b: 25},
+		padFacet: 50,
 		scaledXMin: -0.5,
 		scaledXMax: settings.xAxis === "day" ? xAxisTicks.length + 0.5 : xAxisTicks.length - 0.5,
 		yMin: 5,
@@ -2245,6 +2245,7 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 				const firstNonZero = titreCounts01.findIndex((x: any) => x !== 0)
 				const lastNonZero = titreCounts01.findLastIndex((x: any) => x !== 0)
 
+				let countTextCol = "#bfbdb6"
 				let prevBarRight = null
 				for (let count01Index = firstNonZero; count01Index <= lastNonZero; count01Index += 1) {
 					let count01 = titreCounts01[count01Index]
@@ -2283,7 +2284,6 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 						)
 					}
 
-					let countTextCol = "#bfbdb6"
 					let lineCountsPad = 5
 					drawText(
 						plot.renderer, `${count}`, barRight - boxLineThiccness, yCoord, countTextCol, 0, "middle", "end",
@@ -2292,6 +2292,13 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 
 					prevBarRight = barRight
 				}
+
+				const totalCount = arrSum(Object.values(summaryRow.titreCounts))
+
+				drawText(
+					plot.renderer, `${totalCount}`, xCoord, plot.scaleYToPx(5, yFacets) + 5, countTextCol, 0,
+					"top", "center", altColor,
+				)
 			}
 		}
 	}

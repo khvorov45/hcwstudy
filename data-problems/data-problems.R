@@ -1,4 +1,4 @@
-library(tidyverse)
+suppressPackageStartupMessages(library(tidyverse))
 
 # Double-check consent + bleed
 # Check consent signatures
@@ -50,7 +50,7 @@ bleed_dates <- read_csv("data/bleed-dates.csv", col_types = cols()) %>%
 serology <- read_csv("data/serology.csv", col_types = cols())
 
 # NOTE(sen) All serology pids should match
-setdiff(serology$pid, bleed_dates$pid)
+# setdiff(serology$pid, bleed_dates$pid)
 
 missing_bleed_dates <- serology %>%
 	inner_join(bleed_dates, c("pid", "year", "day")) %>%
