@@ -476,9 +476,7 @@ redcap_covax_request <- function(year) {
   )
 }
 
-covax_request_raw <- redcap_covax_request(2021)
-
-# TODO(sen) 2022?
+covax_request_raw <- redcap_covax_request(2021) %>% bind_rows(redcap_covax_request(2022))
 
 covax_request <- covax_request_raw %>%
   select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance) %>%
@@ -500,17 +498,49 @@ covax_request <- covax_request_raw %>%
       select(record_id, pid, redcap_project_year),
     c("record_id", "redcap_project_year")
   ) %>%
-  rename(year = redcap_project_year) %>%
-  select(pid, year, dose, received, date, batch, brand)
+  select(pid, redcap_project_year, dose, received, date, batch, brand)
+
+check_no_rows(
+  covax_request %>% filter(lubridate::year(date) <= 2020),
+  "wrong covax date"
+)
 
 check_no_rows(
   covax_request %>%
-    group_by(pid, year, dose) %>%
-    filter(n() > 1),
+    group_by(pid, dose) %>%
+    filter(
+      length(unique(na.omit(received))) > 1 | length(unique(na.omit(date))) > 1 |
+      length(unique(na.omit(batch))) > 1 | length(unique(na.omit(brand))) > 1
+    ) %>%
+    arrange(pid, dose),
+  "conflicting covid vaccination info"
+)
+
+check_no_rows(
+  covax_request %>% filter(received == 0) %>% filter(!is.na(date) | !is.na(batch) | !is.na(brand)),
+  "covid vax not received but data recorded"
+)
+
+covax_dedup <- covax_request %>%
+  group_by(pid, dose) %>%
+  summarise(
+    .groups = "drop",
+    received = first(unique(na.omit(received))),
+    date = first(unique(na.omit(date))),
+    batch = first(unique(na.omit(batch))),
+    brand = first(unique(na.omit(brand))),
+  ) %>%
+  filter(received == 1) %>%
+  select(-received)
+
+check_no_rows(
+  covax_dedup %>% group_by(pid, dose) %>% filter(n() > 1),
   "duplicate covid vax"
 )
 
-write_csv(covax_request, "data/covid-vax.csv")
+write_csv(covax_dedup, "data/covid-vax.csv")
+
+covax_dedup %>% filter(pid == "JHH-295")
 
 #
 # SECTION Bleed dates
