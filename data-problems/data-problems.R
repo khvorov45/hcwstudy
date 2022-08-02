@@ -102,14 +102,11 @@ save_split(withdrawn_missing_date, "withdrawn_missing_date")
 covid_bleed_dates <- read_csv("data/covid-bleed-dates.csv", col_types = cols())
 
 covid_vax <- read_csv("data/covid-vax.csv", col_types = cols())
-
-covid_vax_only_rec <- covid_vax %>%
-	group_by(pid, year) %>%
-	summarise(.groups = "drop", rec_any = any(received == 1))
+covid_vax_only_rec <- covid_vax %>% select(pid) %>% distinct() %>% mutate(received = TRUE)
 
 covid_bleeds_no_vax <- covid_bleed_dates %>%
-	left_join(covid_vax_only_rec, c("pid", "year")) %>%
-	filter(is.na(rec_any) | !rec_any) %>%
+	left_join(covid_vax_only_rec, "pid") %>%
+	filter(is.na(received)) %>%
 	inner_join(participants %>% select(pid, site), "pid")
 
 save_split(covid_bleeds_no_vax, "covid_bleeds_no_vax")

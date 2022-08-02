@@ -540,8 +540,6 @@ check_no_rows(
 
 write_csv(covax_dedup, "data/covid-vax.csv")
 
-covax_dedup %>% filter(pid == "JHH-295")
-
 #
 # SECTION Bleed dates
 #
