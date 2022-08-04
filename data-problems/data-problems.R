@@ -110,3 +110,16 @@ covid_bleeds_no_vax <- covid_bleed_dates %>%
 	inner_join(participants %>% select(pid, site), "pid")
 
 save_split(covid_bleeds_no_vax, "covid_bleeds_no_vax")
+
+#
+# SECTION Covid vax dates
+#
+
+covid_vax %>%
+	group_by(pid) %>%
+	arrange(dose) %>%
+	mutate(date_prev = lag(date), interval = date - date_prev) %>%
+	filter(interval < 0) %>%
+	left_join(participants %>% select(pid, site), "pid") %>%
+	save_split("covid_vax_dates_not_ascending")
+
