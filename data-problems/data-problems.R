@@ -3,7 +3,7 @@ suppressPackageStartupMessages(library(tidyverse))
 # Double-check consent + bleed
 # Check consent signatures
 # Check consent names
-# Check bleed dates and vaccination dates go in ascending order
+# Check bleed dates go in ascending order
 
 save_split <- function(data, name) {
 	write_csv(data, paste0("data-problems/", name, ".csv"))
