@@ -2758,6 +2758,8 @@ type Data = {
 	swabs_missing_date: any[],
 	withdrawn_missing_date: any[],
 	covid_vax_dates_not_ascending: any[],
+	covid_vax_missing_dates: any[],
+	covid_vax_missing_brand: any[],
 }
 
 type Pages = {
@@ -3263,6 +3265,8 @@ const createProblemsPage = (data: Data, onDatapageChange: (page: DataPageID) => 
 	addTextline(helpEl, "Swabs missing date: missing swab dates")
 	addTextline(helpEl, "Withdrawn missing dates: missing withdrawal dates")
 	addTextline(helpEl, "Covid vax not ascending: Subsequent covid vaccination date is before the previous vaccination date")
+	addTextline(helpEl, "Covid vax missing dates: missing covid vaccination date")
+	addTextline(helpEl, "Covid vax missing brand: missing covid vaccination brand")
 
 	const tablesContainer = addDiv(container)
 	tablesContainer.style.display = "flex"
@@ -3371,6 +3375,28 @@ const createProblemsPage = (data: Data, onDatapageChange: (page: DataPageID) => 
 				pid: {}, site: {}, dose: {}, date: {}, date_prev: {}, interval: {}
 			},
 			title: "Covid vax not ascending",
+			getTableHeightInit: () => 500,
+		}))
+	}
+
+	if (data.covid_vax_missing_dates.length > 0) {
+		addEl(tablesContainer, createTableElementFromAos({
+			aos: data.covid_vax_missing_dates,
+			colSpecInit: {
+				pid: {}, site: {}, dose: {}, date: {}, brand: {}
+			},
+			title: "Covid vax missing dates",
+			getTableHeightInit: () => 500,
+		}))
+	}
+
+	if (data.covid_vax_missing_brand.length > 0) {
+		addEl(tablesContainer, createTableElementFromAos({
+			aos: data.covid_vax_missing_brand,
+			colSpecInit: {
+				pid: {}, site: {}, dose: {}, date: {}, brand: {}
+			},
+			title: "Covid vax missing brand",
 			getTableHeightInit: () => 500,
 		}))
 	}

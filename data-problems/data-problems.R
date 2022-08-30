@@ -101,7 +101,7 @@ save_split(withdrawn_missing_date, "withdrawn_missing_date")
 
 covid_bleed_dates <- read_csv("data/covid-bleed-dates.csv", col_types = cols())
 
-covid_vax <- read_csv("data/covid-vax.csv", col_types = cols())
+covid_vax <- read_csv("data/covid-vax.csv", col_types = cols()) %>% left_join(participants %>% select(pid, site), "pid")
 covid_vax_only_rec <- covid_vax %>% select(pid) %>% distinct() %>% mutate(received = TRUE)
 
 covid_bleeds_no_vax <- covid_bleed_dates %>%
@@ -120,6 +120,13 @@ covid_vax %>%
 	arrange(dose) %>%
 	mutate(date_prev = lag(date), interval = date - date_prev) %>%
 	filter(interval < 0) %>%
-	left_join(participants %>% select(pid, site), "pid") %>%
 	save_split("covid_vax_dates_not_ascending")
+
+covid_vax %>%
+	filter(is.na(date)) %>%
+	save_split("covid_vax_missing_dates")
+
+covid_vax %>%
+	filter(is.na(brand)) %>%
+	save_split("covid_vax_missing_brand")
 
