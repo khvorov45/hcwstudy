@@ -10,7 +10,7 @@ titre_presence <- titres %>%
 
 vaccinations <- read_csv("data/vaccinations.csv")
 
-prior_vac_counts <- vac_hist %>%
+prior_vac_counts <- vaccinations %>%
     group_by(pid) %>%
     summarise(
         prior2020 = sum(year >= 2015 & year < 2020 & (status == "Australia" | status == "Overseas")),
@@ -33,10 +33,20 @@ participants_sample <- participants_relevant_subset %>%
 	ungroup() %>%
 	arrange(year, prior_vacs5y, pid)
 
+participants_relevant_subset %>%
+	count(year, prior_vacs5y)
+
+# NOTE(sen) Replace QCH-186 with someone naive from 2020 since we are out of
+# naive in 2021
+qch186_replacement <- participants_relevant_subset %>%
+	filter(!pid %in% participants_sample$pid, prior_vacs5y == 0, year == 2020) %>%
+	filter(row_number() %in% sample(1:n(), 1))
+
 # NOTE(sen) Should be 16 per group
 participants_sample %>% count(year, prior_vacs5y)
 
 write_csv(participants_sample, "random128/random128.csv")
+write_csv(qch186_replacement, "random128/qch186_replacement.csv")
 
 titres_sample <- titres %>%
 	inner_join(participants_sample %>% select(pid, year, prior_vacs5y), c("pid", "year")) %>%
