@@ -337,7 +337,7 @@ type RecordGroups = (typeof ALL_RECORD_GROUPS_)[number]
 
 const ALL_BLEEDS_GROUPS_ = ["year", "site", "recruited", "fluArm2022", "covidArm2021",
 	"gender", "age", "aboriginal", "prior2020", "prior2021", "prior2022",
-	"vax2020", "vax2021", "vax2022"] as const
+	"vax2020", "vax2021", "vax2022", "flupos2020", "flupos2021", "flupos2022"] as const
 const ALL_BLEEDS_GROUPS = ALL_BLEEDS_GROUPS_ as unknown as string[]
 type BleedsGroups = (typeof ALL_BLEEDS_GROUPS_)[number]
 
@@ -346,12 +346,14 @@ const ALL_POSTINF_BLEEDS_GROUPS = ALL_POSTINF_BLEEDS_GROUPS_ as unknown as strin
 type PostinfBleedsGroups = (typeof ALL_POSTINF_BLEEDS_GROUPS_)[number]
 
 const ALL_GMT_GROUPS_ = ["year", "day", "site", "virus", "subtype", "eggcell",
-	"gender", "recruited", "age_group", "prior2020", "prior2021", "prior2022"] as const
+	"gender", "recruited", "age_group", "prior2020", "prior2021", "prior2022",
+	"vax2020", "vax2021", "vax2022", "flupos2020", "flupos2021", "flupos2022"] as const
 const ALL_GMT_GROUPS = ALL_GMT_GROUPS_ as unknown as string[]
 type GMTGroups = (typeof ALL_GMT_GROUPS_)[number]
 
 const ALL_GMR_GROUPS_ = ["year", "site", "virus", "subtype", "eggcell",
-	"gender", "recruited", "age_group", "prior2020", "prior2021", "prior2022"] as const
+	"gender", "recruited", "age_group", "prior2020", "prior2021", "prior2022",
+	"vax2020", "vax2021", "vax2022", "flupos2020", "flupos2021", "flupos2022"] as const
 const ALL_GMR_GROUPS = ALL_GMR_GROUPS_ as unknown as string[]
 type GMRGroups = (typeof ALL_GMR_GROUPS_)[number]
 
@@ -1008,6 +1010,9 @@ const addGroupsExplanatoryNotes = (node: HTMLElement, groups: string[]) => {
 			case "vax2022": { addTextline(node, "vax2022 - vaccinated in 2022 (vaccination recorded or day14 bleed taken or day14 titre present)"); } break
 			case "fluArm2022": { addTextline(node, "fluArm2022 - flu arm as per 2022 consent"); } break
 			case "covidArm2021": { addTextline(node, "covidArm2021 - covid arm as per 2021 consent"); } break
+			case "flupos2020": {addTextline(node, "flupos2020 - total records in redcap that have a flu positive swab in 2020"); } break
+			case "flupos2021": {addTextline(node, "flupos2021 - total records in redcap that have a flu positive swab in 2021"); } break
+			case "flupos2022": {addTextline(node, "flupos2022 - total records in redcap that have a flu positive swab in 2022"); } break
 		}
 	}
 }
@@ -1033,7 +1038,11 @@ const createCountsRecordsTable = (data: Data, groups: RecordGroups[]) => {
 	let groupedCounts = summarise({
 		data: data.participants,
 		groups: groups,
-		defaultCounts: { total: 0, notWithdrawn: 0, consent2022: 0, bled2020: 0, bled2021: 0, bled2022: 0 },
+		defaultCounts: { 
+			total: 0, notWithdrawn: 0, consent2022: 0, 
+			bled2020: 0, bled2021: 0, bled2022: 0,
+			flupos2020: 0, flupos2021: 0, flupos2022: 0,
+		},
 		filter: (row) => row.pid !== undefined && row.pid.length >= 3,
 		getKey: getParticipantsKey,
 		addRow: (row, counts) => {
@@ -1054,6 +1063,9 @@ const createCountsRecordsTable = (data: Data, groups: RecordGroups[]) => {
 			if (row.bled2020 === 1) { counts.bled2020 += 1 }
 			if (row.bled2021 === 1) { counts.bled2021 += 1 }
 			if (row.bled2022 === 1) { counts.bled2022 += 1 }
+			if (row.flupos2020 === 1) { counts.flupos2020 += 1 }
+			if (row.flupos2021 === 1) { counts.flupos2021 += 1 }
+			if (row.flupos2022 === 1) { counts.flupos2022 += 1 }
 		}
 	})
 
@@ -1066,6 +1078,9 @@ const createCountsRecordsTable = (data: Data, groups: RecordGroups[]) => {
 	colSpec.bled2020 = {}
 	colSpec.bled2021 = {}
 	colSpec.bled2022 = {}
+	colSpec.flupos2020 = {}
+	colSpec.flupos2021 = {}
+	colSpec.flupos2022 = {}
 
 	let countsAos = aoaToAos(groupedCountsFlat, Object.keys(colSpec))
 
@@ -1076,6 +1091,9 @@ const createCountsRecordsTable = (data: Data, groups: RecordGroups[]) => {
 	addTextline(countsTableDesc.desc, "bled2020 - total records in redcap that have any bleed date in 2020")
 	addTextline(countsTableDesc.desc, "bled2021 - total records in redcap that have any bleed date in 2021")
 	addTextline(countsTableDesc.desc, "bled2022 - total records in redcap that have any bleed date in 2022")
+	addTextline(countsTableDesc.desc, "flupos2020 - total records in redcap that have a flu positive swab in 2020")
+	addTextline(countsTableDesc.desc, "flupos2021 - total records in redcap that have a flu positive swab in 2021")
+	addTextline(countsTableDesc.desc, "flupos2022 - total records in redcap that have a flu positive swab in 2022")
 	addCountsExplanatoryNotes(countsTableDesc.desc, groups)
 
 	let descDim = measureEl(countsTableDesc.container, window.innerWidth - SIDEBAR_WIDTH_PX, window.innerHeight)
@@ -2122,6 +2140,7 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 	}
 
 	// NOTE(sen) Points
+	const regionPointsFilled = {} as any
 	for (let row of data) {
 		const rowLocationInfo = getLocationInfo(row)
 		if (rowLocationInfo !== null) {
@@ -2151,16 +2170,33 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 			const lineAlpha = lineAlphaNumber.toString(16).padStart(2, "0")
 			const lineColBase = "#61de2a"
 			const lineCol = lineColBase + lineAlpha
-			const pointAlpha = lineAlpha
+			let pointAlpha = lineAlpha
 
 			// TODO(sen) Have jitter be the same per individual
+			const regionCount = plotCounts[rowLocationInfo.regionID]
+
+			if (regionPointsFilled[rowLocationInfo.regionID] === undefined) {
+				regionPointsFilled[rowLocationInfo.regionID] = 0
+			}
+
 			let yJitter = 0
 			let xJitter = 0
 
-			let yCoord = plot.scaleYToPx(row.titre, rowLocationInfo.yFacets)
-			let xCoord = plot.scaleXToPx(rowLocationInfo.xAxis, rowLocationInfo.xFacets)
 			let pointSize = 5
 			let pointHalfSize = pointSize / 2
+
+			if (regionCount > 1 && regionCount < 5) {
+				const pointPad = 1
+				const pointAndPad = pointSize + 2 * pointPad
+				const startOffset = -regionCount * 0.5 * pointAndPad
+				const thisPointOffset = regionPointsFilled[rowLocationInfo.regionID] * pointAndPad
+				xJitter = startOffset + thisPointOffset + pointHalfSize
+			}
+
+			regionPointsFilled[rowLocationInfo.regionID] += 1
+
+			let yCoord = plot.scaleYToPx(row.titre, rowLocationInfo.yFacets)
+			let xCoord = plot.scaleXToPx(rowLocationInfo.xAxis, rowLocationInfo.xFacets) + xJitter
 			let pointCol = lineColBase + pointAlpha
 			drawRect(
 				plot.renderer,
@@ -2867,7 +2903,7 @@ const createCountsSwitch = (parent: HTMLElement, data: Data, settings: CountsSet
 		} break;
 
 		case "routine-bleeds": {
-			createTable = () => createCountsBleedsTable(data, settings.groupsRecords)
+			createTable = () => createCountsBleedsTable(data, settings.groupsBleeds)
 			switchEl = createSwitch(
 				settings.groupsBleeds,
 				<BleedsGroups[]>ALL_BLEEDS_GROUPS,
@@ -2880,7 +2916,7 @@ const createCountsSwitch = (parent: HTMLElement, data: Data, settings: CountsSet
 		} break;
 
 		case "postinfection-bleeds": {
-			createTable = () => createCountsPostinfBleedsTable(data, settings.groupsRecords)
+			createTable = () => createCountsPostinfBleedsTable(data, settings.groupsPostinfBleeds)
 			switchEl = createSwitch(
 				settings.groupsPostinfBleeds,
 				<PostinfBleedsGroups[]>ALL_POSTINF_BLEEDS_GROUPS,

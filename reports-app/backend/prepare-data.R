@@ -38,6 +38,16 @@ study_year_vax_tbl_wide <- study_year_vax_tbl %>%
 
 # study_year_vax_tbl_wide %>% group_by(pid) %>% filter(n() > 1)
 
+swabs <- read_csv("./data/swabs.csv", col_types = cols())
+
+flu_positive_by_year <- swabs %>%
+    group_by(pid, year) %>%
+    summarise(.groups = "drop", positive = paste(swab_virus[swab_result == 1], collapse = ";")) %>%
+    mutate(flu_positive = as.integer(str_detect(positive, "Flu"))) %>%
+    select(-positive) %>%
+    mutate(year = paste0("flupos", year)) %>%
+    pivot_wider(names_from = "year", values_from = "flu_positive")
+
 participants <- read_csv("./data/participants.csv", col_types = cols()) %>%
     mutate(age_group = cut(age_screening, c(-Inf, 18, 30, 50, 65), right = FALSE)) %>%
     left_join(prior_vac_counts, "pid") %>%
@@ -74,14 +84,15 @@ participants <- read_csv("./data/participants.csv", col_types = cols()) %>%
 	mutate(
 		across(contains("study_year_vac_"), ~replace_na(.x, 0)),
 		across(contains("bled202"), ~replace_na(.x, 0)),
-	)
+	) %>%
+    left_join(flu_positive_by_year, "pid") %>%
+    mutate(across(starts_with("flupos"), ~replace_na(.x, 0)))
 
 withdrawn <- read_csv("./data/withdrawn.csv", col_types = cols()) %>%
     left_join(participants %>% select(pid, site), "pid") %>%
     rename(year = redcap_project_year)
 
-bleed_dates_flu <- read_csv("./data/bleed-dates.csv", col_types = cols()) %>%
-    left_join(participants %>% select(pid, site), "pid")
+bleed_dates_flu <- read_csv("./data/bleed-dates.csv", col_types = cols())
 
 bleed_dates_flu_wide <- bleed_dates_flu %>%
     mutate(day = paste0("flu_day_", day)) %>%
@@ -94,7 +105,7 @@ bleed_dates_covid_wide <- bleed_dates_covid %>%
     pivot_wider(names_from = "day", values_from = "date")
 
 bleed_dates_wide <- full_join(bleed_dates_flu_wide, bleed_dates_covid_wide, c("pid", "year")) %>%
-    left_join(participants, c("pid", "site"))
+    left_join(participants, "pid")
 
 postinf_bleed_dates <- read_csv("./data/postinf-bleed-dates.csv", col_types = cols()) %>%
     mutate(day = paste0("day", day)) %>%
