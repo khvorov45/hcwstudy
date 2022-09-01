@@ -949,7 +949,7 @@ redcap_weekly_survey_req <- function(year) {
     # "breathing",
     # "n_respiratory",
     "ari_definition",
-    # "symptom_duration",
+    "symptom_duration",
     # "pt_contact",
     # "nonpt_contact",
     # "absence",
@@ -962,7 +962,8 @@ redcap_weekly_survey_req <- function(year) {
     # "week_surv_gen_com",
     "weekly_symptom_survey_complete"
   )
-  redcap_request(year, survey_events, paste(weekly_survey_fields, collapse = ","))
+  redcap_request(year, survey_events, paste(weekly_survey_fields, collapse = ",")) %>%
+    mutate(symptom_duration = as.integer(symptom_duration))
 }
 
 weekly_surveys_raw <- redcap_weekly_survey_req(2020) %>%
@@ -982,6 +983,7 @@ weekly_surveys <- weekly_surveys_raw %>%
     survey_index,
     date = date_symptom_survey,
     ari = ari_definition,
+    symptom_duration = symptom_duration,
     complete = weekly_symptom_survey_complete
   )
 
@@ -999,3 +1001,43 @@ check_no_rows(
 )
 
 write_csv(weekly_surveys_no_duplicates, "data/weekly-surveys.csv")
+
+#
+# SECTION Daily surveys
+#
+
+redcap_daily_survey_req <- function(year) {
+  survey_events <- paste0(paste0("daily_survey_", 1:6, "_"), "w", 1:52, "_arm_1", collapse = ",")
+  # NOTE(sen) The more you include here the longer it will take
+  daily_survey_fields <- c(
+    "record_id",
+    "date_symptom_diary",
+    "symp_present"
+  )
+  redcap_request(year, survey_events, paste(daily_survey_fields, collapse = ","))
+}
+
+daily_surveys_raw <- redcap_daily_survey_req(2020) %>%
+  bind_rows(redcap_daily_survey_req(2021)) %>%
+  bind_rows(redcap_daily_survey_req(2022))
+
+daily_surveys <- daily_surveys_raw %>%
+  inner_join(
+    yearly_changes_fix_pids %>%
+      select(record_id, pid, redcap_project_year),
+    c("record_id", "redcap_project_year")
+  ) %>%
+  mutate(
+    daily_survey_index = str_replace(redcap_event_name, "daily_survey_(\\d+)_w(\\d+)_arm_1", "\\1"),
+    weekly_survey_index = str_replace(redcap_event_name, "daily_survey_(\\d+)_w(\\d+)_arm_1", "\\2")
+  ) %>%
+  select(
+    pid,
+    year = redcap_project_year,
+    daily_survey_index,
+    weekly_survey_index,
+    date = date_symptom_diary,
+    symp_present,
+  )
+
+write_csv(daily_surveys, "data/daily-surveys.csv")
