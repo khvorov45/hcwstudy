@@ -5,6 +5,9 @@ suppressPackageStartupMessages(library(tidyverse))
 # Check consent names
 # Check bleed dates go in ascending order
 
+all_csv_files <- tools::list_files_with_exts("data-problems", "csv")
+walk(all_csv_files, file.remove)
+
 save_split <- function(data, name) {
 	write_csv(data, paste0("data-problems/", name, ".csv"))
 	data %>%
