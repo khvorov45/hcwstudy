@@ -2099,6 +2099,13 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 		yLabel: "Titre",
 	})
 
+	let xPxStep = plot.allXTicksXCoords[1] - plot.allXTicksXCoords[0]
+	let yPxStep = plot.allYTicksYCoords[0] - plot.allYTicksYCoords[1]
+
+	let gapX = 10
+	let boxWidth = xPxStep / 2 - gapX
+	let distWidth = boxWidth
+
 	const getLocationInfo = (row: any) => {
 		let result = null
 		if (row.titre !== null) {
@@ -2185,17 +2192,24 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 			let pointSize = 5
 			let pointHalfSize = pointSize / 2
 
-			if (regionCount > 1 && regionCount < 5) {
-				const pointPad = 1
-				const pointAndPad = pointSize + 2 * pointPad
-				const startOffset = -regionCount * 0.5 * pointAndPad
-				const thisPointOffset = regionPointsFilled[rowLocationInfo.regionID] * pointAndPad
-				xJitter = startOffset + thisPointOffset + pointHalfSize
-			}
+			if (regionCount > 1) {
+				if (regionCount < 5) {
+					const pointPad = 1
+					const pointAndPad = pointSize + 2 * pointPad
+					const startOffset = -regionCount * 0.5 * pointAndPad
+					const thisPointOffset = regionPointsFilled[rowLocationInfo.regionID] * pointAndPad
+					xJitter = startOffset + thisPointOffset + pointHalfSize
+				} else {
+					const jitterHalfWidth = boxWidth / 4
+					xJitter = randUnif(-jitterHalfWidth, jitterHalfWidth)
+					const jitterHalfHeight = yPxStep / 4
+					yJitter = randUnif(-jitterHalfHeight, jitterHalfHeight)
+				}
+			} 
 
 			regionPointsFilled[rowLocationInfo.regionID] += 1
 
-			let yCoord = plot.scaleYToPx(row.titre, rowLocationInfo.yFacets)
+			let yCoord = plot.scaleYToPx(row.titre, rowLocationInfo.yFacets) + yJitter
 			let xCoord = plot.scaleXToPx(rowLocationInfo.xAxis, rowLocationInfo.xFacets) + xJitter
 			let pointCol = lineColBase + pointAlpha
 			drawRect(
@@ -2207,17 +2221,10 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 		}
 	}
 
-	let dayPxStep = plot.allXTicksXCoords[1] - plot.allXTicksXCoords[0]
-	let titrePxStep = plot.allYTicksYCoords[0] - plot.allYTicksYCoords[1]
-
 	let boxLineThiccness = 2
 	let boxplotCol = "#ffa600"
 	let distColor = "#de61a8"
 	let altColor = "#000000"
-
-	let gapX = 10
-	let boxWidth = dayPxStep / 2 - gapX
-	let distWidth = boxWidth
 
 	let boxplotMeanCol = boxplotCol
 
@@ -2280,7 +2287,7 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 
 					let barRight = xCoord + boxLineThiccness + distWidth * count01
 
-					let down = titrePxStep / 2
+					let down = yPxStep / 2
 					let up = down
 					if (count01Index == 0) {
 						down = down / 2
