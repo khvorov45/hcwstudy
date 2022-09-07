@@ -4,6 +4,7 @@ suppressPackageStartupMessages(library(tidyverse))
 # Check consent signatures
 # Check consent names
 # Check bleed dates go in ascending order
+# Check dob makes sense
 
 all_csv_files <- tools::list_files_with_exts("data-problems", "csv")
 walk(all_csv_files, file.remove)

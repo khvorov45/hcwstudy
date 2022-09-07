@@ -258,13 +258,14 @@ check_no_rows(
   "(unkndown) pids present more than 3 times"
 )
 
+# TODO(sen) Check conflicting info
 participants_with_extras <- participants %>%
   group_by(pid, site) %>%
   summarise(
     .groups = "drop",
-    gender = first(na.omit(gender)),
-    dob = first(na.omit(dob)),
-    atsi = first(na.omit(atsi)),
+    gender = last(na.omit(gender)),
+    dob = last(na.omit(dob)),
+    atsi = last(na.omit(atsi)),
     date_screening = first(na.omit(date_screening)),
     email = last(na.omit(email)),
     mobile = last(na.omit(mobile)),
