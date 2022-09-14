@@ -81,8 +81,6 @@ serology_all_tables <- list.files("data-raw", pattern = "HI_.*_202[01]_", full.n
       filter(!is.na(titre))
   })
 
-quick_summary(serology_all_tables)
-
 check_no_rows(serology_all_tables %>% filter(is.na(day)), "serology missing day")
 
 # TODO(sen) Let's assume JHH-018's titres are all at V0 (they are missing day).
