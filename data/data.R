@@ -5,7 +5,7 @@ check_no_rows <- function(dat, msg) {
     message(crayon::green("OK: no", msg))
   } else {
     message(crayon::red("ERR: found", msg))
-    dat
+    print(dat)
   }
 }
 
@@ -17,9 +17,32 @@ check_empty_set <- function(set, msg) {
   }
 }
 
-paste_unique_togethaaa <- function(vec) {
-  result <- paste(unique(na.omit(vec)), collapse = ",")
-  if_else(result == "", NA_character_, result)
+quick_summary <- function(data) {
+	walk(colnames(data), function(colname) {
+		cat(crayon::red(paste0(colname, ": ")))
+		unique_vals <- unique(data[[colname]])
+		unique_vals_short <- unique_vals
+		end_str <- ""
+		if (length(unique_vals) > 10) {
+			unique_vals_short <- unique_vals[1:10]
+			end_str <- crayon::red(" ...")
+		}
+		unique_vals_short <- sort(unique_vals_short, na.last = FALSE)
+		cat(paste(map_chr(unique_vals_short, function(val) {
+			if (is.na(val)) {
+				crayon::magenta(val)
+			} else if (is.character(val)) {
+				paste0("'", crayon::cyan(val), "'")
+			} else if (is.numeric(val)) {
+				crayon::green(val)
+			} else if (is.logical(val)) {
+				crayon::yellow(val)
+			} else {
+				crayon::red(val)
+			}
+		}), collapse = " "))
+		cat(end_str, "\n", sep = "")
+	})
 }
 
 #
@@ -31,41 +54,26 @@ paste_unique_togethaaa <- function(vec) {
 # NOTE(sen) Export tables from access, one csv per table
 # system("data-raw/export-NIHHCWserol.sh")
 
-serology_all_tables_2020 <- list.files("data-raw", pattern = "HI_", full.names = TRUE) %>%
+serology_all_tables <- list.files("data-raw", pattern = "HI_.*_202[01]_", full.names = TRUE) %>%
   map_dfr(function(path) {
-    read_csv(path, col_types = cols()) %>%
-      mutate(
-        year = 2020,
-        day = str_replace(Time, "V|v", "") %>% as.integer(),
-        path = path
-      ) %>%
-      select(
-        pid = PID, year, day, virus = Target,
-        titre = Titer, path
-      ) %>%
-      # NOTE(sen) The whole point is to have a titre measurement, no titre -
-      # don't insert into the table at all
-      filter(!is.na(titre))
-  })
-
-serology_all_tables_2021 <- list.files("data-raw/2021", full.names = TRUE) %>%
-  map_dfr(function(path) {
-    dat <- readxl::read_excel(path, guess_max = 1e5)
-
-    # NOTE(sen) Pranked
-    if ("VirusDesignation" %in% colnames(dat)) {
-      dat <- dat %>% rename(`Virus Designation` = VirusDesignation)
-    } else if ("Virus_Designation" %in% colnames(dat)) {
-      dat <- dat %>% rename(`Virus Designation` = Virus_Designation)
+    tbl <- read_csv(path, col_types = cols(), guess_max = 1e5)
+    tblcols <- colnames(tbl)
+    virus_col_name <- tblcols[str_detect(tblcols, "Designation")]
+    stopifnot(length(virus_col_name) == 1)
+    time_col_name <- tblcols[tblcols %in% c("Time", "TimeN", "Timepoint", "timeN")][[1]]
+    stopifnot(length(time_col_name) == 1)
+    year <- str_replace(path, ".*HI_.*_(202[01])_.*", "\\1") %>% as.integer()
+    if (str_ends(path, "sera.csv")) {
+      year <- str_replace(path, ".*_(202[01])sera\\.csv$", "\\1") %>% as.integer()
     }
-
-    dat %>%
+    tbl %>%
       mutate(
-        year = 2021,
+        year = year,
+        day = str_replace(!!rlang::sym(time_col_name), "V|v", "") %>% as.integer(),
         path = path
       ) %>%
       select(
-        pid = PID, year, virus = `Virus Designation`, day = Timepoint,
+        pid = PID, year, day, virus = !!rlang::sym(virus_col_name),
         titre = Titer, path
       ) %>%
       # NOTE(sen) The whole point is to have a titre measurement, no titre -
@@ -73,13 +81,17 @@ serology_all_tables_2021 <- list.files("data-raw/2021", full.names = TRUE) %>%
       filter(!is.na(titre))
   })
 
-# NOTE(sen) Let's assume JHH-018's titres are all at V0 (they are missing day)
-serology_all_tables_2020_fix_day <- serology_all_tables_2020 %>% mutate(
-  day = if_else(pid == "JHH-018", 0L, day)
-)
+quick_summary(serology_all_tables)
+
+check_no_rows(serology_all_tables %>% filter(is.na(day)), "serology missing day")
+
+# TODO(sen) Let's assume JHH-018's titres are all at V0 (they are missing day).
+# Check what's up here
+serology_all_tables_fix_day <- serology_all_tables %>% 
+  mutate(day = if_else(pid == "JHH-018", 0L, day))
 
 # NOTE(sen) Fix virus names
-serology_all_tables_2020_fix_viruses <- serology_all_tables_2020_fix_day %>%
+serology_all_tables_fix_viruses <- serology_all_tables_fix_day %>%
   mutate(
     virus = virus %>%
       # NOTE(sen) Inconsistent left-pad
@@ -87,17 +99,20 @@ serology_all_tables_2020_fix_viruses <- serology_all_tables_2020_fix_day %>%
       # NOTE(sen) Let's assume that "c" at the end is not important because it's
       # not in the virus table
       str_replace("c$", "") %>%
-      # NOTE(sen) Inconsistent egg vs e
-      str_replace("egg$", "e") %>%
-      # NOTE(sen) Inconsistent south australia
+      str_replace("\\s*egg$", "e") %>%
+      str_replace("\\s*e$", "e") %>%
+      str_replace("A_Victoria_2570_2019", "A/Victoria/2570/2019") %>%
       str_replace("SouthAustralia|SouthAust", "South Australia") %>%
-      # NOTE(sen) Inconsistent IVR format
-      str_replace("IVR190", "(IVR-190)") %>%
-      str_replace(" \\(IVR-190\\)", "e") %>%
-      # NOTE(sen) Of course there's gonna be a space before e
-      str_replace(" e$", "e") %>%
-      # NOTE(sen) This is just to mess with me personally I guess
-      str_replace("SthAust_34_19Cell", "A/South Australia/34/2019"),
+      str_replace("SthAust_34_19Cell", "A/South Australia/34/2019") %>%
+      str_replace("\\s*\\(?IVR-?190\\)?\\s*", "e") %>%
+      str_replace("\\s*IVR Egg\\s*", "e") %>%
+      str_replace("\\s*IVR_208\\s*", "e") %>%
+      str_replace("\\s*IVR\\s*", "e") %>%
+      str_replace("\\s*[Ee]gg split$", "e") %>%
+      str_replace("\\s*[Cc]ell split$", "") %>%
+      str_replace("\\s*Cell$", "") %>%
+      str_replace("\\s*Volume looks right$", "") %>%
+      str_trim(),
 
     # NOTE(sen) Washington egg doesn't have an e at the end BUT ONLY SOMETIMES
     virus = if_else(
@@ -110,47 +125,29 @@ serology_all_tables_2020_fix_viruses <- serology_all_tables_2020_fix_day %>%
       str_detect(path, "H3") ~ "H3",
       str_detect(path, "Yam") ~ "BYam",
       str_detect(path, "Vic") ~ "BVic",
-    )
+    ),
+
+    virus_egg_cell = if_else(str_detect(virus, "e$"), "egg", "cell")
   )
 
 check_virus_fix <- function(serology_data) {
   summ <- serology_data %>%
     group_by(path) %>%
-    summarise(unique_viruses = length(unique(virus)), unique_subtypes = length(unique(subtype)))
-  check_no_rows(summ %>% filter(unique_viruses != 1), "not 1 unique virus per serology file")
+    summarise(
+      unique_viruses = length(unique(virus)),
+      unique_subtypes = length(unique(subtype)),
+      viruses = paste0(unique(virus), collapse = "; ")
+    )
+  check_no_rows(summ %>% filter(unique_viruses != 1) %>% select(viruses), "not 1 unique virus per serology file")
   check_no_rows(summ %>% filter(unique_subtypes != 1), "not 1 unique subtype per serology file")
 }
 
-check_virus_fix(serology_all_tables_2020_fix_viruses)
+check_virus_fix(serology_all_tables_fix_viruses)
+check_empty_set(sort(unique(serology_all_tables_fix_viruses$virus)) %>% .[!str_detect(., "\\d{4}e?")], "virus names dont end on 4 digits and optional e")
 
-# NOTE(sen) WCH-025 became WCH-818 and we have V0 WCH-818 data
-serology_all_tables_2020_fix_pids <- serology_all_tables_2020_fix_viruses %>%
-  filter(pid != "WCH-025")
-
-# NOTE(sen) Fix virus names
-serology_all_tables_2021_fix_viruses <- serology_all_tables_2021 %>%
-  mutate(
-    virus = virus %>%
-      str_replace(" [C|c]ell split", "") %>%
-      str_replace(" [E|e]gg split", "") %>%
-      str_replace(" IVR Egg", "") %>%
-      str_replace(" Volume looks right", "") %>%
-      str_replace(" IVR_208", "") %>%
-      str_replace(" Cell", "") %>%
-      str_trim() %>%
-      str_replace_all("_", "/"),
-    virus = if_else(str_detect(path, "egg"), paste0(virus, "e"), virus),
-    subtype = case_when(
-      str_detect(path, "H1") ~ "H1",
-      str_detect(path, "H3") ~ "H3",
-      str_detect(path, "Yam") ~ "BYam",
-      str_detect(path, "Vic") ~ "BVic",
-    ),
-  )
-
-check_virus_fix(serology_all_tables_2021_fix_viruses)
-
-serology_all_tables_2021_fix_pids <- serology_all_tables_2021_fix_viruses %>%
+serology_all_tables_fix_pids <- serology_all_tables_fix_viruses %>% 
+  # NOTE(sen) WCH-025 became WCH-818 and we have V0 WCH-818 data
+  filter(pid != "WCH-025") %>%
   mutate(pid = recode(
     pid,
     "QCH-42-" = "QCH-042", "QCH-47-" = "QCH-047",
@@ -159,25 +156,19 @@ serology_all_tables_2021_fix_pids <- serology_all_tables_2021_fix_viruses %>%
     "ALF-092" = "ALF-819",
   ))
 
-serology_all_tables <- bind_rows(
-  serology_all_tables_2020_fix_pids, serology_all_tables_2021_fix_pids
-) %>%
-  mutate(virus_egg_cell = if_else(str_detect(virus, "e$"), "egg", "cell"))
-
-check_virus_fix(serology_all_tables)
-check_no_rows(serology_all_tables %>% filter(pid == "WCH-025"), "WCH-025")
-check_no_rows(serology_all_tables %>% filter(pid == "ALF-092"), "ALF-092")
-check_no_rows(serology_all_tables %>% filter(!complete.cases(.)), "serology anything missing")
+check_no_rows(serology_all_tables_fix_pids %>% filter(pid == "WCH-025"), "WCH-025")
+check_no_rows(serology_all_tables_fix_pids %>% filter(pid == "ALF-092"), "ALF-092")
+check_no_rows(serology_all_tables_fix_pids %>% filter(!complete.cases(.)), "serology anything missing")
 
 check_no_rows(
-  serology_all_tables %>%
+  serology_all_tables_fix_pids %>%
     group_by(pid, year, day, virus) %>%
     filter(n() > 1) %>%
     arrange(pid, year, day, virus),
   "serology duplicates"
 )
 
-write_csv(serology_all_tables %>% select(-path), "data/serology.csv")
+write_csv(serology_all_tables_fix_pids %>% select(-path), "data/serology.csv")
 
 #
 # SECTION Participants
@@ -276,7 +267,7 @@ participants_with_extras <- participants %>%
   )
 
 check_empty_set(
-  setdiff(serology_all_tables$pid, participants_with_extras$pid),
+  setdiff(serology_all_tables_fix_pids$pid, participants_with_extras$pid),
   "non-matching serology pids"
 )
 
