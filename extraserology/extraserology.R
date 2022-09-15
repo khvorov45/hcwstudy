@@ -10,9 +10,12 @@ prior_vac_counts <- vac_hist %>%
         prior2022 = sum(year >= 2017 & year < 2022 & (status == "Australia" | status == "Overseas")),
     )
 
+vax2020_pids <- vac_hist %>% filter(year == 2020, (status == "Australia" | status == "Overseas")) %>% pull(pid)
+vax2021_pids <- vac_hist %>% filter(year == 2021, (status == "Australia" | status == "Overseas")) %>% pull(pid)
+
 # TODO(sen) Probably have prior_vac_counts as a separate table
 titres <- read_csv("data/serology.csv", col_types = cols()) %>%
-    filter(subtype == "H1", year %in% 2020:2021, virus_egg_cell == "egg") %>%
+    filter(subtype == "H1", year %in% 2020:2021, virus_egg_cell == "egg", day %in% c(0, 14, 220)) %>%
     left_join(read_csv("data/participants.csv", col_types = cols()), "pid") %>%
     left_join(prior_vac_counts, "pid") %>%
     mutate(
@@ -22,9 +25,47 @@ titres <- read_csv("data/serology.csv", col_types = cols()) %>%
             "vaccine", "other" 
         ) %>% 
             factor(c("vaccine", "other"))
-    )
+    ) %>%
+    group_by(pid, year) %>%
+    # NOTE(sen) Limit to the vaccinated (have postvax bleed) in at least one year
+    filter(14 %in% day) %>%
+    group_by(pid) %>%
+    mutate(group = case_when(
+        14 %in% day[year == 2020] & 14 %in% day[year == 2021] ~ "vax2020and2021",
+        14 %in% day[year == 2020] ~ "vax2020",
+        14 %in% day[year == 2021] ~ "vax2021",
+        TRUE ~ NA_character_
+    )) %>%
+    ungroup()
 
-titres %>% count(year, titre_type, virus)
+# NOTE(sen) Find everyone without extra serology
+more_serology <- read_csv("data/serology.csv", col_types = cols()) %>%
+    group_by(pid) %>%
+    mutate(
+        anybleed2020 = 2020 %in% year, 
+        anybleed2021 = 2021 %in% year,
+        yes2020d14_yes2021d14 = (14 %in% day[year == 2020]) &  (14 %in% day[year == 2021]),
+        yes2020d14_no2021d14 =  (14 %in% day[year == 2020]) & !(14 %in% day[year == 2021]),
+        no2020d14_yes2021d14 = !(14 %in% day[year == 2020]) &  (14 %in% day[year == 2021]),
+        no2020d14_no2021d14 =  !(14 %in% day[year == 2020]) & !(14 %in% day[year == 2021]),
+    ) %>%
+    ungroup() %>%
+    filter(subtype == "H1", year %in% 2020:2021, virus_egg_cell == "egg", day %in% c(0, 14)) %>%
+    group_by(pid) %>%
+    mutate(
+        yes2020Victoria = any(str_detect(virus[year == 2020], "Victoria")),
+        yes2021Brisbane = any(str_detect(virus[year == 2021], "Brisbane")),
+        redcap2020vax = pid %in% vax2020_pids,
+        redcap2021vax = pid %in% vax2021_pids,
+    ) %>%
+    ungroup() %>%
+    select(pid, matches("(yes)|(no)|(redcap)|(anybleed)")) %>%
+    distinct() %>%
+    mutate(across(-pid, as.integer))
+
+more_serology %>% count(no2020d14_yes2021d14, redcap2020vax)
+
+write_csv(more_serology, "extraserology/titres_tested.csv")
 
 titres_plot <- titres %>% 
     mutate(day = if_else(day == 220, 50, day)) %>%
@@ -36,11 +77,17 @@ titres_plot <- titres %>%
         strip.background = element_blank(),
     ) +
     scale_y_log10("Titre", breaks = 5 * 2^(0:15)) +
-    scale_x_continuous("Day", breaks = c(0, 7, 14, 50), labels = c(0, 7, 14, 220)) +
+    scale_x_continuous("Day", breaks = c(0, 14, 50), labels = c(0, 14, 220)) +
     facet_grid(titre_type ~ year) +
     geom_line(aes(group = pid), alpha = 0.05, color = "gray50") +
     geom_point(alpha = 0.05, color = "gray50", shape = 18)  + 
-    geom_boxplot(aes(group = paste0(day, year, virus)), fill = NA, color = "blue", outlier.alpha = 0)
+    geom_boxplot(aes(group = paste0(day, year, virus)), fill = NA, color = "blue", outlier.alpha = 0) +
+    geom_text(
+        aes(20, 1, label = virus), 
+        data = titres %>% select(year, titre_type, virus) %>% distinct(),
+        color = "gray10",
+        size = 3
+    )
 
 ggsave("extraserology/titres_plot.pdf", titres_plot, width = 12, height = 12, units = "cm")
 
