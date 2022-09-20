@@ -20,11 +20,16 @@ titres <- read_csv("data/serology.csv", col_types = cols()) %>%
     left_join(prior_vac_counts, "pid") %>%
     mutate(
         prior_vax_in_serum_year = if_else(year == 2020, prior2020, prior2021),
+        prior_vax_in_serum_year_cat = case_when(
+            prior_vax_in_serum_year == 0 ~ "0",
+            prior_vax_in_serum_year %in% 1:2 ~ "1-2",
+            prior_vax_in_serum_year %in% 3:5 ~ "3-5",
+        ),
         titre_type = if_else(
             (year == 2020 & virus == "A/Brisbane/02/2018e") | (year == 2021 & virus == "A/Victoria/2570/2019e"),
             "vaccine", "other" 
         ) %>% 
-            factor(c("vaccine", "other"))
+            factor(c("vaccine", "other")),
     ) %>%
     group_by(pid, year) %>%
     # NOTE(sen) Limit to the vaccinated (have postvax bleed) in at least one year
@@ -67,9 +72,13 @@ more_serology %>% count(no2020d14_yes2021d14, redcap2020vax)
 
 write_csv(more_serology, "extraserology/titres_tested.csv")
 
-titres_plot <- titres %>% 
-    mutate(day = if_else(day == 220, 50, day)) %>%
-    ggplot(aes(day, titre)) +
+titres_plot <- titres %>%
+    mutate(
+        day = if_else(day == 220, 50, day), 
+        year_color = if_else(year == 2020, "#008080", "#ff00ff"),
+        year_shade = if_else(year == 2020, "gray70", "black"),
+    ) %>%
+    ggplot(aes(day, titre, color = year_color)) +
     theme_bw() +
     theme(
         panel.grid.minor = element_blank(),
@@ -79,9 +88,11 @@ titres_plot <- titres %>%
     scale_y_log10("Titre", breaks = 5 * 2^(0:15)) +
     scale_x_continuous("Day", breaks = c(0, 14, 50), labels = c(0, 14, 220)) +
     facet_grid(titre_type ~ year) +
-    geom_line(aes(group = pid), alpha = 0.05, color = "gray50") +
-    geom_point(alpha = 0.05, color = "gray50", shape = 18)  + 
-    geom_boxplot(aes(group = paste0(day, year, virus)), fill = NA, color = "blue", outlier.alpha = 0) +
+    geom_line(aes(group = pid), alpha = 0.05) +
+    geom_point(alpha = 0.05, shape = 18)  + 
+    scale_color_identity() +
+    geom_boxplot(aes(group = paste0(day, year, virus), color = year_shade), alpha = 0.5, fill = NA, outlier.alpha = 0, size = 1) +
+    geom_boxplot(aes(group = paste0(day, year, virus), color = year_color), fill = NA, outlier.alpha = 0) +
     geom_text(
         aes(20, 1, label = virus), 
         data = titres %>% select(year, titre_type, virus) %>% distinct(),
@@ -90,10 +101,142 @@ titres_plot <- titres %>%
     )
 
 ggsave("extraserology/titres_plot.pdf", titres_plot, width = 12, height = 12, units = "cm")
+ggsave("extraserology/titres_plot.jpg", titres_plot, width = 12, height = 12, units = "cm")
+
+summarise_logmean <- function(vec, round_to = 0) {
+  vec <- na.omit(vec)
+  total <- length(vec)
+  log_vec <- log(vec)
+  logmean <- mean(log_vec)
+  logse <- sd(log_vec) / sqrt(total)
+  logmargin <- 1.96 * logse
+  loglow <- logmean - logmargin
+  loghigh <- logmean + logmargin
+  mean <- exp(logmean)
+  low <- exp(loglow)
+  high <- exp(loghigh)
+  f <- function(x) round(x, round_to)
+  string <- glue::glue("{f(mean)} ({f(low)}, {f(high)})")
+  tibble(mean, low, high, string)
+}
+
+gmts_homologous_pre_post <- titres %>% 
+    filter(day %in% c(0, 14), titre_type == "vaccine") %>%
+    group_by(year, day, prior_vax_in_serum_year_cat) %>% 
+    summarise(.groups = "drop", summarise_logmean(titre)) %>%
+    mutate(timepoint = recode(as.factor(day), "0" = "Pre-vax", "14" = "Post-vax"))
+
+make_gmt_plot <- function(data, filename, width) {
+    data %>%
+        mutate(year_color = if_else(year == 2020, "#008080", "#ff00ff")) %>%
+        ggplot(aes(timepoint, mean, ymin = low, ymax = high)) +
+        theme_bw() +
+        theme(
+            panel.grid.minor = element_blank(),
+            panel.grid.major.x = element_blank(),
+            legend.position = "bottom",
+            strip.background = element_blank(),
+            axis.title.x = element_blank(),
+            strip.placement = "outside",
+            panel.spacing = unit(0, "null"),
+        ) +
+        facet_wrap(~year, strip.position = "bottom") +
+        scale_x_discrete("", expand = expansion(0, 0)) +
+        scale_y_log10("Geometric mean titre", breaks = 5 * 2^(0:15)) +
+        scale_shape_manual("Prior vaccinations", values = c(1, 8, 0)) +
+        coord_cartesian(ylim = c(5, 1280), xlim = c(0.5, 2.5)) +
+        scale_color_identity() +
+        geom_pointrange(
+            aes(shape = prior_vax_in_serum_year_cat, color = year_color), 
+            position = position_dodge(width = 0.5)
+        ) +
+        geom_vline(xintercept = 1.5, color = "gray50")
+    ggsave(glue::glue("{filename}.jpg"), width = width, height = 10, units = "cm")
+    ggsave(glue::glue("{filename}.pdf"), width = width, height = 10, units = "cm")
+}
+
+make_gmt_plot(gmts_homologous_pre_post %>% filter(year == 2020), "extraserology/gmt_plot_h1_homologous2020", 10)
+make_gmt_plot(gmts_homologous_pre_post %>% filter(year == 2021), "extraserology/gmt_plot_h1_homologous2021", 10)
+make_gmt_plot(gmts_homologous_pre_post, "extraserology/gmt_plot_h1_homologous2020_2021", 15)
 
 ratios <- titres %>%
     pivot_wider(names_from = "day", values_from = "titre") %>%
-    mutate(ratio = `14` / `0`)
+    mutate(ratio = `14` / `0`, seroconv = as.integer(ratio >= 4))
+
+gmr_homologous_pre_post <- ratios %>%
+    filter(titre_type == "vaccine") %>%
+    group_by(prior_vax_in_serum_year_cat, year) %>%
+    summarise(.groups = "drop", summarise_logmean(ratio))
+
+gmr_homologous_pre_post_plot <- gmr_homologous_pre_post %>%
+    mutate(year_color = if_else(year == 2020, "#008080", "#ff00ff")) %>%
+    ggplot(aes(as.factor(year), mean, ymin = low, ymax = high)) +
+    theme_bw() +
+    theme(
+        panel.grid.minor = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.position = "bottom",
+        strip.background = element_blank(),
+        axis.title.x = element_blank(),
+        strip.placement = "outside",
+        panel.spacing = unit(0, "null"),
+    ) +
+    scale_y_log10("Geometric mean rise", breaks = c(2^(0:15))) +
+    scale_shape_manual("Prior vaccinations", values = c(1, 8, 0)) +
+    scale_color_identity() +
+    coord_cartesian(ylim = c(1, 128)) +
+    geom_pointrange(
+        aes(shape = prior_vax_in_serum_year_cat, color = year_color), 
+        position = position_dodge(width = 0.5)
+    )
+
+ggsave(glue::glue("extraserology/gmr_plot_h1_homologous.pdf"), gmr_homologous_pre_post_plot, width = 10, height = 10, units = "cm")
+ggsave(glue::glue("extraserology/gmr_plot_h1_homologous.jpg"), gmr_homologous_pre_post_plot, width = 10, height = 10, units = "cm")
+
+summarise_prop <- function(vec) {
+    vec <- na.omit(vec)
+    success <- sum(vec)
+    total <- length(vec)
+    ci <- PropCIs::exactci(success, total, 0.95)
+    prop <- success / total
+    low <- ci$conf.int[[1]]
+    high <- ci$conf.int[[2]]
+    f <- function(x) round(x * 100)
+    tibble(
+    prop, low, high,
+    comb = glue::glue("{f(prop)}% ({f(low)}%, {f(high)}%)")
+    )
+}
+
+seroconv_homologous_pre_post <- ratios %>%
+    filter(titre_type == "vaccine") %>%
+    group_by(prior_vax_in_serum_year_cat, year) %>%
+    summarise(.groups = "drop", summarise_prop(seroconv))
+
+seroconv_homologous_pre_post <- seroconv_homologous_pre_post %>%
+    mutate(year_color = if_else(year == 2020, "#008080", "#ff00ff")) %>%
+    ggplot(aes(as.factor(year), prop, ymin = low, ymax = high)) +
+    theme_bw() +
+    theme(
+        panel.grid.minor = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.position = "bottom",
+        strip.background = element_blank(),
+        axis.title.x = element_blank(),
+        strip.placement = "outside",
+        panel.spacing = unit(0, "null"),
+    ) +
+    scale_y_continuous("Proportion serconverted", breaks = seq(0, 1, 0.1)) +
+    scale_shape_manual("Prior vaccinations", values = c(1, 8, 0)) +
+    scale_color_identity() +
+    coord_cartesian(ylim = c(0, 1)) +
+    geom_pointrange(
+        aes(shape = prior_vax_in_serum_year_cat, color = year_color), 
+        position = position_dodge(width = 0.5)
+    )
+
+ggsave(glue::glue("extraserology/seroconv_plot_h1_homologous.pdf"), seroconv_homologous_pre_post, width = 10, height = 10, units = "cm")
+ggsave(glue::glue("extraserology/seroconv_plot_h1_homologous.jpg"), seroconv_homologous_pre_post, width = 10, height = 10, units = "cm")
 
 ratios_fit <- lm(I(log(ratio)) ~ as.factor(year) * titre_type, ratios)
 ratios_coefs <- coef(ratios_fit)

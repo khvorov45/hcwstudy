@@ -11,3 +11,4 @@ info.txt
 *.sh
 *.js.map
 reports-app/frontend/frontend.js
+*jpg
