@@ -12,3 +12,4 @@ info.txt
 *.js.map
 reports-app/frontend/frontend.js
 *jpg
+temp*
