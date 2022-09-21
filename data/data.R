@@ -742,12 +742,20 @@ check_no_rows(
   "consent duplicates"
 )
 
-write_csv(redcap_consent_long_extra_no_duplicates, "data/consent.csv")
+redcap_consent_long_extra_no_duplicates %>%
+  filter(pid == "JHH-810" & year == 2020 & disease == "flu")
 
-covid_arms <- redcap_consent_long_extra_no_duplicates %>%
-  filter(disease == "covid", !is.na(consent), consent != "no") %>%
-  group_by(pid) %>%
-  summarise(covid_arm = paste(unique(na.omit(consent)), collapse = ","))
+redcap_consent_special_cases <- redcap_consent_long_extra_no_duplicates %>%
+  mutate(consent = case_when(
+    pid == "JHH-031" & year == 2020 & disease == "flu" & form == "electronic_vac" ~ "main",
+    pid == "JHH-801" & year == 2020 & disease == "flu" & form == "electronic_vac" ~ "nested",
+    pid == "JHH-805" & year == 2020 & disease == "flu" & form == "electronic_vac" ~ "nested",
+    pid == "JHH-807" & year == 2020 & disease == "flu" & form == "electronic_vac" ~ "nested",
+    pid == "JHH-810" & year == 2020 & disease == "flu" & form == "electronic_vac" ~ "nested",
+    TRUE ~ consent,
+  ))
+
+write_csv(redcap_consent_special_cases, "data/consent.csv")
 
 redcap_consent_use_long <- redcap_consent_raw %>%
   select(record_id, redcap_project_year, contains("___")) %>%
