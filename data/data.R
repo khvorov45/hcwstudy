@@ -742,9 +742,6 @@ check_no_rows(
   "consent duplicates"
 )
 
-redcap_consent_long_extra_no_duplicates %>%
-  filter(pid == "JHH-810" & year == 2020 & disease == "flu")
-
 redcap_consent_special_cases <- redcap_consent_long_extra_no_duplicates %>%
   mutate(consent = case_when(
     pid == "JHH-031" & year == 2020 & disease == "flu" & form == "electronic_vac" ~ "main",
