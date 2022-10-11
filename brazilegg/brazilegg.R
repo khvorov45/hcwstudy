@@ -109,6 +109,8 @@ serology <- read_csv("data/serology.csv", col_types = cols()) %>% left_join(part
 
 ratios <- serology %>%
 	filter(subtype == "H1") %>%
+	# NOTE(sen) Only homologous
+	filter((year == 2020 & str_detect(virus, "Brisbane")) | (year == 2021 & virus == str_detect(virus, "Victoria"))) %>%
 	pivot_wider(names_from = "day", values_from = "titre") %>%
 	mutate(ratio = `14` / `0`, virus_egg_cell = paste0("vaccine_", virus_egg_cell)) %>%
 	select(pid, year, vaccine_ratio = ratio, virus_egg_cell) %>%
@@ -120,19 +122,44 @@ brazil_vaccine_ratios <- brazilegg_ratios %>%
 	pivot_longer(c(brazil_ratio, vaccine_egg, vaccine_cell), names_to = "virus", values_to = "ratio") %>%
 	mutate(virus = recode(virus, "brazil_ratio" = "brazil"))
 
+
+summarise_logmean <- function(vec, round_to = 0) {
+	vec <- na.omit(vec)
+	total <- length(vec)
+	log_vec <- log(vec)
+	logmean <- mean(log_vec)
+	logse <- sd(log_vec) / sqrt(total)
+	logmargin <- 1.96 * logse
+	loglow <- logmean - logmargin
+	loghigh <- logmean + logmargin
+	mean <- exp(logmean)
+	low <- exp(loglow)
+	high <- exp(loghigh)
+	f <- \(x) round(x, round_to)
+	string <- glue::glue("{f(mean)} ({f(low)}, {f(high)})")
+	tibble(mean, low, high, string)
+}
+
+brazil_vaccine_gmrs <- brazil_vaccine_ratios %>%
+	group_by(year, age_group, virus) %>%
+	summarise(.groups = "drop", summarise_logmean(ratio, 2))
+
+write_csv(brazil_vaccine_gmrs, "brazilegg/brazilegg_vaccine_gmrs.csv")
+
 brazil_vaccine_ratios_plot <- brazil_vaccine_ratios %>%
-	mutate(
-		# age_group_jit = as.integer(age_group) + (year - 2020.5) * 0.3
-	) %>%
 	ggplot(aes(virus, ratio)) +
 	theme_bw() +
 	theme(
 		panel.spacing = unit(0, "null"),
+		strip.background = element_blank(),
 	) +
 	facet_grid(age_group ~ year) +
 	scale_y_log10("Ratio (post/prevax)") +
+	scale_x_discrete("Virus", labels = function(breaks) tools::toTitleCase(breaks) %>% str_replace("_", " ")) +
+	coord_cartesian(ylim = c(1, 10)) +
 	geom_hline(yintercept = 1, lty = "11") +
-	geom_jitter(alpha = 0.1, shape = 16, width = 0.1) +
-	geom_boxplot(outlier.alpha = 0, fill = NA, width = 0.2, color = "blue")
+	geom_jitter(alpha = 0.1, shape = 18, width = 0.1) +
+	geom_boxplot(outlier.alpha = 0, fill = NA, width = 0.2, color = "blue") +
+	geom_pointrange(aes(y = mean, ymin = low, ymax = high), data = brazil_vaccine_gmrs, color = "red")
 
 ggsave("brazilegg/brazilegg-vaccine-ratios.pdf", brazil_vaccine_ratios_plot, width = 15, height = 15, units = "cm")
