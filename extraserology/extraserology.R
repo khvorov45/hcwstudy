@@ -41,7 +41,8 @@ titres <- read_csv("data/serology.csv", col_types = cols()) %>%
         14 %in% day[year == 2021] ~ "vax2021",
         TRUE ~ NA_character_
     )) %>%
-    ungroup()
+    ungroup() %>%
+    left_join(vac_hist %>% select(pid, year, brand), c("pid", "year"))
 
 # NOTE(sen) Find everyone without extra serology
 more_serology <- read_csv("data/serology.csv", col_types = cols()) %>%
@@ -238,22 +239,55 @@ seroconv_homologous_pre_post <- seroconv_homologous_pre_post %>%
 ggsave(glue::glue("extraserology/seroconv_plot_h1_homologous.pdf"), seroconv_homologous_pre_post, width = 10, height = 10, units = "cm")
 ggsave(glue::glue("extraserology/seroconv_plot_h1_homologous.jpg"), seroconv_homologous_pre_post, width = 10, height = 10, units = "cm")
 
-ratios_fit <- lm(I(log(ratio)) ~ as.factor(year) * titre_type, ratios)
-ratios_coefs <- coef(ratios_fit)
-ratios_vcov <- vcov(ratios_fit)
+ratios %>% count(brand, year)
 
-calc_ratios <- function(names, year, type) {
+ratios_fit <- lm(
+    I(log(ratio)) ~ year * titre_type * brand, 
+    ratios %>% mutate(year = as.factor(year))
+)
+
+calc_ratios <- function(year, type, brand) {
+    names = c("(Intercept)")
+    year_not_ref = year != 2020
+    type_not_ref = type != "vaccine"
+    brand_not_ref = brand != "GSK"
+    if (year_not_ref) {
+        names[length(names) + 1] = paste0("year", year)
+        if (type_not_ref) {
+            names[length(names) + 1] = paste0("year", year, ":", "titre_type", type)
+            if (brand_not_ref) {
+                names[length(names) + 1] = paste0("year", year, ":", "titre_type", type, ":", "brand", brand)
+            }
+        }
+        if (brand_not_ref) {
+            names[length(names) + 1] = paste0("year", year, ":", "brand", brand)
+        }
+    }
+    if (type_not_ref) {
+        names[length(names) + 1] = paste0("titre_type", type)
+        if (brand_not_ref) {
+            names[length(names) + 1] = paste0("titre_type", type, ":", "brand", brand)
+        }
+    }
+    if (brand_not_ref) {
+        names[length(names) + 1] = paste0("brand", brand)
+    }
+    stopifnot(all(names %in% names(coef(ratios_fit))))
+    stopifnot(all(names %in% colnames(vcov(ratios_fit))))
+    stopifnot(all(names %in% rownames(vcov(ratios_fit))))
     tibble(
-        logrise = sum(ratios_coefs[names]), 
-        variance = sum(ratios_vcov[names, names]),
-        year = year, type = type,
+        logrise = sum(coef(ratios_fit)[names]), 
+        variance = sum(vcov(ratios_fit)[names, names]),
+        year = year, type = type, brand = brand,
+        coefs = paste0(names, collapse = " ")
     )
 }
 
-fit_result <- tibble(calc_ratios("(Intercept)", 2020, "vaccine")) %>%
-    bind_rows(calc_ratios(c("(Intercept)", "titre_typeother"), 2020, "other")) %>%
-    bind_rows(calc_ratios(c("(Intercept)", "as.factor(year)2021"), 2021, "vaccine")) %>%
-    bind_rows(calc_ratios(c("(Intercept)", "titre_typeother", "as.factor(year)2021", "as.factor(year)2021:titre_typeother"), 2021, "other")) %>%
+fit_result <- ratios %>% 
+    select(year, type = titre_type, brand) %>% 
+    distinct() %>%
+    filter(!is.na(brand)) %>%
+    pmap_dfr(calc_ratios) %>%
     mutate(
         se = sqrt(variance),
         logriselow = logrise - 1.96 * se,
@@ -261,7 +295,6 @@ fit_result <- tibble(calc_ratios("(Intercept)", 2020, "vaccine")) %>%
         rise = exp(logrise),
         riselow = exp(logriselow),
         risehigh = exp(logrisehigh),
-        type = factor(type, c("vaccine", "other")),
     )
 
 write_csv(fit_result, "extraserology/vaccine_response_fit.csv")
@@ -276,7 +309,13 @@ fit_plot <- fit_result %>%
         axis.title.x = element_blank(),
     ) +
     scale_y_continuous("Rise", breaks = 0:15) +
-    facet_wrap(~year) +
-    geom_pointrange()
+    coord_cartesian(ylim = c(0, 10)) +
+    facet_grid(year~brand) +
+    geom_hline(yintercept = 1, lty = "11", color = "gray50") +
+    geom_pointrange() +
+    geom_label(
+        aes(x = titre_type, y = 10, label = n), inherit.aes = FALSE, 
+        data = ratios %>% count(brand, year, titre_type) %>% filter(!is.na(brand))
+    )
 
-ggsave("extraserology/vaccine_response_plot.pdf", fit_plot, width = 7, height = 10, units = "cm")
+ggsave("extraserology/vaccine_response_plot.pdf", fit_plot, width = 15, height = 10, units = "cm")

@@ -390,7 +390,7 @@ check_no_rows(
 # NOTE(sen) There is also a vaccination instrument for the current year
 
 redcap_vaccination_instrument_request <- function(year) {
-  redcap_request(year, "vaccination_arm_1", "vaccinated,record_id")
+  redcap_request(year, "vaccination_arm_1", "vaccinated,record_id,vac_brand")
 }
 
 vaccination_instrument_raw <- redcap_vaccination_instrument_request(2020) %>%
@@ -403,11 +403,13 @@ vaccination_instrument_raw <- redcap_vaccination_instrument_request(2020) %>%
   ) %>%
   select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance, -record_id) %>%
   rename(year = redcap_project_year) %>%
-  filter(!is.na(vaccinated))
+  filter(!is.na(vaccinated)) %>%
+  mutate(brand = recode(vac_brand, "1" = "GSK", "2" = "Sanofi", "3" = "Seqirus"))
 
 vaccination_instrument_raw_no_duplicates <- vaccination_instrument_raw %>%
-  group_by(pid, year) %>%
-  summarise(.groups = "drop", vaccinated = as.integer(any(vaccinated == 1)))
+  group_by(pid, year, brand) %>%
+  summarise(.groups = "drop", vaccinated = as.integer(any(vaccinated == 1))) %>%
+  filter(!(pid == "WCH-818" & is.na(brand)))
 
 check_no_rows(
   vaccination_instrument_raw_no_duplicates %>%
