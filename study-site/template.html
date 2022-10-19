@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+
+<html lang="en-US">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="description" content="NIH HCW study reports" />
+		<title>NIH HCW study reports</title>
+	</head>
+
+	<!-- NOTE(sen) Stop browsers from requesting favicon -->
+	<link rel="icon" href="data:," />
+
+	<style>
+		:root {
+			--color-font-1: rgb(255, 255, 255);
+			--color-font-2: rgb(200, 200, 200);
+			--color-bg-1: rgb(0, 0, 0);
+			--color-bg-2: rgb(50, 50, 50);
+			--color-bg-3: rgb(100, 100, 100);
+			--color-primary-1: #303f9f;
+			--color-primary-1-fade: #303f9f78;
+			--color-primary-2: #3f51b5;
+			--color-primary-2-fade: #3f51b578;
+			--color-primary-3: #7986cb;
+			--color-primary-3-fade: #7986cb78;
+			--color-secondary-1: #c51162;
+			--color-secondary-1-fade: #c5116278;
+			--color-secondary-2: #f50057;
+			--color-secondary-2-fade: #f5005778;
+			--color-secondary-3: #ff4081;
+			--color-secondary-3-fade: #ff408178;
+			--color-error-1: #e57373;
+			--size-icon-button: 40px;
+			--size-icon: 35px;
+			--size-nav: 40px;
+			--invert-img: 100%;
+		}
+
+		[theme="light"] {
+			--color-font-1: rgb(0, 0, 0);
+			--color-font-2: rgb(50, 50, 50);
+			--color-bg-1: rgb(255, 255, 255);
+			--color-bg-2: rgb(200, 200, 200);
+			--color-bg-3: rgb(150, 150, 150);
+			--color-primary-3: #303f9f;
+			--color-primary-3-fade: #303f9f78;
+			--color-primary-2: #3f51b5;
+			--color-primary-2-fade: #3f51b578;
+			--color-primary-1: #7986cb;
+			--color-primary-1-fade: #7986cb78;
+			--color-secondary-3: #c51162;
+			--color-secondary-3-fade: #c5116278;
+			--color-secondary-2: #f50057;
+			--color-secondary-2-fade: #f5005778;
+			--color-secondary-1: #ff4081;
+			--color-secondary-1-fade: #ff408178;
+			--color-error-1: #d32f2f;
+			--invert-img: 0%;
+		}
+
+		:focus {
+			outline: 0;
+		}
+
+		/* hr tag has some browser weirdness, so set it here to prevent surprises*/
+		hr {
+			border: 1px solid;
+			color: var(--color-bg-2);
+			background-color: var(--color-bg-2);
+			border-color: var(--color-bg-2);
+		}
+
+		body {
+			color: var(--color-font-1);
+			background-color: var(--color-bg-1);
+			font-size: 14px;
+
+			/* Auto-generated */
+			margin: 20px;
+			font-family: Roboto, -apple-system, BlinkMacSystemFont, Segoe UI, Oxygen, Ubuntu, Cantarell, Fira Sans,
+				Droid Sans, Helvetica Neue, sans-serif;
+			line-height: 1.5;
+		}
+
+		.text-content {
+			text-align: justify;
+			max-width: 56em;
+			margin-left: auto;
+			margin-right: auto;
+		}
+
+		li {
+			margin-top: 5px;
+			margin-bottom: 5px;
+		}
+		p,
+		ul {
+			margin-top: 5px;
+			margin-bottom: 5px;
+		}
+
+		/* Logos */
+		.logos {
+			display: grid;
+			grid-template-areas:
+				"ad ad sd"
+				"br br sd"
+				"ml nc pr";
+			gap: 10px;
+			align-items: center;
+			justify-content: center;
+		}
+		img {
+			filter: invert(var(--invert-img));
+			transition: filter var(--time-transition);
+			max-width: 100%;
+			max-height: 100%;
+		}
+		.adelaide-container {
+			grid-area: ad;
+			max-width: 500px;
+			height: 80px;
+		}
+		.brisbane-container {
+			grid-area: br;
+			max-width: 500px;
+			height: 55px;
+		}
+		.melbourne-container {
+			grid-area: ml;
+			height: 72px;
+		}
+		.newcastle-container {
+			grid-area: nc;
+			height: 72px;
+		}
+		.perth-container {
+			grid-area: pr;
+			height: 72px;
+		}
+		.sydney-container {
+			grid-area: sd;
+			height: 135px;
+		}
+
+		/* Auto-generated */
+		h1,
+		h2,
+		h3,
+		h4,
+		h5,
+		h6 {
+			margin: 0 0 0.5em 0;
+			font-weight: 400;
+			line-height: 1.2;
+		}
+
+		h1 {
+			font-size: 2em;
+		}
+
+		a {
+			color: var(--color-primary-3);
+			text-decoration: none;
+			border-bottom: 1px solid rgba(0, 0, 0, 0);
+		}
+
+		a:hover,
+		a:focus {
+			border-bottom: 1px solid var(--color-primary-3);
+		}
+
+		code {
+			font-family: menlo, inconsolata, monospace;
+			font-size: calc(1em - 2px);
+			padding: 0.2em 0.4em;
+			border-radius: 2px;
+		}
+
+		/* Scrollbars */
+		::-webkit-scrollbar {
+			width: 10px;
+		}
+
+		::-webkit-scrollbar-track,
+		::-webkit-scrollbar-corner {
+			background: rgba(0, 0, 0, 0);
+		}
+
+		::-webkit-scrollbar-thumb {
+			background: var(--color-bg-2);
+		}
+
+		::-webkit-scrollbar-thumb:hover {
+			background: var(--color-bg-3);
+		}
+
+		html,
+		html * {
+			scrollbar-color: var(--color-bg-2) rgba(0, 0, 0, 0);
+			scrollbar-width: auto;
+		}
+	</style>
+
+	<body>
+		$CONTENT
+	</body>
+</html>
