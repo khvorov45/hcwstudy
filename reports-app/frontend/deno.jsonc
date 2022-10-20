@@ -1,0 +1,11 @@
+{
+	"$schema": "https://deno.land/x/deno@v1.25.2/cli/schemas/config-file.v1.json",
+	"compilerOptions": {
+		"lib": ["ES2017", "DOM", "DOM.Iterable", "deno.ns"],
+		"noFallthroughCasesInSwitch": true,
+		"noUnusedLocals": false
+	},
+	"lint": {
+		"rules": { "exclude": ["no-explicit-any"] }
+	}
+}

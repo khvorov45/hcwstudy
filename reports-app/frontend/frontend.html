@@ -1,76 +1,74 @@
 <!DOCTYPE html>
 
 <html lang="en-US">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="NIH HCW study reports">
-    <title>NIH HCW study reports</title>
-  </head>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="description" content="NIH HCW study reports" />
+		<title>NIH HCW study reports</title>
+	</head>
 
-  <!-- NOTE(sen) Stop browsers from requsting favicon -->
-  <link rel="icon" href="data:,">
+	<!-- NOTE(sen) Stop browsers from requiting favicon -->
+	<link rel="icon" href="data:," />
 
-  <style>
-    :root {
-      --color-text: #bfbdb6;
-      --color-text-muted: #7f7e79;
-      --color-background: #10141c;
-      --color-background2: #25292f;
-      --color-background3: #1c1f23;
-      --color-border: #474d56;
-      --color-border2: #373d46;
-      --color-error:  #f26d78;
-      --color-selected: #670033;
-    }
+	<style>
+		:root {
+			--color-text: #bfbdb6;
+			--color-text-muted: #7f7e79;
+			--color-background: #10141c;
+			--color-background2: #25292f;
+			--color-background3: #1c1f23;
+			--color-border: #474d56;
+			--color-border2: #373d46;
+			--color-error: #f26d78;
+			--color-selected: #670033;
+		}
 
-    input {
-      color: inherit;
-      background-color: inherit;
-    }
+		input {
+			color: inherit;
+			background-color: inherit;
+		}
 
-    input:focus {
-      color: inherit;
-      background-color: inherit;
-    }
+		input:focus {
+			color: inherit;
+			background-color: inherit;
+		}
 
-    /* Scrollbars */
-    ::-webkit-scrollbar {
-      width: 15px;
-    }
+		/* Scrollbars */
+		::-webkit-scrollbar {
+			width: 15px;
+		}
 
-    ::-webkit-scrollbar-track,
-    ::-webkit-scrollbar-corner {
-      background: var(--color-background3);
-    }
+		::-webkit-scrollbar-track,
+		::-webkit-scrollbar-corner {
+			background: var(--color-background3);
+		}
 
-    ::-webkit-scrollbar-thumb {
-      background: var(--color-border2);
-    }
+		::-webkit-scrollbar-thumb {
+			background: var(--color-border2);
+		}
 
-    ::-webkit-scrollbar-thumb:hover {
-      background: var(--color-selected);
-    }
+		::-webkit-scrollbar-thumb:hover {
+			background: var(--color-selected);
+		}
 
-    html,
-    html * {
-      scrollbar-color: var(--color-border2) var(--color-background3);
-      scrollbar-width: thin;
-    }
-  </style>
+		html,
+		html * {
+			scrollbar-color: var(--color-border2) var(--color-background3);
+			scrollbar-width: thin;
+		}
+	</style>
 
-  <body
-    style="
-      background-color: var(--color-background);
-      color: var(--color-text);
-      margin: 0;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    "
-  >
-    <div id="main" style="display: flex;"></div>
-  </body>
+	<body
+		style="
+			background-color: var(--color-background);
+			color: var(--color-text);
+			margin: 0;
+			font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+		"
+	>
+		<div id="main" style="display: flex"></div>
+	</body>
 
-  <script type="module" src="virtualized-list.js"></script>
-  <script type="module" src="frontend.js"></script>
-
+	<script type="text/javascript" src="bundle.js"></script>
 </html>
