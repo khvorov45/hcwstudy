@@ -21,6 +21,7 @@ participants <- read_csv("data/participants.csv", col_types = cols())
 withdrawn <- read_csv("data/withdrawn.csv", col_types = cols())
 
 missing_baseline <- participants %>%
+	select(-email, -mobile) %>%
 	filter(!complete.cases(.), !pid %in% withdrawn$pid)
 
 save_split(missing_baseline, "missing_baseline")

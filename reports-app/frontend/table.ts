@@ -732,17 +732,17 @@ export const createTableFromAos = <RowType extends { [key: string]: any }>({
 			height: tableBodyHeight,
 			rowCount: aosFiltered.length,
 			renderRow: (rowIndex: number) => {
-				const rowData = aosFiltered[rowIndex]
 				const rowElement = createTableDataRow(rowIndex)
-
-				for (const colname of colnames) {
-					const spec = colSpec[colname]
-					const colData = spec.access(rowData)
-					const colDataFormatted = spec.format(colData)
-					const width = spec.width - SCROLLBAR_WIDTHS[1] / colnames.length
-					addEl(rowElement, createTableCellString(width, colDataFormatted))
+				const rowData = aosFiltered[rowIndex]
+				if (rowData !== undefined) {
+					for (const colname of colnames) {
+						const spec = colSpec[colname]
+						const colData = spec.access(rowData)
+						const colDataFormatted = spec.format(colData)
+						const width = spec.width - SCROLLBAR_WIDTHS[1] / colnames.length
+						addEl(rowElement, createTableCellString(width, colDataFormatted))
+					}
 				}
-
 				return rowElement
 			},
 			rowHeight: TABLE_ROW_HEIGHT_PX,
