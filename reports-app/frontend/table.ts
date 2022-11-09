@@ -128,6 +128,17 @@ const morphEl = (fromEl: Node, toEl: Node) => {
 		removeNode(curFromNodeChild, fromEl, true /* skip keyed nodes */)
 		curFromNodeChild = fromNextSibling
 	}
+
+	if (fromEl.nodeType === ELEMENT_NODE && toEl.nodeType === ELEMENT_NODE) {
+		const fromStyle = (<HTMLElement>fromEl).style
+		const toStyle = (<HTMLElement>toEl).style
+		if (fromStyle.color !== toStyle.color) {
+			fromStyle.color = toStyle.color
+		}
+		if (fromStyle.backgroundColor !== toStyle.backgroundColor) {
+			fromStyle.backgroundColor = toStyle.backgroundColor
+		}
+	}
 }
 
 const morphdom = (fromNode: HTMLElement, toNode: HTMLElement) => {
