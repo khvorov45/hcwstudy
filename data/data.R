@@ -49,12 +49,13 @@ quick_summary <- function(data) {
 # SECTION Serology
 #
 
+# file.remove(list.files("data-raw/serology", full.names = TRUE))
 # system("data-raw/pull-NIHHCWserol.sh")
 
 # NOTE(sen) Export tables from access, one csv per table
 # system("data-raw/export-NIHHCWserol.sh")
 
-serology_all_tables <- list.files("data-raw", pattern = "HI_.*_202[01]_", full.names = TRUE) %>%
+serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[01]_", full.names = TRUE) %>%
   map_dfr(function(path) {
     tbl <- read_csv(path, col_types = cols(), guess_max = 1e5)
     tblcols <- colnames(tbl)
