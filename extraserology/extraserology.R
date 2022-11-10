@@ -116,9 +116,7 @@ summarise_logmean <- function(vec, round_to = 0) {
   mean <- exp(logmean)
   low <- exp(loglow)
   high <- exp(loghigh)
-  f <- function(x) round(x, round_to)
-  string <- glue::glue("{f(mean)} ({f(low)}, {f(high)})")
-  tibble(mean, low, high, string)
+  tibble(total, mean, low, high)
 }
 
 gmts_homologous_pre_post <- titres %>% 
@@ -319,3 +317,27 @@ fit_plot <- fit_result %>%
     )
 
 ggsave("extraserology/vaccine_response_plot.pdf", fit_plot, width = 15, height = 10, units = "cm")
+
+ratios_age_plot <- ratios %>%
+    filter(!is.na(age_screening)) %>%
+    mutate(agegroup = cut(age_screening, c(-Inf, 30, 40, 50, Inf))) %>%
+    group_by(year, titre_type, agegroup) %>%
+    summarise(.groups = "drop", summarise_logmean(ratio)) %>%
+    ggplot(aes(titre_type, mean, ymin = low, ymax = high, color = agegroup)) +
+    theme_bw() +
+    theme(
+        panel.grid.minor.x = element_blank(),
+        strip.background = element_blank(),
+        panel.spacing = unit(0, "null"),
+        axis.title.x = element_blank(),
+        legend.position = "bottom",
+    ) +
+    scale_y_continuous("Rise", breaks = 0:15) +
+    scale_color_discrete("Age") +
+    coord_cartesian(ylim = c(0, 11)) +
+    facet_wrap(~year) +
+    geom_hline(yintercept = 1, lty = "11", color = "gray50") +
+    geom_pointrange(position = position_dodge(width = 0.5)) #+
+    # geom_label(aes(x = titre_type, y = 10, label = total), position = position_dodge(width = 0.5), show.legend = FALSE)
+
+ggsave("extraserology/ratios_age.pdf", width = 20, height = 8, units = "cm")
