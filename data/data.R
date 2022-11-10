@@ -809,7 +809,8 @@ postinf_vars <- c(
   "swab_result",
   "d7_postinfection_blood",
   "d14_postinfection_blood",
-  "d30_postinfection_blood"
+  "d30_postinfection_blood",
+  "ari_swab_notes"
 )
 
 redcap_postinf_request <- function(year) {
@@ -880,6 +881,12 @@ check_no_rows(
 )
 
 write_csv(postinf_bleed_dates, "data/postinf-bleed-dates.csv")
+
+postinf_comments <- redcap_postinf %>%
+  filter(!is.na(ari_swab_notes)) %>%
+  select(pid, year, postinf_instance, ari_swab_notes)
+
+write_csv(postinf_comments, "data/postinf-comments.csv")
 
 #
 # SECTION Withdrawn
