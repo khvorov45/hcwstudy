@@ -5,6 +5,7 @@ suppressPackageStartupMessages(library(tidyverse))
 # Check consent names
 # Check bleed dates go in ascending order
 # Check dob makes sense
+# Check serology d7/d14 is only present for those with a vaccination record
 
 all_csv_files <- tools::list_files_with_exts("data-problems", "csv")
 walk(all_csv_files, file.remove)
@@ -134,4 +135,3 @@ covid_vax %>%
 covid_vax %>%
 	filter(is.na(brand)) %>%
 	save_split("covid_vax_missing_brand")
-
