@@ -5,9 +5,19 @@ vac_hist <- read_csv("./data/vaccinations.csv", col_types = cols())
 prior_vac_counts <- vac_hist %>%
     group_by(pid) %>%
     summarise(
+        .groups = "drop",
         prior2020 = sum(year >= 2015 & year < 2020 & (status == "Australia" | status == "Overseas")),
         prior2021 = sum(year >= 2016 & year < 2021 & (status == "Australia" | status == "Overseas")),
         prior2022 = sum(year >= 2017 & year < 2022 & (status == "Australia" | status == "Overseas")),
+    )
+
+vax_study_years <- vac_hist %>%
+    group_by(pid) %>%
+    summarise(
+        .groups = "drop",
+        vax2020 = sum(status[year == 2020] %in% c("Australia", "Overseas")),
+        vax2021 = sum(status[year == 2021] %in% c("Australia", "Overseas")),
+        vax2022 = sum(status[year == 2022] %in% c("Australia", "Overseas")),
     )
 
 vax2020_pids <- vac_hist %>% filter(year == 2020, (status == "Australia" | status == "Overseas")) %>% pull(pid)
@@ -34,15 +44,17 @@ titres <- read_csv("data/serology.csv", col_types = cols()) %>%
     group_by(pid, year) %>%
     # NOTE(sen) Limit to the vaccinated (have postvax bleed) in at least one year
     filter(14 %in% day) %>%
+    left_join(vac_hist %>% rename(vax_status = status), c("pid", "year")) %>%
+    left_join(vax_study_years, "pid") %>%
+    # NOTE(sen) Mark vaccinated if there is a d14 titre for that year
     group_by(pid) %>%
-    mutate(group = case_when(
-        14 %in% day[year == 2020] & 14 %in% day[year == 2021] ~ "vax2020and2021",
-        14 %in% day[year == 2020] ~ "vax2020",
-        14 %in% day[year == 2021] ~ "vax2021",
-        TRUE ~ NA_character_
-    )) %>%
+    mutate(
+        vax2020 = if_else(any(!is.na(titre[day == 14 & year == 2020])), 1L, unique(vax2020)),
+        vax2021 = if_else(any(!is.na(titre[day == 14 & year == 2021])), 1L, unique(vax2021)),
+        vax2022 = if_else(any(!is.na(titre[day == 14 & year == 2022])), 1L, unique(vax2022)),
+    ) %>%
     ungroup() %>%
-    left_join(vac_hist %>% select(pid, year, brand), c("pid", "year"))
+    mutate(agegroup = cut(age_screening, c(-Inf, 30, 40, 50, Inf)))
 
 # NOTE(sen) Find everyone without extra serology
 more_serology <- read_csv("data/serology.csv", col_types = cols()) %>%
@@ -320,7 +332,6 @@ ggsave("extraserology/vaccine_response_plot.pdf", fit_plot, width = 15, height =
 
 ratios_age_plot <- ratios %>%
     filter(!is.na(age_screening)) %>%
-    mutate(agegroup = cut(age_screening, c(-Inf, 30, 40, 50, Inf))) %>%
     group_by(year, titre_type, agegroup) %>%
     summarise(.groups = "drop", summarise_logmean(ratio)) %>%
     ggplot(aes(titre_type, mean, ymin = low, ymax = high, color = agegroup)) +
@@ -341,3 +352,25 @@ ratios_age_plot <- ratios %>%
     # geom_label(aes(x = titre_type, y = 10, label = total), position = position_dodge(width = 0.5), show.legend = FALSE)
 
 ggsave("extraserology/ratios_age.pdf", width = 20, height = 8, units = "cm")
+
+ratios %>%
+    filter(!is.na(vax2020)) %>%
+    group_by(year, titre_type, vax2020) %>%
+    summarise(.groups = "drop", summarise_logmean(ratio)) %>%
+    mutate(vax2020 = as.factor(vax2020)) %>%
+    ggplot(aes(titre_type, mean, ymin = low, ymax = high, color = vax2020)) +
+    theme_bw() +
+    theme(
+        panel.grid.minor.x = element_blank(),
+        strip.background = element_blank(),
+        panel.spacing = unit(0, "null"),
+        axis.title.x = element_blank(),
+        legend.position = "bottom",
+    ) +
+    scale_y_continuous("Rise", breaks = seq(0, 100, 2)) +
+    scale_color_discrete("vax 2020") +
+    facet_wrap(~ year) +
+    geom_hline(yintercept = 1, lty = "11", color = "gray50") +
+    geom_pointrange(position = position_dodge(width = 0.5))
+
+ggsave("extraserology/ratios_vax2020.pdf", width = 15, height = 12, units = "cm")
