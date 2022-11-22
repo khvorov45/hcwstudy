@@ -49,10 +49,10 @@ quick_summary <- function(data) {
 # SECTION Serology
 #
 
-# file.remove(list.files("data-raw/serology", full.names = TRUE))
-# system("data-raw/pull-NIHHCWserol.sh")
-
 # NOTE(sen) Export tables from access, one csv per table
+# file.remove(list.files("data-raw/serology", full.names = TRUE))
+# file.remove(list.files("data-raw/serology-covid", full.names = TRUE))
+# system("data-raw/pull-NIHHCWserol.sh")
 # system("data-raw/export-NIHHCWserol.sh")
 
 serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[01]_", full.names = TRUE) %>%
@@ -169,6 +169,29 @@ check_no_rows(
 
 write_csv(serology_all_tables_fix_pids %>% select(-path), "data/serology.csv")
 
+sercovid_raw <- read_csv("data-raw/serology-covid/sVNTresultsLong.csv", col_types = cols())
+
+sercovid <- sercovid_raw %>% 
+  mutate(date = lubridate::parse_date_time(SampleDate, "%m%d%y %H%M%S") %>% as.Date()) %>%
+  # TODO(sen) Should duplicate removal be any different?
+  mutate(score = as.integer(Comment == "repeat") %>% replace_na(0)) %>%
+  group_by(PID, date) %>%
+  filter(score == max(score)) %>%
+  ungroup() %>%
+  select(pid = PID, ic50 = IC50, date, vax_inf = VaxInf)
+
+check_no_rows(
+  sercovid %>% filter(!pid %in% serology_all_tables_fix_pids$pid),
+  "covid serology bad PIDs"
+)
+
+check_no_rows(
+  sercovid %>% group_by(pid, date) %>% filter(n() > 1) %>% arrange(pid, date),
+  "covid serology duplicates"
+)
+
+write_csv(sercovid, "data/serology-covid.csv")
+
 #
 # SECTION Participants
 #
@@ -196,7 +219,7 @@ redcap_participants_request <- function(project_year) {
   redcap_request(
     project_year,
     "baseline_arm_1",
-    "record_id,pid,date_screening,a1_gender,a2_dob,a3_atsi,email,mobile_number",
+    "record_id,pid,date_screening,a1_gender,a2_dob,a3_atsi,a5_height,a6_weight,email,mobile_number",
     exportDataAccessGroups = "true",
     rawOrLabel = "label"
   ) %>%
@@ -227,6 +250,7 @@ participants <- bind_rows(participants2020, participants2021, participants2022) 
   select(
     pid,
     site = redcap_data_access_group, gender = a1_gender, dob = a2_dob, atsi = a3_atsi,
+    height = a5_height, weight = a6_weight,
     date_screening, email = email, mobile = mobile_number, redcap_project_year,
   ) %>%
   mutate(
@@ -257,6 +281,9 @@ participants_with_extras <- participants %>%
     gender = last(na.omit(gender)),
     dob = last(na.omit(dob)),
     atsi = last(na.omit(atsi)),
+    atsi = last(na.omit(atsi)),
+    height = last(na.omit(height)),
+    weight = last(na.omit(weight)),
     date_screening = first(na.omit(date_screening)),
     email = last(na.omit(email)),
     mobile = last(na.omit(mobile)),
@@ -264,6 +291,7 @@ participants_with_extras <- participants %>%
   ) %>%
   mutate(
     age_screening = (date_screening - dob) / lubridate::dyears(1),
+    bmi =  weight / (height / 100)^2
   )
 
 check_empty_set(
@@ -391,7 +419,7 @@ check_no_rows(
 # NOTE(sen) There is also a vaccination instrument for the current year
 
 redcap_vaccination_instrument_request <- function(year) {
-  redcap_request(year, "vaccination_arm_1", "vaccinated,record_id,vac_brand")
+  redcap_request(year, "vaccination_arm_1", "vaccinated,record_id,vac_brand,vac_batch")
 }
 
 vaccination_instrument_raw <- redcap_vaccination_instrument_request(2020) %>%
@@ -403,12 +431,12 @@ vaccination_instrument_raw <- redcap_vaccination_instrument_request(2020) %>%
     c("record_id", "redcap_project_year")
   ) %>%
   select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance, -record_id) %>%
-  rename(year = redcap_project_year) %>%
+  rename(year = redcap_project_year, batch = vac_batch) %>%
   filter(!is.na(vaccinated)) %>%
   mutate(brand = recode(vac_brand, "1" = "GSK", "2" = "Sanofi", "3" = "Seqirus"))
 
 vaccination_instrument_raw_no_duplicates <- vaccination_instrument_raw %>%
-  group_by(pid, year, brand) %>%
+  group_by(pid, year, brand, batch) %>%
   summarise(.groups = "drop", vaccinated = as.integer(any(vaccinated == 1))) %>%
   filter(!(pid == "WCH-818" & is.na(brand)))
 
@@ -828,7 +856,7 @@ redcap_postinf <- redcap_postinf_request(2020) %>%
       select(record_id, pid, redcap_project_year),
     c("record_id", "redcap_project_year")
   ) %>%
-  select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance, -record_id) %>%
+  select(-redcap_repeat_instrument, -redcap_repeat_instance, -record_id) %>%
   rename(year = redcap_project_year) %>%
   mutate(postinf_instance = row_number())
 
@@ -884,8 +912,13 @@ check_no_rows(
 write_csv(postinf_bleed_dates, "data/postinf-bleed-dates.csv")
 
 postinf_comments <- redcap_postinf %>%
+  mutate(survey_week = if_else(
+    redcap_event_name == "infection_arm_1", 
+    NA_character_, 
+    str_replace(redcap_event_name, "^weekly_survey_(\\d+)_arm_1$", "\\1")
+  )) %>%
   filter(!is.na(ari_swab_notes)) %>%
-  select(pid, year, postinf_instance, ari_swab_notes)
+  select(pid, year, survey_week, postinf_instance, ari_swab_notes)
 
 write_csv(postinf_comments, "data/postinf-comments.csv")
 
