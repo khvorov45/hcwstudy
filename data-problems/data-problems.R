@@ -4,7 +4,7 @@ suppressPackageStartupMessages(library(tidyverse))
 # Check consent signatures
 # Check consent names
 # Check bleed dates go in ascending order
-# Check dob makes sense
+# Check dob/other baseline stuff makes sense
 # Check serology d7/d14 is only present for those with a vaccination record
 
 all_csv_files <- tools::list_files_with_exts("data-problems", "csv")
@@ -135,3 +135,16 @@ covid_vax %>%
 covid_vax %>%
 	filter(is.na(brand)) %>%
 	save_split("covid_vax_missing_brand")
+
+#
+# SECTION D14 serology and vaccination records
+#
+
+serology %>% 
+	filter(day == 14) %>% 
+	select(pid, year) %>% 
+	inner_join(participants %>% select(pid, site), "pid") %>%
+	distinct() %>% 
+	left_join(vaccinations %>% select(pid, year, status), c("pid", "year")) %>% 
+	filter(is.na(status)) %>%
+	save_split("bled_d14_no_vax_record")

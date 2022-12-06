@@ -1442,6 +1442,7 @@ type Data = {
 	covid_vax_dates_not_ascending: any[]
 	covid_vax_missing_dates: any[]
 	covid_vax_missing_brand: any[]
+	bled_d14_no_vax_record: any[]
 }
 
 type Pages = {
@@ -2033,6 +2034,7 @@ const createProblemsPage = (data: Data, onDatapageChange: (page: DataPageID) => 
 	)
 	DOM.addDivWithText(helpEl, "Covid vax missing dates: missing covid vaccination date")
 	DOM.addDivWithText(helpEl, "Covid vax missing brand: missing covid vaccination brand")
+	DOM.addDivWithText(helpEl, "Bled d14 no vax: We have a d14 titre but there is no vaccination record")
 
 	const tablesContainer = DOM.addDiv(container)
 	tablesContainer.style.display = "flex"
@@ -2239,6 +2241,22 @@ const createProblemsPage = (data: Data, onDatapageChange: (page: DataPageID) => 
 					brand: {},
 				},
 				title: "Covid vax missing brand",
+				getTableHeightInit: () => 500,
+			})
+		)
+	}
+
+	if (data.bled_d14_no_vax_record.length > 0) {
+		DOM.addEl(
+			tablesContainer,
+			Table.createTableFromAos({
+				aos: data.bled_d14_no_vax_record,
+				colSpecInit: {
+					pid: {},
+					year: {},
+					site: {},
+				},
+				title: "Bled d14 no vax",
 				getTableHeightInit: () => 500,
 			})
 		)
