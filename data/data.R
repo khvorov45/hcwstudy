@@ -192,7 +192,7 @@ check_no_rows(
 
 write_csv(sercovid, "data/serology-covid.csv")
 
-serlandscape_raw <- read_csv("data-raw/serology-landscapes/HI.csv", col_types = cols())
+serlandscape_raw <- read_csv("data-raw/serology-landscapes/HI.csv", col_types = cols(), guess_max = 1e5)
 
 serlandscape <- serlandscape_raw %>%
   select(pid = PID, year = Year, day = TP, virus_number = VirusN, titre = Titer)
@@ -214,6 +214,10 @@ landscape_viruses <- landscape_viruses_raw %>%
   select(virus_number = VirusN, virus = Virus_Name, virus_egg_cell, virus_year = Virus_Year)
 
 serlandscape_with_viruses <- serlandscape %>%
+  # NOTE(sen) Remove duplicates
+  group_by(pid, year, day, virus_number) %>%
+  filter(row_number() == 1) %>%
+  ungroup() %>%
   left_join(landscape_viruses, "virus_number")
 
 check_no_rows(serlandscape_with_viruses %>% filter(is.na(virus)), "landscape missing virus")

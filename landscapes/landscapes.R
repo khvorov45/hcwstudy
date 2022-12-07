@@ -1,13 +1,5 @@
 library(tidyverse)
 
-viruses <- serlandscape %>%
-    select(virus, virus_year, virus_number) %>%
-    distinct() %>%
-    arrange(virus_year) %>%
-    mutate(virus = factor(virus) %>% fct_reorder(virus_year)) %>%
-    arrange(virus) %>%
-    select(-virus_year)
-
 vac_hist <- read_csv("data/vaccinations.csv", col_types = cols())
 
 prior_vac_counts <- vac_hist %>%
@@ -19,11 +11,23 @@ prior_vac_counts <- vac_hist %>%
         prior2022 = sum(year >= 2017 & year < 2022 & (status == "Australia" | status == "Overseas")),
     )
 
-serlandscape <- read_csv("data/serology-landscapes.csv", col_types = cols()) %>%
+serlandscape_bare <- read_csv("data/serology-landscapes.csv", col_types = cols())
+
+viruses <- serlandscape_bare %>%
+    select(virus, virus_year, virus_number) %>%
+    distinct() %>%
+    arrange(virus_year) %>%
+    mutate(virus = factor(virus) %>% fct_reorder(virus_year)) %>%
+    arrange(virus) %>%
+    select(-virus_year)
+
+serlandscape <- serlandscape_bare %>%
     select(-virus) %>%
     left_join(viruses, "virus_number") %>%
     left_join(read_csv("data/participants.csv", col_types = cols()), "pid") %>%
     left_join(prior_vac_counts, "pid")
+
+
 
 colnames(serlandscape)
 
@@ -31,8 +35,6 @@ titre_max <- max(serlandscape$titre)
 
 unlink("landscapes/indiv-hi", recursive = TRUE)
 dir.create("landscapes/indiv-hi")
-
-serlandscape %>% group_by(pid, year) %>% group_split()
 
 indiv_plots <- serlandscape %>%
     # filter(pid == first(pid), year == first(year)) %>%
@@ -64,5 +66,5 @@ indiv_plots <- serlandscape %>%
 
 walk(indiv_plots, function(pl) {
     pidyear <- attr(pl, "pidyear")
-    ggsave(paste0("landscapes/indiv-hi/", pidyear, ".png"), pl, width = 17, height = 15, units = "cm")
+    ggsave(paste0("landscapes/indiv-hi/", pidyear, ".png"), pl, width = 22, height = 15, units = "cm")
 })
