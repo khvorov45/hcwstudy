@@ -1,0 +1,152 @@
+\documentclass[12pt]{article}
+
+\usepackage{float}
+
+\usepackage{standalone}
+
+%\usepackage[utf8x]{inputenc}
+
+%%% PAGE DIMENSIONS
+\usepackage{geometry}
+\geometry{a4paper}
+\geometry{margin=2.54cm} % for example, change the margins to 2 inches all round
+
+\usepackage{graphicx} % support the \includegraphics command and options
+
+\usepackage[parfill]{parskip} % Activate to begin paragraphs with an empty line rather than an indent
+
+%%% PACKAGES
+\usepackage{booktabs} % for much better looking tables
+\usepackage{array} % for better arrays (e.g., matrices) in maths
+\usepackage{paralist} % very flexible & customisable lists (e.g., enumerate/itemise, etc.)
+\usepackage{verbatim} % adds environment for commenting out blocks of text & for better verbatim
+\usepackage{subfig} % make it possible to include more than one captioned figure/table in a single float
+% These packages are all incorporated in the memoir class to one degree or another...
+
+\usepackage{multicol}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{amsmath}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+
+% Sans-serif font
+\renewcommand{\familydefault}{\sfdefault}
+
+\usepackage{makecell}
+
+\renewcommand{\arraystretch}{1.1}
+
+%%% HEADERS & FOOTERS
+\usepackage{fancyhdr} % This should be set AFTER setting up the page geometry
+\pagestyle{fancy} % options: empty , plain , fancy
+\fancyhead[L]{\leftmark}
+\fancyhead[C]{}
+\fancyhead[R]{\rightmark}
+\fancyfoot[L]{}
+\fancyfoot[C]{}
+\fancyfoot[R]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+\setlength{\headheight}{52pt}
+
+\fancypagestyle{plain}{
+	\fancyhf{} % clear all header and footer fields
+	\fancyfoot[R]{\thepage} % except the center
+	\renewcommand{\headrulewidth}{0pt}
+	\renewcommand{\footrulewidth}{0pt}
+}
+
+%%% BIBLIOGRAPHY
+\usepackage[numbers]{natbib}
+\bibliographystyle{vancouver}
+
+%%% SECTION TITLE APPEARANCE
+\usepackage{sectsty}
+\allsectionsfont{\sffamily\mdseries\upshape}
+
+%%% ToC (table of contents) APPEARANCE
+%\usepackage[nottoc,notlof,notlot]{tocbibind} % Put the bibliography in the ToC
+%\usepackage[titles,subfigure]{tocloft} % Alter the style of the Table of Contents
+%\renewcommand{\cftsecfont}{\rmfamily\mdseries\upshape}
+%\renewcommand{\cftsecpagefont}{\rmfamily\mdseries\upshape} % No bold!
+
+\usepackage[bookmarks,bookmarksnumbered,bookmarksopen,hidelinks]{hyperref}
+
+\usepackage{bookmark}
+
+% TITLE
+\title{NIH HCW Study}
+\author{Arseniy Khvorov}
+\begin{document}
+
+\maketitle
+
+\section{Data}
+
+The study runs over 4 years (2020 to 2023). 
+Participants are recruited every year.
+Participants are followed up until they drop out or the study ends.
+
+Participants are bled every year at before flu vaccination, 14 days after flu vaccination and at the end of the flu season (approximately 220 days after flu vaccination). 
+Some participants have an extra bleed 7 days post-vaccination.
+See Table \ref{tab:routine-bleed-counts} for counts of these routine bleeds over the study years. 
+See Figure \ref{fig:bleed-dates} for bleed dates.
+Note that not all "day 7/14/220 bleeds" are actually 7/14/220 days apart from vaccination (baseline bleed).
+I call them day 7/14/220 bleeds for convenience.
+See Figure X for the distribution of actual bleed intervals for every timepoint.
+
+\input{table-bleed-counts/routine-bleed-counts.tex}
+
+\begin{figure}
+	\includegraphics[width=\textwidth,height=\textheight,keepaspectratio]{figure-bleed-dates/figure-bleed-dates.pdf}
+	\caption{Bleed dates over the study years. Each row is an individual.}
+	\label{fig:bleed-dates}
+\end{figure}
+
+\begin{figure}
+	\includegraphics[width=\textwidth,height=\textheight,keepaspectratio]{figure-bleed-dates/figure-bleed-intervals.pdf}
+	\caption{Actual intervals for every timepoint.}
+	\label{fig:bleed-intervals}
+\end{figure}
+
+Participants are followed up for respiratory symptoms over the flu season and are bled after PCR-confirmed flu infections.
+See Table \ref{tab:infection-counts} for counts of all recorded infections and post-infection bleeds.
+See Figure \ref{fig:postinf-bleed-dates} for all recorded infections and associated bleed dates.
+
+\input{infection-dates-counts/table-infection-counts.tex}
+
+\begin{figure}
+	\includegraphics[width=\textwidth,height=\textheight,keepaspectratio]{infection-dates-counts/figure-infection-dates.pdf}
+	\caption{Dates of nasal swab collections that were positive for one of the viruses in the test panel. Also included are dates of post-infection bleeds. Each row is an individual.}
+	\label{fig:postinf-bleed-dates}
+\end{figure}
+
+Average titres split by vaccination status are in Figure \ref{fig:titre-averages-H1} (A H1), \ref{fig:titre-averages-H3} (A H3), \ref{fig:titre-averages-BVic} (B Victoria) and \ref{fig:titre-averages-BYam} (B Yamagata).
+
+\begin{figure}
+	\includegraphics[width=\textwidth,height=\textheight,keepaspectratio]{figure-titre/averages-H1.pdf}
+	\caption{A H1 titre averages.}
+	\label{fig:titre-averages-H1}
+\end{figure}
+
+\begin{figure}
+	\includegraphics[width=\textwidth,height=\textheight,keepaspectratio]{figure-titre/averages-H3.pdf}
+	\caption{A H3 titre averages.}
+	\label{fig:titre-averages-H3}
+\end{figure}
+
+\begin{figure}
+	\includegraphics[width=\textwidth,height=\textheight,keepaspectratio]{figure-titre/averages-BVic.pdf}
+	\caption{B Victoria titre averages.}
+	\label{fig:titre-averages-BVic}
+\end{figure}
+
+\begin{figure}
+	\includegraphics[width=\textwidth,height=\textheight,keepaspectratio]{figure-titre/averages-BYam.pdf}
+	\caption{B Yamagata titre averages.}
+	\label{fig:titre-averages-BYam}
+\end{figure}
+
+\end{document}

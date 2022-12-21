@@ -13,3 +13,8 @@ info.txt
 reports-app/frontend/frontend.js
 *jpg
 temp*
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.synctex.gz
