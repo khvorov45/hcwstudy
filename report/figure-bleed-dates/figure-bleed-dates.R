@@ -36,6 +36,14 @@ bleed_intervals %>%
     group_by(site) %>%
     group_walk(~print(.x, n = 100))
 
+all_dates %>%
+    filter(year == 2021, day == "0") %>%
+    mutate(month = lubridate::month(date)) %>%
+    arrange(desc(month))
+
+all_dates %>%
+    filter(pid == "WCH-820")
+
 bleed_dates_plots <- all_dates %>%
     left_join(bleed_intervals, c("pid", "year")) %>%
     group_by(year) %>%

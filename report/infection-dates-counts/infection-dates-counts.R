@@ -128,7 +128,7 @@ all_dates_with_total_year %>%
     kbl(
         format = "latex",
         caption = "Counts of positive swabs (with their test result) and post-infection bleeds.
-        If a swab had two (or more) positive results it does not count twice but instead its
+        If a swab had two (or more) positive results it does not count multiple times but instead its
         results are merged and comma-separated (e.g., \"Parainfluenza, Piconavirus\")",
         booktabs = TRUE,
         label = "infection-counts",
