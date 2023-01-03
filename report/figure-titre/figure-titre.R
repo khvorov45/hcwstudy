@@ -81,8 +81,8 @@ plots_averages <- serology_averages %>%
             facet_grid(year ~ virus_egg_cell) +
             scale_y_log10("Titre", breaks = 5 * 2^(0:20), expand = expansion(0.1, 0)) +
             scale_x_continuous("Day", breaks = c(0, 14, 50), labels = c(0, 14, 220), expand = expansion(0.1, 0)) +
-            scale_color_manual("Prior vaccinations in study year", values = viridis::viridis_pal(option = "A", end = 0.8)(6)) +
-            scale_shape_manual("Prior vaccinations in study year", values = c(8, 19, 17, 15, 18, 4)) +
+            scale_color_manual("Known prior vaccinations in study year", values = viridis::viridis_pal(option = "A", end = 0.8)(6)) +
+            scale_shape_manual("Known prior vaccinations in study year", values = c(8, 19, 17, 15, 18, 4)) +
             coord_cartesian(ylim = serology_averages_ylims) +
             geom_line() +
             geom_point() + 
