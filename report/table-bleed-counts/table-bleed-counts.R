@@ -43,7 +43,7 @@ serology %>%
     pivot_wider(names_from = "prior_study_year", values_from = "n", values_fill = 0) %>%
     kbl(
         format = "latex",
-        caption = "Counts of bleeds for each timepoint (day post-vaccination) 
+        caption = "Counts of bleeds with measured antibody titres for each timepoint (day post-vaccination) 
         over the study years for different prior vaccination groups.",
         booktabs = TRUE,
         label = "routine-bleed-counts"
