@@ -174,11 +174,11 @@ sercovid_raw <- read_csv("data-raw/serology-covid/sVNTresultsLong.csv", col_type
 sercovid <- sercovid_raw %>% 
   mutate(date = lubridate::parse_date_time(SampleDate, "%m%d%y %H%M%S") %>% as.Date()) %>%
   # TODO(sen) Should duplicate removal be any different?
-  mutate(score = as.integer(Comment == "repeat") %>% replace_na(0)) %>%
+  mutate(score = as.integer(Comment == "repeat") %>% replace_na(0), day = replace_na(Day, 0)) %>%
   group_by(PID, date) %>%
   filter(score == max(score)) %>%
   ungroup() %>%
-  select(pid = PID, ic50 = IC50, date, vax_inf = VaxInf)
+  select(pid = PID, ic50 = IC50, date, vax_inf = VaxInf, day)
 
 check_no_rows(
   sercovid %>% filter(!pid %in% serology_all_tables_fix_pids$pid),

@@ -16,7 +16,7 @@ prior_vac_counts <- vac_hist %>%
 
 serology %>% filter(pid %in% paste0("QCH-06", 5:9), year == 2020) %>% select(pid, year, day) %>% distinct()
 serology %>% filter(pid %in% paste0("QCH-07", 0:1), year == 2020) %>% select(pid, year, day) %>% distinct()
-lubridate::dmy("07-05-2020") + 220
+
 serology %>% 
     filter(pid == "QCH-071", year == 2020, day %in% c(0, 14)) %>%
     pivot_wider(names_from = "day", values_from = "titre")
@@ -43,7 +43,7 @@ serology %>%
     pivot_wider(names_from = "prior_study_year", values_from = "n", values_fill = 0) %>%
     kbl(
         format = "latex",
-        caption = "Counts of bleeds with measured antibody titres for each timepoint (day post-vaccination) 
+        caption = "Counts of antibody titres for each timepoint (day post-vaccination) 
         over the study years for different prior vaccination groups.",
         booktabs = TRUE,
         label = "routine-bleed-counts"
@@ -52,3 +52,22 @@ serology %>%
     column_spec(3:8, width = "1cm") %>%
     collapse_rows(columns = 1, latex_hline = "major") %>%
     write("report/table-bleed-counts/routine-bleed-counts.tex")
+
+covid_serology <- read_csv("data/serology-covid.csv", col_types = cols())
+
+covid_serology %>%
+    mutate(day_cat = case_when(
+        vax_inf == "I" ~ paste0("Post-infection day ", day),
+        day >= 30 ~ paste0("Post-vaccination day 30+"),
+        TRUE ~ paste0("Post-vaccination day ", day),
+    )) %>%
+    count(day_cat) %>%
+    rename(`Day` = day_cat, Count = n) %>%
+    kbl(
+        format = "latex",
+        caption = "Counts of covid antibody titres.",
+        booktabs = TRUE,
+        label = "bleed-counts-covid",
+        linesep = c("", "", "\\addlinespace", "", "" ,"" ,"")
+    ) %>%
+    write("report/table-bleed-counts/routine-bleed-counts-covid.tex")
