@@ -75,11 +75,38 @@ withdrawn2022 <- redcap_withdrawal_request(2022) %>% filter(withdrawn == 1)
 #
 
 redcap_consent_request <- function(project_year) {
+  names <- c(
+    "record_id",
+    "consent",
+    "consent_date",
+    "add_bleed",
+    "consent_future_use",
+  
+    "study_group_vacc",
+    "firstname_vacc",
+    "surname_vacc",
+    "econsent_date_vacc",
+    "econsent_future_vacc",
+    "esignature_vacc",
+    "sitestaff_name",
+    "sitestaff_signature",
+    "date_site_sign_v",
+
+    "consent_unvacc",
+    "firstname_unvacc",
+    "surname_unvacc",
+    "econsent_date_unvacc",
+    "econsent_future_unvacc",
+    "esignature_unvacc",
+    "sitestaff_name_uv",
+    "sitestaff_signature_uv",
+    "date_site_sign_uv"
+  )
   redcap_request(
     project_year,
     "baseline_arm_1",
-    "record_id,consent,add_bleed,consent_unvacc,study_group_vacc,econsent_date_vacc,econsent_date_unvacc,consent_date",
     exportDataAccessGroups = "true",
+    paste0(names, collapse = ","),
     rawOrLabel = "raw"
   )
 }
@@ -103,7 +130,7 @@ active2022 <- consent2022 %>%
   filter(consent == 1 | !is.na(study_group_vacc) | consent_unvacc == 1) %>%
   filter(!record_id %in% withdrawn2022$record_id)
 
-# redcap_upload_spoonfed(20, 2023, "baseline_arm_1", active2023)
+redcap_upload_spoonfed(20, 2023, "baseline_arm_1", active2022)
 
 data_access_groups2021 <- consent2021 %>%
   select(record_id, redcap_data_access_group) %>%
@@ -150,20 +177,16 @@ process_pid <- function(data) {
         main_vacc == 1 ~ 1,
         main_unvacc == 1 ~ 2,
       ),
-      recruit_year = replace_na(recruit_year, 2021)
+      recruit_year = replace_na(recruit_year, 2022)
     ) %>%
     select(record_id, pid, recruit_year, studygroup_y1, studygroup_y2, studygroup_y3)
 }
-
-pid2022_active <- pid2022 %>%
-  filter(record_id %in% active2022$record_id) %>%
-  process_pid()
 
 # NOTE(sen) Should be empty
 pid2022_active %>% filter(is.na(studygroup_y3))
 pid2022_active %>% filter(is.na(recruit_year))
 
-# redcap_upload_spoonfed(20, 2023, "baseline_arm_1", pid2022_active)
+redcap_upload_spoonfed(20, 2023, "baseline_arm_1", pid2022_active)
 
 # redcap_upload(
 #   2022, "baseline_arm_1", 
