@@ -170,15 +170,34 @@ check_no_rows(
 write_csv(serology_all_tables_fix_pids %>% select(-path), "data/serology.csv")
 
 sercovid_raw <- read_csv("data-raw/serology-covid/sVNTresultsLong.csv", col_types = cols())
+sercovid_v220_raw <- read_csv("data-raw/serology-covid/sVNT_V220_2021.csv", col_types = cols())
+
+sercovid_v220_raw %>% 
+  mutate(timepoint_id = str_replace(Sample_ID, "^[[:alpha:]]{3}-\\d{3}\\s*-", "")) %>%
+  count(timepoint_id) %>%
+  print(n = 100)
+
+sercovid_raw %>% count(TP, Day)
 
 sercovid <- sercovid_raw %>% 
-  mutate(date = lubridate::parse_date_time(SampleDate, "%m%d%y %H%M%S") %>% as.Date()) %>%
-  # TODO(sen) Should duplicate removal be any different?
-  mutate(score = as.integer(Comment == "repeat") %>% replace_na(0), day = replace_na(Day, 0)) %>%
-  group_by(PID, date) %>%
+  bind_rows(sercovid_v220_raw) %>%
+  mutate(
+    pid = str_replace(Sample_ID, "^([[:alpha:]]{3}-\\d{3}).*$", "\\1"),
+    timepoint_id = str_replace(Sample_ID, "^[[:alpha:]]{3}-\\d{3}\\s*-", ""),
+    vax_inf = if_else(str_starts(timepoint_id, "I"), "I", "V"),
+    bleed_flu_covid = if_else(str_starts(timepoint_id, "C") | str_starts(timepoint_id, "I"), "C", "F"),
+    bleed_year = str_replace(timepoint_id, "^.*-(\\d{4})$", "\\1"),
+    bleed_year = suppressWarnings(as.integer(bleed_year)) %>% replace_na(2021),
+    bleed_day_id = str_replace(timepoint_id, "^C?[VI](\\d+).*$", "\\1") %>% as.integer(),
+    bleed_day_id = if_else(str_detect(TP, "^pre"), 0L, bleed_day_id),
+  ) %>%
+  mutate(score = as.integer(str_detect(tolower(TP), "r$") | TP == "EndSeason" | (pid == "QCH-069" & TP == "post1")) %>% replace_na(0)) %>%
+  group_by(pid, bleed_flu_covid, bleed_day_id, bleed_year, vax_inf) %>%
   filter(score == max(score)) %>%
   ungroup() %>%
-  select(pid = PID, ic50 = IC50, date, vax_inf = VaxInf, day)
+  arrange(pid) %>%
+  select(Sample_ID, TP, pid, IC50, Comment, vax_inf, bleed_flu_covid, bleed_year, bleed_day_id) %>%
+  select(pid, ic50 = IC50, vax_inf, bleed_flu_covid, bleed_year, bleed_day_id)
 
 check_no_rows(
   sercovid %>% filter(!pid %in% serology_all_tables_fix_pids$pid),
@@ -186,7 +205,7 @@ check_no_rows(
 )
 
 check_no_rows(
-  sercovid %>% group_by(pid, date) %>% filter(n() > 1) %>% arrange(pid, date),
+  sercovid %>% group_by(pid, vax_inf, bleed_year, bleed_day_id, bleed_flu_covid) %>% filter(n() > 1) %>% arrange(pid),
   "covid serology duplicates"
 )
 
