@@ -14,6 +14,7 @@ prior_vac_counts <- vac_hist %>%
 
 # TODO(sen) Exclude bleeds that don't make sense (e.g., baseline after vaccination)?
 serology <- read_csv("data/serology.csv", col_types = cols()) %>%
+    filter(vax_inf == "V") %>%
     left_join(prior_vac_counts, "pid") %>%
     mutate(
         prior_study_year = case_when(

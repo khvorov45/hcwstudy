@@ -21,3 +21,6 @@ mdb-schema "data-raw/serology-landscapes/NIHHCW FLU Landscapes.accdb" |
 grep -oP "CREATE TABLE \[\K.+(?=\])" |
 # Export each table into its own file under NIGGCWserol folder
 while read line ; do mdb-export "data-raw/serology-landscapes/NIHHCW FLU Landscapes.accdb" "$line" > "data-raw/serology-landscapes/$line.csv" ; done
+
+cp "/home/khvorova/vidrlwhoflu/Group/AF_LC_RT_share/NIH Aust HCW Study/2022 Y3 Serology/InDevr Data/V72 H1 egg/Y3_2023_H1_egg_all.xlsx" \
+    "data-raw/serology/Y3_2023_H1_egg_all.xlsx"

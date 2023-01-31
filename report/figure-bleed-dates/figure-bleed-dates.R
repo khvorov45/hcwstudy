@@ -41,11 +41,8 @@ all_dates %>%
     mutate(month = lubridate::month(date)) %>%
     arrange(desc(month))
 
-all_dates %>%
-    filter(pid == "WCH-820")
-
 bleed_dates_plots <- all_dates %>%
-    left_join(bleed_intervals, c("pid", "year")) %>%
+    left_join(bleed_intervals, c("pid", "year", "site")) %>%
     group_by(year) %>%
     group_split() %>%
     map(function(data) {
@@ -54,7 +51,7 @@ bleed_dates_plots <- all_dates %>%
         date_max <- lubridate::ymd(glue::glue("{this_year + 1}-01-01"))
         pl <- data %>%
             mutate(
-                pid = fct_reorder(pid, `0`, .desc = TRUE),
+                pid = fct_reorder(fct_drop(pid), replace_na(as.integer(`0`), 0), .desc = TRUE),
             ) %>%
             ggplot(aes(date, pid, color = day, shape = day)) +
             theme_bw() +

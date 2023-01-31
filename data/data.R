@@ -56,26 +56,38 @@ quick_summary <- function(data) {
 # system("data-raw/export-NIHHCWserol.sh")
 
 serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[01]_", full.names = TRUE) %>%
+  c("data-raw/serology/Y3_2023_H1_egg_all.xlsx") %>%
   map_dfr(function(path) {
-    tbl <- read_csv(path, col_types = cols(), guess_max = 1e5)
+    tbl <- NULL
+    if (str_ends(path, "xlsx")) {
+      tbl <- readxl::read_excel(path, "2023-01-23_HCW_Y3_H1N1_egg", guess_max = 1e5) %>%
+        mutate(Designation = "A/Victoria/2570/2019e")
+    } else {
+      tbl <- read_csv(path, col_types = cols(), guess_max = 1e5)
+    }
     tblcols <- colnames(tbl)
     virus_col_name <- tblcols[str_detect(tblcols, "Designation")]
     stopifnot(length(virus_col_name) == 1)
-    time_col_name <- tblcols[tblcols %in% c("Time", "TimeN", "Timepoint", "timeN")][[1]]
+    time_col_name <- tblcols[tblcols %in% c("Time", "TimeN", "Timepoint", "timeN", "Visit", "VisitN")][[1]]
     stopifnot(length(time_col_name) == 1)
-    year <- str_replace(path, ".*HI_.*_(202[01])_.*", "\\1") %>% as.integer()
+    year <- 2022
+    if (str_starts(basename(path), "HI")) {
+      year <- str_replace(path, ".*HI_.*_(202[01])_.*", "\\1") %>% as.integer()
+    }
     if (str_ends(path, "sera.csv")) {
       year <- str_replace(path, ".*_(202[01])sera\\.csv$", "\\1") %>% as.integer()
     }
     tbl %>%
       mutate(
         year = year,
-        day = str_replace(!!rlang::sym(time_col_name), "V|v", "") %>% as.integer(),
+        vax_inf = str_trunc(!!rlang::sym(time_col_name), 1, ellipsis = "") %>% toupper() %>% replace_na("V"),
+        vax_inf = if_else(vax_inf %in% c("V", "I"), vax_inf, "V"),
+        day = str_replace(!!rlang::sym(time_col_name), "^[VvIi]", "") %>% as.integer(),
         path = path
       ) %>%
       select(
         pid = PID, year, day, virus = !!rlang::sym(virus_col_name),
-        titre = Titer, path
+        titre = Titer, path, vax_inf
       ) %>%
       # NOTE(sen) The whole point is to have a titre measurement, no titre -
       # don't insert into the table at all
@@ -125,7 +137,6 @@ serology_all_tables_fix_viruses <- serology_all_tables_fix_day %>%
       str_detect(path, "Yam") ~ "BYam",
       str_detect(path, "Vic") ~ "BVic",
     ),
-
     virus_egg_cell = if_else(str_detect(virus, "e$"), "egg", "cell")
   )
 
@@ -152,7 +163,7 @@ serology_all_tables_fix_pids <- serology_all_tables_fix_viruses %>%
     "QCH-42-" = "QCH-042", "QCH-47-" = "QCH-047",
     "WCH-26" = "WCH-026", "WCH-26_" = "WCH-026", "WCH-26-" = "WCH-026",
     "WCH-28" = "WCH-028", "WCH-28_" = "WCH-028", "WCH-28-" = "WCH-028",
-    "ALF-092" = "ALF-819",
+    "ALF-092" = "ALF-819", "JHH-304" = "JHH-820", "JHH-826" = "JHH-297", "JHH-830" = "JHH-082"
   ))
 
 check_no_rows(serology_all_tables_fix_pids %>% filter(pid == "WCH-025"), "WCH-025")
@@ -161,9 +172,9 @@ check_no_rows(serology_all_tables_fix_pids %>% filter(!complete.cases(.)), "sero
 
 check_no_rows(
   serology_all_tables_fix_pids %>%
-    group_by(pid, year, day, virus) %>%
+    group_by(pid, year, day, virus, vax_inf) %>%
     filter(n() > 1) %>%
-    arrange(pid, year, day, virus),
+    arrange(pid, year, day, virus, vax_inf),
   "serology duplicates"
 )
 
@@ -171,13 +182,6 @@ write_csv(serology_all_tables_fix_pids %>% select(-path), "data/serology.csv")
 
 sercovid_raw <- read_csv("data-raw/serology-covid/sVNTresultsLong.csv", col_types = cols())
 sercovid_v220_raw <- read_csv("data-raw/serology-covid/sVNT_V220_2021.csv", col_types = cols())
-
-sercovid_v220_raw %>% 
-  mutate(timepoint_id = str_replace(Sample_ID, "^[[:alpha:]]{3}-\\d{3}\\s*-", "")) %>%
-  count(timepoint_id) %>%
-  print(n = 100)
-
-sercovid_raw %>% count(TP, Day)
 
 sercovid <- sercovid_raw %>% 
   bind_rows(sercovid_v220_raw) %>%
