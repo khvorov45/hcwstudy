@@ -101,3 +101,41 @@ walk(plots_averages, function(plot) {
     subtype <- attr(plot, "subtype")
     ggsave(glue::glue("report/figure-titre/averages-{subtype}.pdf"), plot, width = 15, height = 15, units = "cm")
 })
+
+covid_vax <- read_csv("data/covid-vax.csv", col_types = cols())
+
+covid_serology <- read_csv("data/serology-covid.csv", col_types = cols()) %>%
+    filter(vax_inf == "V") %>%
+    left_join(covid_vax %>% filter(dose == 2) %>% select(pid, dose2_brand = brand), "pid")
+
+covid_serology %>%
+    count(bleed_day_id, dose2_brand)
+
+covid_serology_means <- covid_serology %>%
+    group_by(bleed_day_id, dose2_brand) %>%
+    summarise(.groups = "drop", summarise_logmean(ic50))
+
+covid_serology_plot <- covid_serology %>%
+    filter(bleed_day_id %in% c(0, 14)) %>%
+    mutate(
+        xpos = bleed_day_id + runif(n(), -1, 1) * 0.6
+    ) %>%
+    ggplot(aes(xpos, ic50)) +
+    theme_bw() +
+    theme(
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 25, hjust = 1),
+        strip.background = element_blank(),
+        panel.grid.minor = element_blank(),
+    ) +
+    facet_wrap(~dose2_brand) +
+    scale_x_continuous("Day", breaks = c(0, 14), labels = c("Pre dose 1", "14 days post dose 2"), expand = expansion(0, 4)) +
+    scale_y_log10("IC50") +
+    geom_line(aes(group = pid), alpha = 0.1) +
+    geom_point(shape = 18, alpha = 0.2) +
+    geom_boxplot(aes(x = bleed_day_id, group = paste0(dose2_brand, bleed_day_id)), outlier.alpha = 0, fill = NA, color = "yellow", size = 1.5, width = 2) +
+    geom_boxplot(aes(x = bleed_day_id, group = paste0(dose2_brand, bleed_day_id)), outlier.alpha = 0, fill = NA, color = "blue", size = 0.5, width = 2) +
+    geom_pointrange(aes(bleed_day_id, mean, ymin = low, ymax = high), data = covid_serology_means %>% filter(bleed_day_id %in% c(0, 14)), color = "#ff69b4") +
+    geom_line(aes(bleed_day_id, mean), data = covid_serology_means %>% filter(bleed_day_id %in% c(0, 14)), color = "#ff69b4")
+
+ggsave("report/figure-titre/covid-vax-titres.pdf", covid_serology_plot, width = 15, height = 10, units = "cm")
