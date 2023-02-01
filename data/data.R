@@ -215,6 +215,20 @@ check_no_rows(
 
 write_csv(sercovid, "data/serology-covid.csv")
 
+seradeno_raw <- read_csv("data-raw/serology-covid/Ad5_hexon_ELISA.csv", col_types = cols())
+
+seradeno <- seradeno_raw %>%
+  mutate(
+    pid = str_replace(Sample_ID, "^([[:alpha:]]{3}-\\d{3}).*$", "\\1"),
+    timepoint_id = str_replace(Sample_ID, "^[[:alpha:]]{3}-\\d{3}\\s*-", ""),
+    bleed_flu_covid = str_sub(timepoint_id, 1, 1) %>% recode("V" = "F"),
+    bleed_year = str_replace(timepoint_id, "^.*(\\d{4})$", "\\1") %>% as.integer(),
+  ) %>%
+  select(pid, bleed_flu_covid, bleed_year, bleed_day_id = Visit, ic50 = Ad5AbEC50) %>%
+  filter(!is.na(ic50))
+
+write_csv(seradeno, "data/serology-adenovirus.csv")
+
 serlandscape_raw <- read_csv("data-raw/serology-landscapes/HI.csv", col_types = cols(), guess_max = 1e5)
 
 serlandscape <- serlandscape_raw %>%

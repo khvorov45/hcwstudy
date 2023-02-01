@@ -115,11 +115,29 @@ covid_serology_means <- covid_serology %>%
     group_by(bleed_day_id, dose2_brand) %>%
     summarise(.groups = "drop", summarise_logmean(ic50))
 
-covid_serology_plot <- covid_serology %>%
+seradeno <- read_csv("data/serology-adenovirus.csv", col_types = cols()) %>%
+    left_join(covid_vax %>% filter(dose == 2) %>% select(pid, dose2_brand = brand), "pid")
+
+covid_serology %>%
     filter(bleed_day_id %in% c(0, 14)) %>%
-    mutate(
-        xpos = bleed_day_id + runif(n(), -1, 1) * 0.6
-    ) %>%
+    group_by(pid, )
+
+covid_and_adeno <- covid_serology %>%
+    filter(bleed_day_id %in% c(0, 14)) %>%
+    group_by(pid, bleed_day_id, dose2_brand) %>%
+    filter(n() == 1 | bleed_flu_covid == "C") %>%
+    ungroup() %>%
+    mutate(titre_type = "SARS-CoV-2") %>%
+    select(pid, ic50, bleed_day_id, dose2_brand, titre_type) %>%
+    bind_rows(seradeno %>% select(pid, ic50, bleed_day_id, dose2_brand) %>% mutate(titre_type = "Adenovirus")) %>%
+    mutate(titre_type = factor(titre_type, c("SARS-CoV-2", "Adenovirus")),)
+
+covid_and_adeno_means <- covid_and_adeno %>%
+    group_by(titre_type, dose2_brand, bleed_day_id) %>%
+    summarise(.groups = "drop", summarise_logmean(ic50))
+
+covid_serology_plot <- covid_and_adeno %>%
+    mutate(xpos = bleed_day_id + runif(n(), -1, 1) * 0.6) %>%
     ggplot(aes(xpos, ic50)) +
     theme_bw() +
     theme(
@@ -127,15 +145,54 @@ covid_serology_plot <- covid_serology %>%
         axis.text.x = element_text(angle = 25, hjust = 1),
         strip.background = element_blank(),
         panel.grid.minor = element_blank(),
+        panel.spacing = unit(0, "null"),
     ) +
-    facet_wrap(~dose2_brand) +
+    facet_grid(titre_type~dose2_brand, scales = "free_y") +
     scale_x_continuous("Day", breaks = c(0, 14), labels = c("Pre dose 1", "14 days post dose 2"), expand = expansion(0, 4)) +
     scale_y_log10("IC50") +
     geom_line(aes(group = pid), alpha = 0.1) +
     geom_point(shape = 18, alpha = 0.2) +
-    geom_boxplot(aes(x = bleed_day_id, group = paste0(dose2_brand, bleed_day_id)), outlier.alpha = 0, fill = NA, color = "yellow", size = 1.5, width = 2) +
-    geom_boxplot(aes(x = bleed_day_id, group = paste0(dose2_brand, bleed_day_id)), outlier.alpha = 0, fill = NA, color = "blue", size = 0.5, width = 2) +
-    geom_pointrange(aes(bleed_day_id, mean, ymin = low, ymax = high), data = covid_serology_means %>% filter(bleed_day_id %in% c(0, 14)), color = "#ff69b4") +
-    geom_line(aes(bleed_day_id, mean), data = covid_serology_means %>% filter(bleed_day_id %in% c(0, 14)), color = "#ff69b4")
+    geom_boxplot(aes(x = bleed_day_id, group = paste0(titre_type, dose2_brand, bleed_day_id)), outlier.alpha = 0, fill = NA, color = "yellow", size = 1.5, width = 2) +
+    geom_boxplot(aes(x = bleed_day_id, group = paste0(titre_type, dose2_brand, bleed_day_id)), outlier.alpha = 0, fill = NA, color = "blue", size = 0.5, width = 2) +
+    geom_pointrange(aes(bleed_day_id, mean, ymin = low, ymax = high), data = covid_and_adeno_means, color = "#ff69b4") +
+    geom_line(aes(bleed_day_id, mean), data = covid_and_adeno_means, color = "#ff69b4")
 
-ggsave("report/figure-titre/covid-vax-titres.pdf", covid_serology_plot, width = 15, height = 10, units = "cm")
+ggsave("report/figure-titre/covid-vax-titres.pdf", covid_serology_plot, width = 15, height = 15, units = "cm")
+
+covid_and_adeno_ratios <- covid_and_adeno %>%
+    pivot_wider(names_from = "bleed_day_id", values_from = "ic50") %>%
+    mutate(ratio = `14` / `0`)
+
+covid_and_adeno_corr_plot_common <- list(
+    geom_point(shape = 18, alpha = 0.5),
+    theme_bw(),
+    theme(
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        panel.spacing = unit(0, "null"),
+    )
+)
+
+covid_and_adeno_corr_adeno_ratio <- covid_and_adeno_ratios %>%
+    select(-`0`, -`14`) %>%
+    pivot_wider(names_from = "titre_type", values_from = "ratio") %>%
+    filter(!is.na(`SARS-CoV-2`), !is.na(Adenovirus)) %>%
+    ggplot(aes(Adenovirus, `SARS-CoV-2`)) +
+    facet_wrap(~dose2_brand) +
+    scale_x_log10("Adenovirus post/pre vaccination ratio") +
+    scale_y_log10("SARS-CoV-2 post/pre vaccination ratio") +
+    covid_and_adeno_corr_plot_common
+
+covid_and_adeno_corr_adeno0 <- covid_and_adeno_ratios %>%
+    select(-`0`, -`14`) %>%
+    filter(titre_type == "SARS-CoV-2") %>%
+    left_join(covid_and_adeno %>% filter(bleed_day_id == 0, titre_type == "Adenovirus") %>% select(pid, adeno0 = ic50), "pid") %>%
+    filter(!is.na(ratio), !is.na(adeno0)) %>%
+    ggplot(aes(adeno0, ratio)) +
+    facet_wrap(~dose2_brand) +
+    scale_x_log10("Adenovirus pre dose 1") +
+    scale_y_log10("SARS-CoV-2 post/pre vaccination ratio") +
+    covid_and_adeno_corr_plot_common
+
+covid_and_adeno_corr_plot <- ggpubr::ggarrange(covid_and_adeno_corr_adeno_ratio, covid_and_adeno_corr_adeno0, ncol = 1)
+ggsave("report/figure-titre/covid-adeno-corr.pdf", covid_and_adeno_corr_plot, width = 15, height = 15, units = "cm")

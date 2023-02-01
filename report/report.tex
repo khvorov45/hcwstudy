@@ -156,7 +156,7 @@ Average titres for day 0, 14 and 220 against vaccine strain viruses split by vac
 Some participants had blood samples collected before and after covid vaccination (usually second dose). Some participants had blood samples collected after a covid infection.
 See Table \ref{tab:bleed-counts-covid} for counts of covid antibody measurements.
 See Figure \ref{fig:covid-vax-bleed-dates} for covid vaccination and post-vaccination bleed dates.
-See Figure \ref{fig:covid-vax-titres} for covid pre/post vaccination serology.
+See Figure \ref{fig:covid-vax-titres} for covid (and adenovirus) pre/post vaccination serology and Figure \ref{fig:covid-adeno-corr} for the correlation of covid responses and adenovirus serology.
 
 \input{table-bleed-counts/routine-bleed-counts-covid.tex}
 
@@ -168,8 +168,14 @@ See Figure \ref{fig:covid-vax-titres} for covid pre/post vaccination serology.
 
 \begin{figure}
 	\includegraphics[width=\textwidth,height=\textheight,keepaspectratio]{figure-titre/covid-vax-titres.pdf}
-	\caption{Covid pre/post vaccination serology.}
+	\caption{Covid and adenovirus pre/post covid vaccination serology split by brand of the second dose.}
 	\label{fig:covid-vax-titres}
+\end{figure}
+
+\begin{figure}
+	\includegraphics[width=\textwidth,height=\textheight,keepaspectratio]{figure-titre/covid-adeno-corr.pdf}
+	\caption{SARS-CoV-2 responses (IC50 ratios between day 14 post dose 2 and pre dose 1) against adenovirus responses and pre-vaccination adenovirus IC50.}
+	\label{fig:covid-adeno-corr}
 \end{figure}
 
 \end{document}
