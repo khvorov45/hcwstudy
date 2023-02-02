@@ -56,12 +56,17 @@ quick_summary <- function(data) {
 # system("data-raw/export-NIHHCWserol.sh")
 
 serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[01]_", full.names = TRUE) %>%
-  c("data-raw/serology/Y3_2023_H1_egg_all.xlsx") %>%
+  c("data-raw/serology/Y3_2023_H1_egg_all.xlsx", "data-raw/serology/BVic_egg_2022_all.xlsx") %>%
   map_dfr(function(path) {
     tbl <- NULL
     if (str_ends(path, "xlsx")) {
-      tbl <- readxl::read_excel(path, "2023-01-23_HCW_Y3_H1N1_egg", guess_max = 1e5) %>%
-        mutate(Designation = "A/Victoria/2570/2019e")
+      if (str_ends(path, "Y3_2023_H1_egg_all.xlsx")) {
+        tbl <- readxl::read_excel(path, "2023-01-23_HCW_Y3_H1N1_egg", guess_max = 1e5) %>%
+          mutate(Designation = "A/Victoria/2570/2019e")
+      } else if (str_ends(path, "BVic_egg_2022_all.xlsx")) {
+        tbl <- readxl::read_excel(path, guess_max = 1e5) %>%
+          mutate(Designation = "B/Austria/1359417/2021e")
+      }
     } else {
       tbl <- read_csv(path, col_types = cols(), guess_max = 1e5)
     }
