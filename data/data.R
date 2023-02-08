@@ -55,9 +55,10 @@ quick_summary <- function(data) {
 # system("data-raw/pull-NIHHCWserol.sh")
 # system("data-raw/export-NIHHCWserol.sh")
 
-serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[01]_", full.names = TRUE) %>%
+serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[012]_", full.names = TRUE) %>%
   c("data-raw/serology/Y3_2023_H1_egg_all.xlsx", "data-raw/serology/BVic_egg_2022_all.xlsx") %>%
   map_dfr(function(path) {
+
     tbl <- NULL
     if (str_ends(path, "xlsx")) {
       if (str_ends(path, "Y3_2023_H1_egg_all.xlsx")) {
@@ -70,6 +71,11 @@ serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[01]_
     } else {
       tbl <- read_csv(path, col_types = cols(), guess_max = 1e5)
     }
+
+    if (str_ends(path, "HI_H3N2egg_2022_V73.csv")) {
+      tbl <- mutate(tbl, Designation = "A/Darwin/9/2021e")
+    }
+
     tblcols <- colnames(tbl)
     virus_col_name <- tblcols[str_detect(tblcols, "Designation")]
     stopifnot(length(virus_col_name) == 1)
@@ -77,11 +83,16 @@ serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[01]_
     stopifnot(length(time_col_name) == 1)
     year <- 2022
     if (str_starts(basename(path), "HI")) {
-      year <- str_replace(path, ".*HI_.*_(202[01])_.*", "\\1") %>% as.integer()
+      year <- str_replace(path, ".*HI_.*_(202[012])_.*", "\\1") %>% as.integer()
     }
     if (str_ends(path, "sera.csv")) {
-      year <- str_replace(path, ".*_(202[01])sera\\.csv$", "\\1") %>% as.integer()
+      year <- str_replace(path, ".*_(202[012])sera\\.csv$", "\\1") %>% as.integer()
     }
+
+    if (is.character(tbl$Titer)) {
+      tbl <- mutate(tbl, Titer = str_replace(Titer, "<", "") %>% str_trim() %>% as.integer())
+    }
+
     tbl %>%
       mutate(
         year = year,
@@ -103,7 +114,7 @@ check_no_rows(serology_all_tables %>% filter(is.na(day)), "serology missing day"
 
 # TODO(sen) Let's assume JHH-018's titres are all at V0 (they are missing day).
 # Check what's up here
-serology_all_tables_fix_day <- serology_all_tables %>% 
+serology_all_tables_fix_day <- serology_all_tables %>%
   mutate(day = if_else(pid == "JHH-018", 0L, day))
 
 # NOTE(sen) Fix virus names
@@ -160,7 +171,7 @@ check_virus_fix <- function(serology_data) {
 check_virus_fix(serology_all_tables_fix_viruses)
 check_empty_set(sort(unique(serology_all_tables_fix_viruses$virus)) %>% .[!str_detect(., "\\d{4}e?")], "virus names dont end on 4 digits and optional e")
 
-serology_all_tables_fix_pids <- serology_all_tables_fix_viruses %>% 
+serology_all_tables_fix_pids <- serology_all_tables_fix_viruses %>%
   # NOTE(sen) WCH-025 became WCH-818 and we have V0 WCH-818 data
   filter(pid != "WCH-025") %>%
   mutate(pid = recode(
@@ -183,12 +194,20 @@ check_no_rows(
   "serology duplicates"
 )
 
-write_csv(serology_all_tables_fix_pids %>% select(-path), "data/serology.csv")
+write_csv(
+  serology_all_tables_fix_pids %>%
+    select(-path) %>%
+    # TODO(sen) Presumably this deduplication will be unnecessary eventually
+    group_by(pid, year, day, virus, vax_inf) %>%
+    filter(row_number() == max(row_number())) %>%
+    ungroup(),
+  "data/serology.csv"
+)
 
 sercovid_raw <- read_csv("data-raw/serology-covid/sVNTresultsLong.csv", col_types = cols())
 sercovid_v220_raw <- read_csv("data-raw/serology-covid/sVNT_V220_2021.csv", col_types = cols())
 
-sercovid <- sercovid_raw %>% 
+sercovid <- sercovid_raw %>%
   bind_rows(sercovid_v220_raw) %>%
   mutate(
     pid = str_replace(Sample_ID, "^([[:alpha:]]{3}-\\d{3}).*$", "\\1"),
@@ -989,8 +1008,8 @@ write_csv(postinf_bleed_dates, "data/postinf-bleed-dates.csv")
 
 postinf_comments <- redcap_postinf %>%
   mutate(survey_week = if_else(
-    redcap_event_name == "infection_arm_1", 
-    NA_character_, 
+    redcap_event_name == "infection_arm_1",
+    NA_character_,
     str_replace(redcap_event_name, "^weekly_survey_(\\d+)_arm_1$", "\\1")
   )) %>%
   filter(!is.na(ari_swab_notes)) %>%
