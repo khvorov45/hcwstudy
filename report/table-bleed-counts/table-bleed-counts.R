@@ -30,44 +30,49 @@ serology %>%
         year == 2023 ~ prior2023,
         TRUE ~ NA_integer_
     )) %>%
-    select(pid, year, day, prior_study_year) %>%
+    select(pid, year, day, prior_study_year, vax_inf) %>%
     distinct() %>%
-    count(day, year, prior_study_year) %>%
+    count(vax_inf, day, year, prior_study_year) %>%
     mutate(across(c(year, prior_study_year, day), as.character)) %>%
-    bind_rows(summarise(group_by(., day, year), n = sum(n), prior_study_year = "Total", .groups = "drop")) %>%
-    bind_rows(summarise(group_by(., day, prior_study_year), n = sum(n), year = "Total", .groups = "drop")) %>%
-    bind_rows(summarise(group_by(., year, prior_study_year), n = sum(n), day = "Total", .groups = "drop")) %>%
-    mutate(day = fct_relevel(day, "0", "7")) %>%
-    arrange(day, prior_study_year) %>%
-    rename(Day = day, Year = year) %>%
+    bind_rows(summarise(group_by(., vax_inf, day, year), n = sum(n), prior_study_year = "Total", .groups = "drop")) %>%
+    bind_rows(summarise(group_by(., vax_inf, day, prior_study_year), n = sum(n), year = "Total", .groups = "drop")) %>%
+    bind_rows(summarise(group_by(., vax_inf, year, prior_study_year), n = sum(n), day = "Total", .groups = "drop")) %>%
+    mutate(
+        day = fct_relevel(day, "0", "7", "14", "30"), 
+        vax_inf = fct_relevel(vax_inf, "V") %>% recode("V" = "Vaccination", "I" = "Infection")
+    ) %>%
+    arrange(vax_inf, day, prior_study_year) %>%
+    rename(Bleed = vax_inf, Day = day, Year = year) %>%
     pivot_wider(names_from = "prior_study_year", values_from = "n", values_fill = 0) %>%
     kbl(
         format = "latex",
-        caption = "Counts of antibody titres for each timepoint (day post-vaccination) 
+        caption = "Counts of bleeds with measured antibody titres for each timepoint (day post-vaccination) 
         over the study years for different prior vaccination groups.",
         booktabs = TRUE,
         label = "routine-bleed-counts"
     ) %>%
-    add_header_above(c(" " = 2, "Known vaccinations in the 5 years before bleed" = 6)) %>%
-    column_spec(3:8, width = "1cm") %>%
+    add_header_above(c(" " = 3, "Known vaccinations in the 5 years before bleed" = 6)) %>%
+    column_spec(4:9, width = "1cm") %>%
     collapse_rows(columns = 1, latex_hline = "major") %>%
+    collapse_rows(columns = 2, latex_hline = "linespace") %>%
     write("report/table-bleed-counts/routine-bleed-counts.tex")
 
 covid_serology <- read_csv("data/serology-covid.csv", col_types = cols())
 
 covid_serology %>%
-    mutate(day_cat = case_when(
-        vax_inf == "I" ~ paste0("Post-infection day ", day),
-        day >= 30 ~ paste0("Post-vaccination day 30+"),
-        TRUE ~ paste0("Post-vaccination day ", day),
-    )) %>%
-    count(day_cat) %>%
-    rename(`Day` = day_cat, Count = n) %>%
+    mutate(
+        day_cat = if_else(vax_inf == "V" & bleed_day_id > 0 & bleed_day_id < 220, 14, bleed_day_id) %>% as.character(),
+        vax_inf = fct_relevel(vax_inf, "V") %>% recode("V" = "Vaccination", "I" = "Infection"),
+    ) %>%
+    count(vax_inf, day_cat) %>%
+    bind_rows(summarise(group_by(., vax_inf), n = sum(n), day_cat = "Total", .groups = "drop")) %>%
+    arrange(vax_inf) %>%
+    rename(Bleed = vax_inf, `Day` = day_cat, Count = n) %>%
     kbl(
         format = "latex",
-        caption = "Counts of covid antibody titres.",
+        caption = "Counts of covid bleeds with measured antibody titres.",
         booktabs = TRUE,
         label = "bleed-counts-covid",
-        linesep = c("", "", "\\addlinespace", "", "" ,"" ,"")
     ) %>%
+    collapse_rows(columns = 1, latex_hline = "major") %>%
     write("report/table-bleed-counts/routine-bleed-counts-covid.tex")
