@@ -539,6 +539,7 @@ const createTitreTable = (data: Data, onFilterChange: (filteredData: any[]) => v
 			site: {},
 			year: {},
 			day: {},
+			vax_inf: {},
 			virus: { width: 250 },
 			subtype: {},
 			eggcell: { access: "virus_egg_cell" },
@@ -875,7 +876,7 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 	const distColor = "#de61a8"
 	const altColor = "#000000"
 
-	const boxplotMeanCol = boxplotCol
+	const boxplotMeanCol = "#ffa6ff"
 
 	// TODO(sen) Lines
 
@@ -901,123 +902,112 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 		})
 
 		for (const summaryRow of summary) {
-			if (summaryRow.titres.length >= 10) {
-				const xVal = summaryRow[settings.xAxis]
-				const xFacets = settings.xFacets.map((xFacet) => summaryRow[xFacet])
-				const xCoord = plot.scaleXToPx(xVal, xFacets)
+			const xVal = summaryRow[settings.xAxis]
+			const xFacets = settings.xFacets.map((xFacet) => summaryRow[xFacet])
+			const xCoord = plot.scaleXToPx(xVal, xFacets)
 
-				const yFacets = settings.yFacets.map((yFacet) => summaryRow[yFacet])
-				const yVals = summaryRow.titres.map((titre: number) => plot.scaleYToPx(titre, yFacets))
+			const yFacets = settings.yFacets.map((yFacet) => summaryRow[yFacet])
+			const yVals = summaryRow.titres.map((titre: number) => plot.scaleYToPx(titre, yFacets))
 
-				const stats = Plot.getBoxplotStats(yVals)
+			const stats = Plot.getBoxplotStats(yVals)
 
-				if (stats !== null) {
-					Plot.addBoxplot(
-						plot,
-						stats,
-						xCoord,
-						boxWidth,
-						boxplotCol,
-						altColor,
-						boxplotMeanCol,
-						boxLineThiccness
-					)
+			if (stats !== null) {
+				Plot.addBoxplot(plot, stats, xCoord, boxWidth, boxplotCol, altColor, boxplotMeanCol, boxLineThiccness)
+			}
+
+			const titreCountMax = Arr.max(Object.values(summaryRow.titreCounts))
+			const titresSorted = Object.keys(summaryRow.titreCounts)
+				.map((x) => parseInt(x))
+				.sort((a, b) => a - b)
+			const titreCounts01: any = []
+			for (const key of titresSorted) {
+				titreCounts01.push(summaryRow.titreCounts[key] / titreCountMax)
+			}
+
+			const firstNonZero = titreCounts01.findIndex((x: any) => x !== 0)
+			const lastNonZero = titreCounts01.findLastIndex((x: any) => x !== 0)
+
+			const countTextCol = "#bfbdb6"
+			let prevBarRight = null
+			for (let count01Index = firstNonZero; count01Index <= lastNonZero; count01Index += 1) {
+				const count01 = titreCounts01[count01Index]
+				const titre = titresSorted[count01Index]
+				const count = summaryRow.titreCounts[titre]
+				const yCoord = plot.scaleYToPx(titre, yFacets)
+
+				const barRight = xCoord + boxLineThiccness + distWidth * count01
+
+				let down = yPxStep / 2
+				let up = down
+				if (count01Index == 0) {
+					down = down / 2
+				} else if (count01Index == allTitres.length - 1) {
+					up = up / 2
 				}
 
-				const titreCountMax = Arr.max(Object.values(summaryRow.titreCounts))
-				const titresSorted = Object.keys(summaryRow.titreCounts)
-					.map((x) => parseInt(x))
-					.sort((a, b) => a - b)
-				const titreCounts01: any = []
-				for (const key of titresSorted) {
-					titreCounts01.push(summaryRow.titreCounts[key] / titreCountMax)
-				}
+				Plot.drawDoubleLine(
+					plot.renderer,
+					barRight,
+					yCoord - up,
+					barRight,
+					yCoord + down,
+					distColor,
+					altColor,
+					boxLineThiccness,
+					[],
+					true
+				)
 
-				const firstNonZero = titreCounts01.findIndex((x: any) => x !== 0)
-				const lastNonZero = titreCounts01.findLastIndex((x: any) => x !== 0)
-
-				const countTextCol = "#bfbdb6"
-				let prevBarRight = null
-				for (let count01Index = firstNonZero; count01Index <= lastNonZero; count01Index += 1) {
-					const count01 = titreCounts01[count01Index]
-					const titre = titresSorted[count01Index]
-					const count = summaryRow.titreCounts[titre]
-					const yCoord = plot.scaleYToPx(titre, yFacets)
-
-					const barRight = xCoord + boxLineThiccness + distWidth * count01
-
-					let down = yPxStep / 2
-					let up = down
-					if (count01Index == 0) {
-						down = down / 2
-					} else if (count01Index == allTitres.length - 1) {
-						up = up / 2
+				if (prevBarRight !== null) {
+					const halfThicc = boxLineThiccness / 2
+					let vLeft = prevBarRight
+					let vRight = barRight
+					if (vLeft > vRight) {
+						const temp = vLeft
+						vLeft = vRight
+						vRight = temp
 					}
-
-					Plot.drawDoubleLine(
+					const hlineY = yCoord + down
+					Plot.drawLine(
 						plot.renderer,
-						barRight,
-						yCoord - up,
-						barRight,
-						yCoord + down,
+						vLeft - halfThicc,
+						hlineY,
+						vRight + halfThicc,
+						hlineY,
 						distColor,
-						altColor,
 						boxLineThiccness,
-						[],
-						true
+						[]
 					)
-
-					if (prevBarRight !== null) {
-						const halfThicc = boxLineThiccness / 2
-						let vLeft = prevBarRight
-						let vRight = barRight
-						if (vLeft > vRight) {
-							const temp = vLeft
-							vLeft = vRight
-							vRight = temp
-						}
-						const hlineY = yCoord + down
-						Plot.drawLine(
-							plot.renderer,
-							vLeft - halfThicc,
-							hlineY,
-							vRight + halfThicc,
-							hlineY,
-							distColor,
-							boxLineThiccness,
-							[]
-						)
-					}
-
-					Plot.drawText(
-						plot.renderer,
-						`${count}`,
-						barRight - boxLineThiccness,
-						yCoord,
-						countTextCol,
-						0,
-						"middle",
-						"end",
-						altColor
-					)
-
-					prevBarRight = barRight
 				}
-
-				const totalCount = Arr.sum(Object.values(summaryRow.titreCounts))
 
 				Plot.drawText(
 					plot.renderer,
-					`${totalCount}`,
-					xCoord,
-					plot.scaleYToPx(5, yFacets) + 5,
+					`${count}`,
+					barRight - boxLineThiccness,
+					yCoord,
 					countTextCol,
 					0,
-					"top",
-					"center",
+					"middle",
+					"end",
 					altColor
 				)
+
+				prevBarRight = barRight
 			}
+
+			const totalCount = Arr.sum(Object.values(summaryRow.titreCounts))
+
+			Plot.drawText(
+				plot.renderer,
+				`${totalCount}`,
+				xCoord,
+				plot.scaleYToPx(5, yFacets) + 5,
+				countTextCol,
+				0,
+				"top",
+				"center",
+				altColor
+			)
 		}
 	}
 
