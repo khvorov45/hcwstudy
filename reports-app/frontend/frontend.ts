@@ -108,6 +108,7 @@ const ALL_GMT_GROUPS_ = [
 	"year",
 	"day",
 	"site",
+	"vax_inf",
 	"virus",
 	"subtype",
 	"eggcell",
@@ -130,6 +131,7 @@ type GMTGroups = typeof ALL_GMT_GROUPS_[number]
 const ALL_GMR_GROUPS_ = [
 	"year",
 	"site",
+	"vax_inf",
 	"virus",
 	"subtype",
 	"eggcell",
