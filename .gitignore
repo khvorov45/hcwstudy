@@ -18,3 +18,4 @@ temp*
 *.fls
 *.log
 *.synctex.gz
+*.tex
