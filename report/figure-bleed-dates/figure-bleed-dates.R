@@ -2,21 +2,35 @@ library(tidyverse)
 
 vac_dates <- read_csv("data/vaccinations.csv", col_types = cols()) %>% filter(!is.na(vaccination_date))
 bleed_dates <- read_csv("data/bleed-dates.csv", col_types = cols())
+swabs <- read_csv("data/swabs.csv", col_types = cols())
+
+flupos_dates <- swabs %>%
+    filter(swab_result == 1, str_starts(swab_virus, "Flu")) %>%
+    select(pid, year, samp_date) %>%
+    distinct() %>%
+    # NOTE(sen) Only look at the first infection per year
+    group_by(pid, year) %>%
+    filter(samp_date == min(samp_date)) %>%
+    ungroup()
 
 all_dates <- bleed_dates %>%
     mutate(day = as.character(day)) %>%
     bind_rows(vac_dates %>% select(pid, year, date = vaccination_date) %>% mutate(day = "vax")) %>%
-    mutate(day = factor(day, c("0", "vax", "7", "14", "220"))) %>%
+    bind_rows(flupos_dates %>% select(pid, year, date = samp_date) %>% mutate(day = "flupos")) %>%
+    mutate(day = factor(day, c("0", "vax", "7", "14", "flupos", "220"))) %>%
     arrange(pid, year, day) %>%
-    left_join(read_csv("data/participants.csv", col_types = cols()) %>% select(pid, site), "pid")
+    left_join(read_csv("data/participants.csv", col_types = cols()) %>% select(pid, site), "pid") %>%
+    arrange(pid)
 
 bleed_intervals <- all_dates %>%
     pivot_wider(names_from = "day", values_from = "date") %>%
     mutate(
         i0_vax = `vax` - `0`,
+        i0_flupos = `flupos` - `0`,
         ivax_7 = `7` - `vax`,
         ivax_14 = `14` - `vax`,
         ivax_220 = `220` - `vax`,
+        ivax_flupos = `flupos` - `vax`,
     )
 
 bleed_intervals %>%
@@ -97,7 +111,7 @@ bleed_intervals_plot <- bleed_intervals %>%
     filter(!is.na(interval)) %>%
     mutate(
         interval = as.integer(interval),
-        timepoint = factor(timepoint, c("i0_vax", "ivax_7", "ivax_14", "ivax_220"))
+        timepoint = factor(timepoint, c("i0_vax", "ivax_7", "ivax_14", "ivax_220", "i0_flupos", "ivax_flupos"))
     ) %>%
     ggplot(aes(timepoint, interval)) +
     theme_bw() +
@@ -107,9 +121,9 @@ bleed_intervals_plot <- bleed_intervals %>%
         panel.spacing = unit(0, "null"),
         axis.text.x = element_text(angle = 30, hjust = 1)
     ) +
-    facet_wrap(~year, nrow = 1, strip.position = "top") +
+    facet_wrap(~year, nrow = 1, strip.position = "top", scales = "free_x") +
     scale_y_continuous("Days", breaks = c(0, 7, 14, 30, 60, 90, 120, 150, 180, 220)) +
-    scale_x_discrete("Interval", labels = c("0 to vax", "vax to 7", "vax to 14", "vax to 220")) +
+    scale_x_discrete("Interval", labels = c("0 to vax", "vax to 7", "vax to 14", "vax to 220", "0 to flupos", "vax to flupos")) +
     geom_jitter(shape = 18, width = 0.2, alpha = 0.3, color = "gray50") +
     geom_boxplot(color = "blue", fill = NA, outlier.alpha = 0)
 
