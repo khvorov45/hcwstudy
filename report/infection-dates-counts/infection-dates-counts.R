@@ -70,8 +70,8 @@ dates_plots <- all_dates %>%
 
 dates_plots_arranged <- ggpubr::ggarrange(plotlist = dates_plots, ncol = 1, common.legend = TRUE)
 
-ggsave(
-    "report/infection-dates-counts/figure-infection-dates.pdf", 
+(function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
+    "report/infection-dates-counts/figure-infection-dates",
     dates_plots_arranged, width = 15, height = 20, units = "cm"
 )
 
@@ -125,6 +125,7 @@ all_dates_with_total_year %>%
     ) %>%
     arrange(date_type) %>%
     rename(` ` = date_type) %>%
+    (function(x) {write_csv(x, glue::glue("report/infection-dates-counts/table-infection-counts.csv")); x}) %>%
     kbl(
         format = "latex",
         caption = "Counts of positive swabs (with their test result) and post-infection bleeds.

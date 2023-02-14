@@ -59,6 +59,7 @@ serology_for_counting %>%
     group_by(Bleed) %>%
     group_walk(function(subset, key) {
         subset %>%
+            (function(x) {write_csv(x, glue::glue("report/table-bleed-counts/bleed-counts-{key$Bleed}.csv")); x}) %>%
             kbl(
                 format = "latex",
                 caption = glue::glue("Counts of {tolower(key$Bleed)} bleeds with measured antibody titres for each timepoint (day post-{tolower(key$Bleed)})
@@ -86,6 +87,7 @@ covid_serology %>%
     bind_rows(summarise(group_by(., vax_inf), n = sum(n), day_cat = "Total", .groups = "drop")) %>%
     arrange(vax_inf) %>%
     rename(Bleed = vax_inf, `Day` = day_cat, Count = n) %>%
+    (function(x) {write_csv(x, glue::glue("report/table-bleed-counts/routine-bleed-counts-covid.csv")); x}) %>%
     kbl(
         format = "latex",
         caption = "Counts of covid bleeds with measured antibody titres.",

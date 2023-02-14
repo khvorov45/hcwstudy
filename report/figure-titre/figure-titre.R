@@ -99,7 +99,9 @@ plots_averages <- serology_averages %>%
 
 walk(plots_averages, function(plot) {
     subtype <- attr(plot, "subtype")
-    ggsave(glue::glue("report/figure-titre/averages-{subtype}.pdf"), plot, width = 15, height = 15, units = "cm")
+    (function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
+        glue::glue("report/figure-titre/averages-{subtype}"), plot, width = 15, height = 15, units = "cm"
+    )
 })
 
 covid_vax <- read_csv("data/covid-vax.csv", col_types = cols())
@@ -157,7 +159,9 @@ covid_serology_plot <- covid_and_adeno %>%
     geom_pointrange(aes(bleed_day_id, mean, ymin = low, ymax = high), data = covid_and_adeno_means, color = "#ff69b4") +
     geom_line(aes(bleed_day_id, mean), data = covid_and_adeno_means, color = "#ff69b4")
 
-ggsave("report/figure-titre/covid-vax-titres.pdf", covid_serology_plot, width = 15, height = 15, units = "cm")
+(function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
+    "report/figure-titre/covid-vax-titres", covid_serology_plot, width = 15, height = 15, units = "cm"
+)
 
 covid_and_adeno_ratios <- covid_and_adeno %>%
     pivot_wider(names_from = "bleed_day_id", values_from = "ic50") %>%
@@ -195,4 +199,6 @@ covid_and_adeno_corr_adeno0 <- covid_and_adeno_ratios %>%
     covid_and_adeno_corr_plot_common
 
 covid_and_adeno_corr_plot <- ggpubr::ggarrange(covid_and_adeno_corr_adeno_ratio, covid_and_adeno_corr_adeno0, ncol = 1)
-ggsave("report/figure-titre/covid-adeno-corr.pdf", covid_and_adeno_corr_plot, width = 15, height = 15, units = "cm")
+(function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
+    "report/figure-titre/covid-adeno-corr", covid_and_adeno_corr_plot, width = 15, height = 15, units = "cm"
+)

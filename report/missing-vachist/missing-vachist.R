@@ -41,6 +41,7 @@ known_prior_vac_counts %>%
     arrange(reference_year, known_prior) %>%
     pivot_wider(names_from = "recruitment_year", values_from = "n", values_fill = 0) %>%
     rename(`Ref year` = reference_year, `Prior years with known status` = known_prior) %>%
+    (function(x) {write_csv(x, "report/missing-vachist/missing-vachist.csv"); x}) %>%
     kbl(
         format = "latex",
         caption = "Counts of participants split by the number of years for which we have their vaccination history. 

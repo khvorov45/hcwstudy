@@ -85,7 +85,9 @@ bleed_dates_plots <- all_dates %>%
 
 bleed_dates_plot <- ggpubr::ggarrange(plotlist = bleed_dates_plots, common.legend = TRUE, ncol = 1)
 
-ggsave("report/figure-bleed-dates/figure-bleed-dates.pdf", bleed_dates_plot, width = 15, height = 20, units = "cm")
+(function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
+    "report/figure-bleed-dates/figure-bleed-dates", bleed_dates_plot, width = 15, height = 20, units = "cm"
+)
 
 bleed_intervals_plot <- bleed_intervals %>%
     select(pid, year, starts_with("i")) %>%
@@ -109,7 +111,9 @@ bleed_intervals_plot <- bleed_intervals %>%
     geom_jitter(shape = 18, width = 0.2, alpha = 0.3, color = "gray50") +
     geom_boxplot(color = "blue", fill = NA, outlier.alpha = 0)
 
-ggsave("report/figure-bleed-dates/figure-bleed-intervals.pdf", bleed_intervals_plot, width = 15, height = 15, units = "cm")
+(function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
+    "report/figure-bleed-dates/figure-bleed-intervals", bleed_intervals_plot, width = 15, height = 15, units = "cm"
+)
 
 covid_vax <- read_csv("data/covid-vax.csv", col_types = cols())
 covid_bleeds <- read_csv("data/covid-bleed-dates.csv", col_types = cols())
@@ -136,6 +140,8 @@ covid_vax_plot <- covid_vax %>%
     filter(!is.na(date)) %>%
     mutate(
         date_type = factor(date_type, c("Dose 1", "Dose 2", "Bleed (post-vax)", "Dose 3", "Dose 4")),
+        dosedate2 = replace_na(dosedate2, lubridate::date("2000-01-01")),
+        dosedate1 = replace_na(dosedate1, lubridate::date("2000-01-01")),
         pid = fct_reorder(pid, dosedate2, .desc = TRUE) %>% fct_reorder(dosedate1, .desc = TRUE)
     ) %>%
     ggplot(aes(date, pid, color = date_type, shape = date_type)) +
@@ -157,4 +163,6 @@ covid_vax_plot <- covid_vax %>%
     scale_x_date(breaks = "2 month") +
     geom_point()
 
-ggsave("report/figure-bleed-dates/figure-covid-bleed-dates.pdf", covid_vax_plot, width = 15, height = 15, units = "cm")
+(function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
+    "report/figure-bleed-dates/figure-covid-bleed-dates", covid_vax_plot, width = 15, height = 15, units = "cm"
+)
