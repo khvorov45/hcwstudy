@@ -42,6 +42,7 @@ all_dates %>%
     arrange(desc(month))
 
 bleed_dates_plots <- all_dates %>%
+    filter(day != "7") %>%
     left_join(bleed_intervals, c("pid", "year", "site")) %>%
     group_by(year) %>%
     group_split() %>%
@@ -71,9 +72,10 @@ bleed_dates_plots <- all_dates %>%
             scale_x_date("", breaks = lubridate::ymd(paste0(this_year, "-", 1:12, "-", 1)), labels = function(breaks) {
                 month.abb[lubridate::month(breaks)]
             }) +
-            scale_color_manual("", values = viridis::viridis_pal(option = "A", end = 0.8)(5)) +
-            scale_shape_manual("", values = c(19, 3, 4, 17, 18)) +
-            geom_point()
+            scale_color_manual("", values = viridis::viridis_pal(option = "C", end = 0.8)(4)) +
+            scale_shape_manual("", values = c(19, 3, 15, 17)) +
+            geom_point() +
+            geom_point(data = . %>% filter(day == "vax"))
         if (this_year != max(bleed_dates$year)) {
             pl <- pl + theme(
                 axis.text.x = element_blank(),
