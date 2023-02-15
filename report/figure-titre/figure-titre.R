@@ -48,7 +48,7 @@ serology %>%
     pivot_wider(names_from = "day", values_from = "titre")
 
 serology_averages <- serology %>%
-    group_by(day, year, subtype, virus, virus_egg_cell, prior_study_year) %>%
+    group_by(day, year, subtype, virus, virus_clade, virus_egg_cell, prior_study_year) %>%
     summarise(
         .groups = "drop",
         summarise_logmean(titre)
@@ -102,10 +102,11 @@ plots_averages <- serology_averages %>%
             geom_point(size = 4, color = "gray20") +
             geom_point(size = 3) +
             geom_text(
-                aes(0, 10, label = virus),
-                data = onesubtype %>% select(year, virus_egg_cell, virus) %>% distinct(),
+                aes(0, 10, label = paste(virus, virus_clade)),
+                data = onesubtype %>% select(year, virus_clade, virus_egg_cell, virus) %>% distinct(),
                 inherit.aes = FALSE,
                 hjust = 0, vjust = 1,
+                size = 3
             )
         attr(plot, "subtype") <- key$subtype
         plot

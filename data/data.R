@@ -153,8 +153,32 @@ serology_all_tables_fix_viruses <- serology_all_tables_fix_day %>%
       str_detect(path, "Yam") ~ "BYam",
       str_detect(path, "Vic") ~ "BVic",
     ),
-    virus_egg_cell = if_else(str_detect(virus, "e$"), "egg", "cell")
+    virus_egg_cell = if_else(str_detect(virus, "e$"), "egg", "cell"),
+
+    virus_clade = recode(
+      virus,
+      # NOTE(sen) From VCM trees (data-raw/trees)
+      "A/Brisbane/02/2018" = "6B.1A.1",
+      "A/Brisbane/02/2018e" = "6B.1A.1",
+      "A/Darwin/09/2021e" = "3C.2a1b.2a.2",
+      "A/Darwin/726/2019" = "3C.2a1b.1b",
+      "A/Hong Kong/2671/2019e" = "V1A.3a",
+      "A/South Australia/34/2019" = "2a1b",
+      "A/South Australia/34/2019e" = "2a1b",
+      "A/Victoria/2570/2019" = "6B.1A.5a.2",
+      "A/Victoria/2570/2019e" = "6B.1A.5a.2",
+      "B/Austria/1359417/2021e" = "V1A.3a.2",
+      "B/Phuket/3073/2013" = "Y3",
+      "B/Phuket/3073/2013e" = "Y3",
+      "B/Washington/02/2019" = "V1A.3a",
+      "B/Washington/02/2019e" = "V1A.3a",
+    )
   )
+
+check_no_rows(
+  serology_all_tables_fix_viruses %>% select(virus, virus_clade) %>% distinct() %>% filter(virus == virus_clade),
+  "missing clade"  
+)
 
 check_virus_fix <- function(serology_data) {
   summ <- serology_data %>%

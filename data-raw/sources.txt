@@ -4,3 +4,7 @@ Research/2019.176 NIH HCW Study/Serology/NIHHCWserol.accdb
 Redcap tokens
 Research/2019.176 NIH HCW Study/REDCap/token.txt
 Research/2019.176 NIH HCW Study/REDCap/token2021.txt
+
+Trees
+Group/Reports/WHO February/WHO February 2022/Main meeting/Trees
+and the same kinds of folders for other years.
