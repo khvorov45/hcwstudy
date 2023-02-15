@@ -83,12 +83,26 @@ plots_averages <- serology_averages %>%
             scale_y_log10("Titre", breaks = 5 * 2^(0:20), expand = expansion(0.1, 0)) +
             scale_x_continuous("Day", breaks = c(0, 14, 50), labels = c(0, 14, 220), expand = expansion(0.1, 0)) +
             scale_color_manual("Known prior vaccinations in study year", values = viridis::viridis_pal(option = "A", end = 0.8)(6)) +
-            scale_shape_manual("Known prior vaccinations in study year", values = c(8, 19, 17, 15, 18, 4)) +
+            scale_shape_manual("Known prior vaccinations in study year", values = c(8, 20, 17, 15, 18, 4)) +
             coord_cartesian(ylim = serology_averages_ylims) +
+            geom_point(
+                aes(y = titre),
+                data = serology %>%
+                    filter(subtype == key$subtype) %>%
+                    mutate(
+                        day = if_else(day == 220, 50, day),
+                        xpos = day + (prior_study_year - 2.5),
+                        prior_vac_factor = factor(prior_study_year),
+                        virus_egg_cell = tools::toTitleCase(virus_egg_cell),
+                        low = 1, high = 1
+                    ),
+                alpha = 0.1
+            ) +
             geom_line() +
-            geom_point() + 
+            geom_point(size = 4, color = "gray20") +
+            geom_point(size = 3) +
             geom_text(
-                aes(0, 10, label = virus), 
+                aes(0, 10, label = virus),
                 data = onesubtype %>% select(year, virus_egg_cell, virus) %>% distinct(),
                 inherit.aes = FALSE,
                 hjust = 0, vjust = 1,

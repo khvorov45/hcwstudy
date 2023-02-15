@@ -10,7 +10,7 @@ all_dates <- swabs %>%
     summarise(swab_viruses = paste(swab_virus, collapse = ", "), .groups = "drop") %>%
     select(pid, year, postinf_instance, date = samp_date, date_type = swab_viruses) %>%
     bind_rows(
-        postinf_bleed_dates %>% 
+        postinf_bleed_dates %>%
             mutate(date_type = as.character(day)) %>%
             select(pid, year, postinf_instance, date = bleed_date, date_type),
     ) %>%
@@ -24,7 +24,11 @@ all_dates <- swabs %>%
             str_detect(tolower(date_type), "sars-cov-2") ~ "Swab (covid pos)",
             TRUE ~ "Swab (other pos)",
         ) %>% factor(c("Swab (flu pos)", "Swab (covid pos)", "Swab (other pos)", "Bleed"))
-    )
+    ) %>%
+    # NOTE(sen) The same swab is sometimes recorded twice
+    group_by(pid, year, date, date_type, date_cat) %>%
+    filter(row_number() == 1) %>%
+    ungroup()
 
 dates_plots <- all_dates %>%
     group_by(year) %>%
@@ -33,7 +37,7 @@ dates_plots <- all_dates %>%
         this_year <- unique(yeardata$year)
         xlims <- lubridate::ymd(glue::glue("{this_year}-01-01"), glue::glue("{this_year}-12-31"))
         earliest_dates <- yeardata %>% group_by(pid) %>% summarise(date_earliest = min(date))
-        
+
         plot <- yeardata %>%
             left_join(earliest_dates, "pid") %>%
             mutate(pid = fct_reorder(pid, date_earliest, .desc = TRUE)) %>%
@@ -57,7 +61,7 @@ dates_plots <- all_dates %>%
             scale_color_manual("", drop = FALSE, values = c("blue", "orange", "gray50", "red")) +
             scale_shape_manual("", drop = FALSE, values = c(19, 15, 1, 3)) +
             geom_point()
-        
+
         if (this_year < max(all_dates$year)) {
             plot <- plot + theme(
                 axis.text.x = element_blank(),
@@ -84,26 +88,43 @@ all_dates_with_total_year %>%
     count(date_type, year) %>%
     bind_rows(
         all_dates_with_total_year %>%
-            count(year, date_cat) %>% 
-            rename(date_type = date_cat) %>% 
-            mutate(date_type = recode(date_type, 
+            count(year, date_cat) %>%
+            rename(date_type = date_cat) %>%
+            mutate(date_type = recode(date_type,
                 "Swab (other pos)" = "Total non-flu non-covid",
                 "Swab (covid pos)" = "Total SARS-CoV-2",
                 "Swab (flu pos)" = "Total flu",
                 "Bleed" = "Total bleeds",
             ))
     ) %>%
+    bind_rows(all_dates_with_total_year %>%
+        filter(!date_type %in% c("7", "14", "30")) %>%
+        count(year) %>%
+        mutate(date_type = "Total positive")
+    ) %>%
     bind_rows(
         all_dates_with_total_year %>%
-            filter(!date_type %in% c("7", "14", "30")) %>%
-            count(year) %>% 
-            mutate(date_type = "Total positive")
+            group_by(year, date_cat) %>%
+            summarise(n = length(unique(pid)), .groups = "drop") %>%
+            rename(date_type = date_cat) %>%
+            mutate(date_type = recode(date_type,
+                "Swab (other pos)" = "Subjects non-flu non-covid",
+                "Swab (covid pos)" = "Subjects SARS-CoV-2",
+                "Swab (flu pos)" = "Subjects flu",
+                "Bleed" = "Subjects bleeds",
+            ))
+    ) %>%
+    bind_rows(all_dates_with_total_year %>%
+        filter(!date_type %in% c("7", "14", "30")) %>%
+        group_by(year) %>%
+        summarise(n = length(unique(pid))) %>%
+        mutate(date_type = "Subjects positive")
     ) %>%
     arrange(year) %>%
     pivot_wider(names_from = "year", values_from = "n", values_fill = 0) %>%
     mutate(
         date_type = fct_relevel(date_type, c(
-            "7", "14", "30", "Total bleeds",
+            "7", "14", "30", "Total bleeds", "Subjects bleeds",
             "Flu A (unsubtyped)", "Flu A H3", "SARS-CoV-2",
             "Adenovirus", "Metapneumovirus", "Piconavirus", "Parainfluenza", "Other",
             "Flu A (unsubtyped), Flu A H3",
@@ -114,8 +135,11 @@ all_dates_with_total_year %>%
             "Metapneumovirus, Piconavirus",
             "Parainfluenza, Piconavirus",
             "Piconavirus, Other",
-            "Total flu", "Total SARS-CoV-2", "Total non-flu non-covid", "Total positive"
-        )) %>% 
+            "Total flu", "Subjects flu", 
+            "Total SARS-CoV-2", "Subjects SARS-CoV-2",
+            "Total non-flu non-covid", "Subjects non-flu non-covid", 
+            "Total positive"
+        )) %>%
             recode(
                 "Piconavirus, SARS-CoV-2" = "SARS-CoV-2, Piconavirus",
                 "7" = "Post-infection bleed day 7",
@@ -130,17 +154,18 @@ all_dates_with_total_year %>%
         format = "latex",
         caption = "Counts of positive swabs (with their test result) and post-infection bleeds.
         If a swab had two (or more) positive results it does not count multiple times but instead its
-        results are merged and comma-separated (e.g., \"Parainfluenza, Piconavirus\")",
+        results are merged and comma-separated (e.g., \"Parainfluenza, Piconavirus\").
+        Summary rows with 'Total' count swabs. 
+        Summary rows with 'Subjects' count unique participants that contributed the swabs.",
         booktabs = TRUE,
         label = "infection-counts",
         linesep = c(
-            "", "", "\\addlinespace", "\\addlinespace", 
-            "", "\\addlinespace", "\\addlinespace", 
+            "", "", "\\addlinespace", "", "\\addlinespace",
+            "", "\\addlinespace", "\\addlinespace",
             "", "", "", "", "\\addlinespace",
-            "", "", "\\addlinespace",
-            "", "\\addlinespace", 
-            "", "", "\\addlinespace",
-            "", "", "\\addlinespace"
+            "", "", "\\addlinespace", "", "\\addlinespace",
+            "", "", "\\addlinespace", "", "\\addlinespace",
+            "", "\\addlinespace", "", "\\addlinespace"
         )
     ) %>%
     write("report/infection-dates-counts/table-infection-counts.tex")
