@@ -677,7 +677,19 @@ check_no_rows(
   "duplicate covid vax"
 )
 
-write_csv(covax_dedup, "data/covid-vax.csv")
+covax_fix_brand <- covax_dedup %>%
+  mutate(brand = case_when(
+    str_detect(tolower(brand), "moderna") ~ "Moderna", 
+    str_detect(tolower(brand), "novavax") ~ "Novavax trial", 
+    TRUE ~ brand
+  ) %>% recode(
+    "Covid vax study- Novovax" = "Novavax trial",
+    "SARS-CoV-2 rS Nanoparticle vaccine and Matrix-M1 Adjuvant" = "Novavax trial",
+    "Novatrial- study vaccine" = "Novavax trial",
+    "Sanofi Booster Vaccine Trial" = "Sanofi trial",
+  ))
+
+write_csv(covax_fix_brand, "data/covid-vax.csv")
 
 #
 # SECTION Bleed dates

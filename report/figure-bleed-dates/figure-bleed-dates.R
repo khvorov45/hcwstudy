@@ -1,4 +1,5 @@
 library(tidyverse)
+library(kableExtra)
 
 vac_dates <- read_csv("data/vaccinations.csv", col_types = cols()) %>% filter(!is.na(vaccination_date))
 bleed_dates <- read_csv("data/bleed-dates.csv", col_types = cols())
@@ -56,7 +57,7 @@ all_dates %>%
     arrange(desc(month))
 
 bleed_dates_plots <- all_dates %>%
-    filter(day != "7") %>%
+    filter(!day %in% c("7", "flupos")) %>%
     left_join(bleed_intervals, c("pid", "year", "site")) %>%
     group_by(year) %>%
     group_split() %>%
@@ -148,7 +149,7 @@ covid_bleeds %>%
     left_join(covid_vax_dosedates) %>%
     filter(day > 0, date < dosedate1)
 
-covid_vax_plot <- covid_vax %>%
+covid_vax_plots <- covid_vax %>%
     mutate(date_type = paste0("Dose ", dose)) %>%
     select(pid, date_type, date) %>%
     bind_rows(covid_bleeds %>% filter(day != 0) %>% mutate(date_type = "Bleed (post-vax)") %>% select(pid, date_type, date)) %>%
@@ -158,27 +159,71 @@ covid_vax_plot <- covid_vax %>%
         date_type = factor(date_type, c("Dose 1", "Dose 2", "Bleed (post-vax)", "Dose 3", "Dose 4")),
         dosedate2 = replace_na(dosedate2, lubridate::date("2000-01-01")),
         dosedate1 = replace_na(dosedate1, lubridate::date("2000-01-01")),
-        pid = fct_reorder(pid, dosedate2, .desc = TRUE) %>% fct_reorder(dosedate1, .desc = TRUE)
     ) %>%
-    ggplot(aes(date, pid, color = date_type, shape = date_type)) +
-    theme_bw() +
-    theme(
-        panel.grid.major.y = element_blank(),
-        panel.grid.minor.y = element_blank(),
-        axis.title.y = element_blank(),
-        axis.title.x = element_blank(),
-        axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(),
-        legend.position = "top",
-        axis.text.x = element_text(angle = 30, hjust = 1),
-        plot.margin = margin(1, 1, 1, 25)
-    ) +
-    scale_color_manual("", values = c("gray50", "blue", "red", "gray50", "gray50")) +
-    scale_shape_manual("", values = c(20, 17, 3,  4, 1)) +
-    scale_y_discrete(expand = expansion(0.05, 0)) +
-    scale_x_date(breaks = "2 month") +
-    geom_point()
+    left_join(covid_vax %>% filter(dose == 2) %>% select(pid, dose2brand = brand), "pid") %>%
+    filter(dose2brand %in% c("Astra-Zeneca", "Pfizer")) %>%
+    group_by(dose2brand) %>%
+    group_map(.keep = TRUE, function(onebrand, key) {
+        addtheme <- theme()
+        if (key$dose2brand == "Astra-Zeneca") {
+            addtheme <- theme(
+                axis.ticks.x = element_blank(),
+                axis.text.x = element_blank(),
+                axis.ticks.length = unit(0, "null")
+            )
+        }
+        onebrand %>%
+            mutate(
+                pid = fct_reorder(pid, dosedate2, .desc = TRUE) %>% fct_reorder(dosedate1, .desc = TRUE),
+                dose2brand = paste0("Dose 2: ", dose2brand),
+            ) %>%
+            ggplot(aes(date, pid, color = date_type, shape = date_type)) +
+            theme_bw() +
+            theme(
+                panel.grid.major.y = element_blank(),
+                panel.grid.minor.y = element_blank(),
+                axis.title.y = element_blank(),
+                axis.title.x = element_blank(),
+                axis.text.y = element_blank(),
+                axis.ticks.y = element_blank(),
+                legend.position = "top",
+                axis.text.x = element_text(angle = 30, hjust = 1),
+                plot.margin = margin(0, 0, 0, 25),
+                strip.background = element_blank(),
+            ) +
+            coord_cartesian(xlim = lubridate::ymd(c("2021-01-01", "2023-01-01"))) +
+            facet_wrap(~dose2brand, strip.position = "right") +
+            scale_color_manual("", values = c("gray50", "blue", "red", "gray50", "gray50")) +
+            scale_shape_manual("", values = c(20, 17, 3,  4, 1)) +
+            scale_y_discrete(expand = expansion(0.05, 0)) +
+            scale_x_date(breaks = "2 month") +
+            geom_point() +
+            addtheme
+    })
+
+covid_vax_plot <- ggpubr::ggarrange(
+    plotlist = covid_vax_plots, 
+    ncol = 1, common.legend = TRUE,
+    align = "v", heights = c(0.85, 1)
+)
 
 (function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
-    "report/figure-bleed-dates/figure-covid-bleed-dates", covid_vax_plot, width = 15, height = 15, units = "cm"
+    "report/figure-bleed-dates/figure-covid-bleed-dates", covid_vax_plot, width = 15, height = 20, units = "cm"
 )
+
+covid_vax %>%
+    select(pid, dose, brand) %>%
+    pivot_wider(names_from = "dose", values_from = "brand") %>%
+    count(`1`, `2`, `3`, `4`) %>%
+    arrange(desc(n)) %>%
+    select(`Dose 1` = `1`, `Dose 2` = `2`, `Dose 3` = `3`, `Dose 4` = `4`, Subjects = n) %>%
+    mutate(across(starts_with("Dose "), ~replace_na(.x, "None recorded"))) %>%
+    write_csv("report/figure-bleed-dates/covax-brands.csv") %>%
+    kbl(
+        format = "latex",
+        caption = "Counts of subjects for each covid vaccine brand combination.",
+        booktabs = TRUE,
+        label = "covax-brands",
+    ) %>%
+    str_replace_all("None recorded", "\\\\textcolor{gray}{None recorded}") %>%
+    write("report/figure-bleed-dates/covax-brands.tex")
