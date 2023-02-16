@@ -28,26 +28,48 @@ participants_filtered_age <- participants %>%
     filter(!is.na(age_screening), age_screening >= 18, age_screening <= 65)
 
 participants_age_priorvac_plot <- participants_filtered_age %>%
-    ggplot(aes(prior_at_recruitment, age_screening)) +
+    mutate(recruitment_year = as.character(recruitment_year)) %>%
+    bind_rows(participants_filtered_age %>% mutate(recruitment_year = "Combined")) %>%
+    mutate(
+        recruitment_year = factor(recruitment_year, c("2020", "2021", "2022", "Combined")),
+        xpos = prior_at_recruitment + (as.integer(recruitment_year) - 2.5 + runif(n(), -0.3, 0.3)) * 0.2
+    ) %>%
+    ggplot(aes(xpos, age_screening, col = factor(recruitment_year))) +
     theme_bw() +
     scale_x_continuous("Known prior vaccinations in 5 years before recruitment", breaks = 0:5) +
     scale_y_continuous("Age") +
-    geom_jitter(color = "gray50", width = 0.2, shape = 18, alpha = 0.5) +
-    geom_boxplot(aes(group = prior_at_recruitment), fill = NA, outlier.alpha = 0, color = "blue", size = 0.8)
+    scale_color_viridis_d("Recrutment year", begin = 0.2, end = 0.8, option = "A") +
+    geom_point(shape = 18, alpha = 0.2) +
+    geom_boxplot(aes(group = paste0(prior_at_recruitment, recruitment_year)), fill = NA, outlier.alpha = 0, size = 1.1, color = "black") +
+    geom_boxplot(aes(group = paste0(prior_at_recruitment, recruitment_year)), fill = NA, outlier.alpha = 0, size = 0.8)
 
 participants_with_bmi <- participants %>%
     filter(height > 100, height < 250, weight > 20, weight < 400) %>%
     mutate(bmi = weight / (height / 100)^2)
 
 participants_bmi_priorvac_plot <- participants_with_bmi %>%
-    ggplot(aes(prior_at_recruitment, bmi)) +
+    mutate(recruitment_year = as.character(recruitment_year)) %>%
+    bind_rows(participants_with_bmi %>% mutate(recruitment_year = "Combined")) %>%
+    mutate(
+        recruitment_year = factor(recruitment_year, c("2020", "2021", "2022", "Combined")),
+        xpos = prior_at_recruitment + (as.integer(recruitment_year) - 2.5 + runif(n(), -0.3, 0.3)) * 0.2
+    ) %>%
+    ggplot(aes(xpos, bmi, col = factor(recruitment_year))) +
     theme_bw() +
     scale_x_continuous("Known prior vaccinations in 5 years before recruitment", breaks = 0:5) +
     scale_y_continuous("BMI") +
-    geom_jitter(color = "gray50", width = 0.2, shape = 18, alpha = 0.5) +
-    geom_boxplot(aes(group = prior_at_recruitment), fill = NA, outlier.alpha = 0, color = "blue", size = 0.8)
+    scale_color_viridis_d("Recrutment year", begin = 0.2, end = 0.8, option = "A") +
+    geom_point(shape = 18, alpha = 0.2) +
+    geom_boxplot(aes(group = paste0(prior_at_recruitment, recruitment_year)), fill = NA, outlier.alpha = 0, size = 1.1, color = "black") +
+    geom_boxplot(aes(group = paste0(prior_at_recruitment, recruitment_year)), fill = NA, outlier.alpha = 0, size = 0.8)
 
-baseline_plots <- ggpubr::ggarrange(plotlist = list(participants_age_priorvac_plot, participants_bmi_priorvac_plot), ncol = 1)
+baseline_plots <- ggpubr::ggarrange(
+    plotlist = list(
+        participants_age_priorvac_plot,
+        participants_bmi_priorvac_plot
+    ),
+    ncol = 1, common.legend = TRUE
+)
 
 (function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
     "report/baseline/baseline", baseline_plots, width = 15, height = 15, units = "cm"
@@ -66,53 +88,111 @@ sumgender <- function(data) {
         count(gender) %>%
         mutate(gender = recode(gender, "female" = "f", "male" = "m", "other" = "o", "missing" = "n") %>% factor(c("f", "m", "o", "n"))) %>%
         arrange(gender) %>%
-        mutate(str = paste0(gender, ": ", n))            
+        mutate(str = paste0(gender, ": ", n))
     tibble(genderstr = paste(sums$str, collapse = " "))
+}
+
+arrange_by_year <- function(data) {
+    data %>% mutate(year = factor(year, c("2020", "2021", "2022", "Combined"))) %>% arrange(year)
 }
 
 participants %>%
     count(prior_at_recruitment) %>%
     mutate(prior_at_recruitment = as.character(prior_at_recruitment)) %>%
     bind_rows(participants %>% count() %>% mutate(prior_at_recruitment = "Combined")) %>%
+    mutate(year = "Combined") %>%
+    bind_rows(participants %>%
+        count(recruitment_year) %>%
+        mutate(prior_at_recruitment = "Combined", year = as.character(recruitment_year)) %>%
+        select(-recruitment_year)
+    ) %>% bind_rows(participants %>%
+        count(recruitment_year, prior_at_recruitment) %>%
+        mutate(prior_at_recruitment = as.character(prior_at_recruitment), year = as.character(recruitment_year)) %>%
+        select(-recruitment_year)
+    ) %>%
     mutate(n = as.character(n)) %>%
     pivot_wider(names_from = "prior_at_recruitment", values_from = "n") %>%
     mutate(var = "Count") %>%
+    arrange_by_year() %>%
     bind_rows(participants_filtered_age %>%
         group_by(prior_at_recruitment) %>%
         summarise(age_str = boxplotsummarystr(age_screening)) %>%
-        mutate(prior_at_recruitment = as.character(prior_at_recruitment)) %>%
-        bind_rows(summarise(participants_filtered_age, age_str = boxplotsummarystr(age_screening), prior_at_recruitment = "Combined")) %>%
+        mutate(prior_at_recruitment = as.character(prior_at_recruitment), year = "Combined") %>%
+        bind_rows(summarise(participants_filtered_age, age_str = boxplotsummarystr(age_screening), prior_at_recruitment = "Combined", year = "Combined")) %>%
+        bind_rows(participants_filtered_age %>%
+            group_by(prior_at_recruitment, recruitment_year) %>%
+            summarise(age_str = boxplotsummarystr(age_screening), .groups = "drop") %>%
+            mutate(recruitment_year = as.character(recruitment_year), prior_at_recruitment = as.character(prior_at_recruitment)) %>%
+            rename(year = recruitment_year)
+        ) %>% bind_rows(participants_filtered_age %>%
+            group_by(recruitment_year) %>%
+            summarise(age_str = boxplotsummarystr(age_screening), prior_at_recruitment = "Combined") %>%
+            mutate(recruitment_year = as.character(recruitment_year)) %>%
+            rename(year = recruitment_year)
+        ) %>%
         pivot_wider(names_from = "prior_at_recruitment", values_from = age_str) %>%
-        mutate(var = "Age (years) at recruitment")
+        mutate(var = "Age (years) at recruitment") %>%
+        arrange_by_year()
     ) %>%
     bind_rows(participants %>%
         group_by(prior_at_recruitment) %>%
         group_modify(~sumgender(.x)) %>%
-        mutate(prior_at_recruitment = as.character(prior_at_recruitment)) %>%
-        bind_rows(sumgender(participants) %>% mutate(prior_at_recruitment = "Combined")) %>%
+        mutate(prior_at_recruitment = as.character(prior_at_recruitment), year = "Combined") %>%
+        bind_rows(sumgender(participants) %>% mutate(prior_at_recruitment = "Combined", year = "Combined")) %>%
+        bind_rows(
+            participants %>%
+                group_by(recruitment_year) %>%
+                group_modify(~sumgender(.x)) %>%
+                mutate(prior_at_recruitment = "Combined", recruitment_year = as.character(recruitment_year)) %>%
+                rename(year = recruitment_year)
+        ) %>%
+        bind_rows(
+            participants %>%
+                group_by(recruitment_year, prior_at_recruitment) %>%
+                group_modify(~sumgender(.x)) %>%
+                mutate(prior_at_recruitment = as.character(prior_at_recruitment), recruitment_year = as.character(recruitment_year)) %>%
+                rename(year = recruitment_year)
+        ) %>%
         pivot_wider(names_from = "prior_at_recruitment", values_from = "genderstr") %>%
-        mutate(var = "Gender")
+        mutate(var = "Gender") %>%
+        arrange_by_year()
     ) %>%
     bind_rows(participants_with_bmi %>%
         group_by(prior_at_recruitment) %>%
         summarise(bmi_str = boxplotsummarystr(bmi)) %>%
-        mutate(prior_at_recruitment = as.character(prior_at_recruitment)) %>%
-        bind_rows(summarise(participants_with_bmi, bmi_str = boxplotsummarystr(bmi), prior_at_recruitment = "Combined")) %>%
+        mutate(prior_at_recruitment = as.character(prior_at_recruitment), year = "Combined") %>%
+        bind_rows(summarise(participants_with_bmi, bmi_str = boxplotsummarystr(bmi), prior_at_recruitment = "Combined", year = "Combined")) %>%
+        bind_rows(
+            participants_with_bmi %>%
+                group_by(prior_at_recruitment, recruitment_year) %>%
+                summarise(bmi_str = boxplotsummarystr(bmi), .groups = "drop") %>%
+                mutate(prior_at_recruitment = as.character(prior_at_recruitment), recruitment_year = as.character(recruitment_year)) %>%
+                rename(year = recruitment_year)
+        ) %>%
+        bind_rows(
+            participants_with_bmi %>%
+                group_by(recruitment_year) %>%
+                summarise(bmi_str = boxplotsummarystr(bmi), .groups = "drop") %>%
+                mutate(prior_at_recruitment = "Combined", recruitment_year = as.character(recruitment_year)) %>%
+                rename(year = recruitment_year)
+        ) %>%
         pivot_wider(names_from = "prior_at_recruitment", values_from = bmi_str) %>%
-        mutate(var = "BMI")
+        mutate(var = "BMI") %>%
+        arrange_by_year()
     ) %>%
     select(var, everything()) %>%
     write_csv("report/baseline/baseline.csv") %>%
     kbl(
         format = "latex",
-        caption = "Baseline characteristics. Format: median [lower quartile, upper quartile]. 
+        caption = "Baseline characteristics. Format: median [lower quartile, upper quartile].
         Gender key: m - male, f - female, o - other, n - not recorded.",
         booktabs = TRUE,
         label = "baseline",
-        col.names = c("", colnames(.)[2:ncol(.)]),
+        col.names = c("", "Year", colnames(.)[3:ncol(.)]),
     ) %>%
-    add_header_above(c(" " = 1, "Known vaccinations in the 5 years before recruitment" = 6)) %>%
+    add_header_above(c(" " = 2, "Known vaccinations in the 5 years before recruitment" = 6)) %>%
     column_spec(1, width = "2.5cm") %>%
-    column_spec(2:8, width = "2.5cm") %>%
+    column_spec(3:9, width = "2.5cm") %>%
+    collapse_rows(columns = 1, latex_hline = "major") %>%
     kable_styling(latex_options = "scale_down") %>%
     write("report/baseline/baseline.tex")
