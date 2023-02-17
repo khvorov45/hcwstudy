@@ -55,29 +55,39 @@ seropos_summary <- serology %>%
     )
 
 seropos_plot <- seropos_summary %>%
-    ggplot(aes(prior_study_year, prop)) +
-    theme_bw() +
-    theme(
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        legend.position = "top",
-        panel.spacing = unit(0, "null"),
-        strip.background = element_blank(),
-    ) +
-    facet_grid(subtype + virus_egg_cell ~ year) +
-    coord_cartesian(ylim = c(0, 1)) +
-    scale_color_viridis_d("Day", begin = 0.2, end = 0.8, option = "A") +
-    scale_y_continuous("Seropositive (95% CI)", labels = scales::percent_format(), breaks = c(0.2, 0.5, 0.8)) +
-    scale_x_discrete("Known prior vaccinations in the 5 years before bleed") +
-    geom_pointrange(aes(ymin = low, ymax = high, col = factor(day)), position = position_dodge(width = 0.5), size = 0.1) +
-    geom_text(
-        aes(x = 0, y = 0, label = lab), 
-        seropos_summary %>% mutate(lab = paste(virus, virus_clade)) %>% select(year, virus_egg_cell, subtype, lab) %>% distinct(),
-        hjust = 0, vjust = 0, size = 2,
-    )
+    group_by(subtype) %>%
+    group_map(.keep = TRUE, function(data, key) {
+        pl <- data %>%
+            ggplot(aes(prior_study_year, prop)) +
+            theme_bw() +
+            theme(
+                axis.text.x = element_text(angle = 45, hjust = 1),
+                legend.position = "top",
+                panel.spacing = unit(0, "null"),
+                strip.background = element_blank(),
+            ) +
+            facet_grid(subtype + virus_egg_cell ~ year) +
+            coord_cartesian(ylim = c(0, 1)) +
+            scale_color_viridis_d("Day", begin = 0.2, end = 0.8, option = "A") +
+            scale_y_continuous("Seropositive (95% CI)", labels = scales::percent_format(), breaks = c(0.2, 0.5, 0.8)) +
+            scale_x_discrete("Known prior vaccinations in the 5 years before bleed") +
+            geom_pointrange(aes(ymin = low, ymax = high, col = factor(day)), position = position_dodge(width = 0.5), size = 0.1) +
+            geom_text(
+                aes(x = 0, y = 0, label = lab), 
+                data %>% mutate(lab = paste(virus, virus_clade)) %>% select(year, virus_egg_cell, subtype, lab) %>% distinct(),
+                hjust = 0, vjust = 0, size = 2,
+            )
+        attr(pl, "key") <- key
+        pl
+    })
 
-(function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
-    "report/seropos/seropos", seropos_plot, width = 15, height = 15, units = "cm"
-)
+walk(seropos_plot, function(pl) {
+    sb <- attr(pl, "key")$subtype
+    nm <- paste0("report/seropos/seropos-", sb)
+    (function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
+        nm, pl, width = 15, height = 10, units = "cm"
+    )
+})
 
 serology_ratios <- serology %>%
     pivot_wider(names_from = "day", values_from = "titre") %>%
@@ -100,25 +110,35 @@ seroconv_summary <- serology_ratios %>%
     )
 
 seroconv_plot <- seroconv_summary %>%
-    ggplot(aes(prior_study_year, prop)) +
-    theme_bw() +
-    theme(
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        legend.position = "top",
-        panel.spacing = unit(0, "null"),
-        strip.background = element_blank(),
-    ) +
-    facet_grid(subtype + virus_egg_cell ~ year) +
-    coord_cartesian(ylim = c(0, 1)) +
-    scale_y_continuous("Seroconverted (day 14 / day 0 >= 4) (95% CI)", labels = scales::percent_format(), breaks = c(0.2, 0.5, 0.8)) +
-    scale_x_discrete("Known prior vaccinations in the 5 years before bleed") +
-    geom_pointrange(aes(ymin = low, ymax = high), position = position_dodge(width = 0.5), size = 0.1) +
-    geom_text(
-        aes(x = 0, y = 0, label = lab), 
-        seropos_summary %>% mutate(lab = paste(virus, virus_clade)) %>% select(year, virus_egg_cell, subtype, lab) %>% distinct(),
-        hjust = 0, vjust = 0, size = 2,
-    )
+    group_by(subtype) %>%
+    group_map(.keep = TRUE, function(data, key) {
+        pl <- data %>%
+            ggplot(aes(prior_study_year, prop)) +
+            theme_bw() +
+            theme(
+                axis.text.x = element_text(angle = 45, hjust = 1),
+                legend.position = "top",
+                panel.spacing = unit(0, "null"),
+                strip.background = element_blank(),
+            ) +
+            facet_grid(subtype + virus_egg_cell ~ year) +
+            coord_cartesian(ylim = c(0, 1)) +
+            scale_y_continuous("Seroconverted (day 14 / day 0 >= 4) (95% CI)", labels = scales::percent_format(), breaks = c(0.2, 0.5, 0.8)) +
+            scale_x_discrete("Known prior vaccinations in the 5 years before bleed") +
+            geom_pointrange(aes(ymin = low, ymax = high), position = position_dodge(width = 0.5), size = 0.1) +
+            geom_text(
+                aes(x = 0, y = 0, label = lab), 
+                data %>% mutate(lab = paste(virus, virus_clade)) %>% select(year, virus_egg_cell, subtype, lab) %>% distinct(),
+                hjust = 0, vjust = 0, size = 2,
+            )
+        attr(pl, "key") <- key
+        pl
+    })
 
-(function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
-    "report/seropos/seroconv", seroconv_plot, width = 15, height = 15, units = "cm"
-)
+walk(seroconv_plot, function(pl) {
+    sb <- attr(pl, "key")$subtype
+    nm <- paste0("report/seropos/seroconv-", sb)
+    (function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
+        nm, pl, width = 15, height = 10, units = "cm"
+    )
+})
