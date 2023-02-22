@@ -56,20 +56,39 @@ quick_summary <- function(data) {
 # system("data-raw/export-NIHHCWserol.sh")
 
 serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[012]_", full.names = TRUE) %>%
-  c("data-raw/serology/Y3_2023_H1_egg_all.xlsx", "data-raw/serology/BVic_egg_2022_all.xlsx") %>%
+  c(
+    "data-raw/serology/Y3_2023_H1_egg_all.xlsx", 
+    "data-raw/serology/BVic_egg_2022_all.xlsx",
+    "data-raw/serology/New Caledonia HI_H1N1 immunogenicity_allplates.xlsx",
+    "data-raw/serology/NIH_H1N1_ABrazil_11_egg_All.xlsx"
+  ) %>%
   map_dfr(function(path) {
 
     tbl <- NULL
     if (str_ends(path, "xlsx")) {
       if (str_ends(path, "Y3_2023_H1_egg_all.xlsx")) {
         tbl <- readxl::read_excel(path, "2023-01-23_HCW_Y3_H1N1_egg", guess_max = 1e5) %>%
-          mutate(Designation = "A/Victoria/2570/2019e")
+          mutate(Designation = "A/Victoria/2570/2019e", year = 2022)
       } else if (str_ends(path, "BVic_egg_2022_all.xlsx")) {
         tbl <- readxl::read_excel(path, guess_max = 1e5) %>%
-          mutate(Designation = "B/Austria/1359417/2021e")
+          mutate(Designation = "B/Austria/1359417/2021e", year = 2022)
+      } else if (str_ends(path, "New Caledonia HI_H1N1 immunogenicity_allplates.xlsx")) {
+        tbl <- readxl::read_excel(path, guess_max = 1e5) %>%
+          mutate(Designation = "A/NewCaledonia/20/1999e", year = as.integer(StudyYear))
+      } else if (str_ends(path, "NIH_H1N1_ABrazil_11_egg_All.xlsx")) {
+        tbl <- readxl::read_excel(path, guess_max = 1e5, na = c("", "repeat", "No result")) %>%
+          mutate(Designation = "A/Brazil/11/1978e", year = as.integer(Year))
       }
     } else {
-      tbl <- read_csv(path, col_types = cols(), guess_max = 1e5)
+      year <- 2022
+      if (str_starts(basename(path), "HI")) {
+        year <- str_replace(path, ".*HI_.*_(202[012])_.*", "\\1") %>% as.integer()
+      }
+      if (str_ends(path, "sera.csv")) {
+        year <- str_replace(path, ".*_(202[012])sera\\.csv$", "\\1") %>% as.integer()
+      }
+      tbl <- read_csv(path, col_types = cols(), guess_max = 1e5) %>%
+        mutate(year = year)
     }
 
     if (str_ends(path, "HI_H3N2egg_2022_V73.csv")) {
@@ -81,13 +100,6 @@ serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[012]
     stopifnot(length(virus_col_name) == 1)
     time_col_name <- tblcols[tblcols %in% c("Time", "TimeN", "Timepoint", "timeN", "Visit", "VisitN")][[1]]
     stopifnot(length(time_col_name) == 1)
-    year <- 2022
-    if (str_starts(basename(path), "HI")) {
-      year <- str_replace(path, ".*HI_.*_(202[012])_.*", "\\1") %>% as.integer()
-    }
-    if (str_ends(path, "sera.csv")) {
-      year <- str_replace(path, ".*_(202[012])sera\\.csv$", "\\1") %>% as.integer()
-    }
 
     if (is.character(tbl$Titer)) {
       tbl <- mutate(tbl, Titer = str_replace(Titer, "<", "") %>% str_trim() %>% as.integer())
@@ -95,7 +107,6 @@ serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[012]
 
     tbl %>%
       mutate(
-        year = year,
         vax_inf = str_trunc(!!rlang::sym(time_col_name), 1, ellipsis = "") %>% toupper() %>% replace_na("V"),
         vax_inf = if_else(vax_inf %in% c("V", "I"), vax_inf, "V"),
         day = str_replace(!!rlang::sym(time_col_name), "^[VvIi]", "") %>% as.integer(),
@@ -172,12 +183,20 @@ serology_all_tables_fix_viruses <- serology_all_tables_fix_day %>%
       "B/Phuket/3073/2013e" = "Y3",
       "B/Washington/02/2019" = "V1A.3a",
       "B/Washington/02/2019e" = "V1A.3a",
+      "B/Washington/02/2019e" = "V1A.3a",
+      "A/NewCaledonia/20/1999e" = "None",
+      "A/Brazil/11/1978e" = "None",
     )
   )
 
 check_no_rows(
   serology_all_tables_fix_viruses %>% select(virus, virus_clade) %>% distinct() %>% filter(virus == virus_clade),
   "missing clade"  
+)
+
+check_no_rows(
+  serology_all_tables_fix_viruses %>% filter(is.na(subtype)),
+  "missing subtype"  
 )
 
 check_virus_fix <- function(serology_data) {
@@ -195,16 +214,31 @@ check_virus_fix <- function(serology_data) {
 check_virus_fix(serology_all_tables_fix_viruses)
 check_empty_set(sort(unique(serology_all_tables_fix_viruses$virus)) %>% .[!str_detect(., "\\d{4}e?")], "virus names dont end on 4 digits and optional e")
 
+fun_fix_pids <- function(pid) {
+  str_replace(pid, "([[:alpha:]]{3})\\s?-?(\\d{3})", "\\1-\\2") %>%
+    recode(
+      "QCH-42-" = "QCH-042", "QCH-47-" = "QCH-047",
+      "WCH-26" = "WCH-026", "WCH-26_" = "WCH-026", "WCH-26-" = "WCH-026",
+      "WCH-28" = "WCH-028", "WCH-28_" = "WCH-028", "WCH-28-" = "WCH-028",
+      "QCH 070" = "QCH-070",
+      "JHH-824 (132)" = "JHH-824", # NOTE(sen) Changed within 2021
+      "JHH-304 (820)" = "JHH-820", # NOTE(sen) Changed from 2021 to 2022
+      "JHH-304" = "JHH-820",
+      "JHH-826 (297)" = "JHH-297", # NOTE(sen) Changed from 2021 to 2022
+      "JHH-826" = "JHH-297",
+      "JHH-334 (806)" = "JHH-806", # NOTE(sen) Changed from 2021 to 2022
+      "JHH-830 (082)" = "JHH-082", # NOTE(sen) Changed from 2021 to 2022
+      "JHH-830" = "JHH-082",
+      "JHH-305 (813)" = "JHH-813", # NOTE(sen) Changed from 2021 to 2022
+      "WCH-025" = "WCH-818", # NOTE(sen) Changed study group in 2020
+      "ALF-092" = "ALF-819", # NOTE(sen) Changed study group in 2022
+    )
+}
+
 serology_all_tables_fix_pids <- serology_all_tables_fix_viruses %>%
   # NOTE(sen) WCH-025 became WCH-818 and we have V0 WCH-818 data
   filter(pid != "WCH-025") %>%
-  mutate(pid = recode(
-    pid,
-    "QCH-42-" = "QCH-042", "QCH-47-" = "QCH-047",
-    "WCH-26" = "WCH-026", "WCH-26_" = "WCH-026", "WCH-26-" = "WCH-026",
-    "WCH-28" = "WCH-028", "WCH-28_" = "WCH-028", "WCH-28-" = "WCH-028",
-    "ALF-092" = "ALF-819", "JHH-304" = "JHH-820", "JHH-826" = "JHH-297", "JHH-830" = "JHH-082"
-  ))
+  mutate(pid = fun_fix_pids(pid))
 
 check_no_rows(serology_all_tables_fix_pids %>% filter(pid == "WCH-025"), "WCH-025")
 check_no_rows(serology_all_tables_fix_pids %>% filter(pid == "ALF-092"), "ALF-092")
@@ -228,36 +262,37 @@ write_csv(
   "data/serology.csv"
 )
 
-sercovid_raw <- read_csv("data-raw/serology-covid/sVNTresultsLong.csv", col_types = cols())
-sercovid_v220_raw <- read_csv("data-raw/serology-covid/sVNT_V220_2021.csv", col_types = cols())
+sercovid_raw <- read_csv("data-raw/serology-covid/sVNT_higher_sensitivity.csv", col_types = cols())
 
 sercovid <- sercovid_raw %>%
-  bind_rows(sercovid_v220_raw) %>%
   mutate(
-    pid = str_replace(Sample_ID, "^([[:alpha:]]{3}-\\d{3}).*$", "\\1"),
-    timepoint_id = str_replace(Sample_ID, "^[[:alpha:]]{3}-\\d{3}\\s*-", ""),
+    pid = str_replace(Sample_ID, "^([[:alpha:]]{3}-\\d{3}).*$", "\\1") %>% fun_fix_pids(),
+    timepoint_id = str_replace(Sample_ID, "^[[:alpha:]]{3}-\\d{3}\\s*[-_]", ""),
     vax_inf = if_else(str_starts(timepoint_id, "I"), "I", "V"),
     bleed_flu_covid = if_else(str_starts(timepoint_id, "C") | str_starts(timepoint_id, "I"), "C", "F"),
     bleed_year = str_replace(timepoint_id, "^.*-(\\d{4})$", "\\1"),
     bleed_year = suppressWarnings(as.integer(bleed_year)) %>% replace_na(2021),
     bleed_day_id = str_replace(timepoint_id, "^C?[VI](\\d+).*$", "\\1") %>% as.integer(),
     bleed_day_id = if_else(str_detect(TP, "^pre"), 0L, bleed_day_id),
+    strain = Strain,
+    score = as.integer(str_detect(tolower(TP), "r$") | TP == "EndSeason" | (pid == "QCH-069" & TP == "post1")) %>% replace_na(0),
+    score = score + Batch,
   ) %>%
-  mutate(score = as.integer(str_detect(tolower(TP), "r$") | TP == "EndSeason" | (pid == "QCH-069" & TP == "post1")) %>% replace_na(0)) %>%
-  group_by(pid, bleed_flu_covid, bleed_day_id, bleed_year, vax_inf) %>%
+  group_by(pid, bleed_flu_covid, bleed_day_id, bleed_year, vax_inf, strain) %>%
   filter(score == max(score)) %>%
   ungroup() %>%
   arrange(pid) %>%
-  select(Sample_ID, TP, pid, IC50, Comment, vax_inf, bleed_flu_covid, bleed_year, bleed_day_id) %>%
-  select(pid, ic50 = IC50, vax_inf, bleed_flu_covid, bleed_year, bleed_day_id)
+  select(pid, ic50 = IC50, vax_inf, bleed_flu_covid, bleed_year, bleed_day_id, strain) %>%
+  filter(!is.na(ic50))
 
+# NOTE(sen) Quick sanity check, most covid pids should be in flu serology as well
 check_no_rows(
-  sercovid %>% filter(!pid %in% serology_all_tables_fix_pids$pid),
+  sercovid %>% filter(pid != "WCH-076", !pid %in% serology_all_tables_fix_pids$pid),
   "covid serology bad PIDs"
 )
 
 check_no_rows(
-  sercovid %>% group_by(pid, vax_inf, bleed_year, bleed_day_id, bleed_flu_covid) %>% filter(n() > 1) %>% arrange(pid),
+  sercovid %>% group_by(pid, vax_inf, bleed_year, bleed_day_id, bleed_flu_covid, strain) %>% filter(n() > 1) %>% arrange(pid, bleed_day_id, vax_inf, bleed_flu_covid, bleed_year),
   "covid serology duplicates"
 )
 
@@ -274,6 +309,11 @@ seradeno <- seradeno_raw %>%
   ) %>%
   select(pid, bleed_flu_covid, bleed_year, bleed_day_id = Visit, ic50 = Ad5AbEC50) %>%
   filter(!is.na(ic50))
+
+check_no_rows(
+  seradeno %>% group_by(pid, bleed_flu_covid, bleed_day_id, bleed_year) %>% filter(n() > 1),
+  "adeno serology duplicates"
+)
 
 write_csv(seradeno, "data/serology-adenovirus.csv")
 
@@ -346,21 +386,6 @@ redcap_participants_request <- function(project_year) {
 participants2020 <- redcap_participants_request(2020)
 participants2021 <- redcap_participants_request(2021)
 participants2022 <- redcap_participants_request(2022)
-
-fun_fix_pids <- function(pid) {
-  str_replace(pid, "([[:alpha:]]{3})\\s?-?(\\d{3})", "\\1-\\2") %>%
-    recode(
-      "QCH 070" = "QCH-070",
-      "JHH-824 (132)" = "JHH-824", # NOTE(sen) Changed within 2021
-      "JHH-304 (820)" = "JHH-820", # NOTE(sen) Changed from 2021 to 2022
-      "JHH-826 (297)" = "JHH-297", # NOTE(sen) Changed from 2021 to 2022
-      "JHH-334 (806)" = "JHH-806", # NOTE(sen) Changed from 2021 to 2022
-      "JHH-830 (082)" = "JHH-082", # NOTE(sen) Changed from 2021 to 2022
-      "JHH-305 (813)" = "JHH-813", # NOTE(sen) Changed from 2021 to 2022
-      "WCH-025" = "WCH-818", # NOTE(sen) Changed study group in 2020
-      "ALF-092" = "ALF-819", # NOTE(sen) Changed study group in 2022
-    )
-}
 
 participants <- bind_rows(participants2020, participants2021, participants2022) %>%
   filter(!is.na(pid)) %>%
