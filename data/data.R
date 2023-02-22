@@ -1236,3 +1236,50 @@ daily_surveys <- daily_surveys_raw %>%
   )
 
 write_csv(daily_surveys, "data/daily-surveys.csv")
+
+#
+# SECTION Medial history (comorbidities)
+#
+
+redcap_medhx_req <- function(year) {
+  fields <- c(
+    "record_id",
+    "b1_medicalhx"
+  )
+  redcap_request(year, "baseline_arm_1", paste(fields, collapse = ","))
+}
+
+medhx_raw_2020 <- redcap_medhx_req(2020)
+medhx_raw_2021 <- redcap_medhx_req(2021)
+medhx_raw_2022 <- redcap_medhx_req(2022)
+
+comorbidities <- bind_rows(medhx_raw_2020, medhx_raw_2021, medhx_raw_2022) %>%
+  pivot_longer(starts_with("b1_medicalhx"), names_to = "condition", values_to = "status") %>%
+  filter(status == 1) %>%
+  select(record_id, redcap_project_year, condition) %>%
+  mutate(
+    condition = str_replace(condition, "^b1_medicalhx___", "") %>%
+      recode(
+        "1" = "Cardiac disease",
+        "2" = "Renal disease",
+        "3" = "Chronic respiratory condition",
+        "4" = "Haematological disorder",
+        "10" = "Chronic neurological condition",
+        "5" = "Pregnancy",
+        "6" = "Immunocompromising condition",
+        "7" = "Diabetes or other metabolic disorder",
+        "8" = "Smoker",
+        "9" = "None",
+      )
+  ) %>% 
+  filter(condition != "None") %>%
+  inner_join(
+    yearly_changes_fix_pids %>%
+      select(record_id, pid, redcap_project_year),
+    c("record_id", "redcap_project_year")
+  ) %>%
+  select(pid, condition) %>%
+  distinct() %>%
+  arrange(pid, condition)
+
+write_csv(comorbidities, "data/comorbidities.csv")
