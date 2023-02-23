@@ -2270,7 +2270,6 @@ const createProblemsPage = (data: Data, onDatapageChange: (page: DataPageID) => 
 				getTableHeightInit: () => 500,
 			})
 		)
-		console.log(data.missing_covax_dose[0])
 	}
 
 	const page = createDatapageContainer()
