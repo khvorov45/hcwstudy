@@ -273,10 +273,11 @@ sercovid <- sercovid_raw %>%
     bleed_year = str_replace(timepoint_id, "^.*-(\\d{4})$", "\\1"),
     bleed_year = suppressWarnings(as.integer(bleed_year)) %>% replace_na(2021),
     bleed_day_id = str_replace(timepoint_id, "^C?[VI](\\d+).*$", "\\1") %>% as.integer(),
-    bleed_day_id = if_else(str_detect(TP, "^pre"), 0L, bleed_day_id),
+    bleed_day_id = if_else(!is.na(TP) & str_detect(TP, "^pre"), 0L, bleed_day_id),
+    bleed_day_id = if_else(!is.na(TP) & TP == "EndSeason", 220L, bleed_day_id),
     strain = Strain,
     score = as.integer(str_detect(tolower(TP), "r$") | TP == "EndSeason" | (pid == "QCH-069" & TP == "post1")) %>% replace_na(0),
-    score = score + Batch,
+    score = if_else(is.na(Batch), score, score + Batch),
   ) %>%
   group_by(pid, bleed_flu_covid, bleed_day_id, bleed_year, vax_inf, strain) %>%
   filter(score == max(score)) %>%
@@ -296,7 +297,19 @@ check_no_rows(
   "covid serology duplicates"
 )
 
-write_csv(sercovid, "data/serology-covid.csv")
+check_no_rows(
+  sercovid %>% filter(!complete.cases(.)),
+  "serology covid missing data"
+)
+
+write_csv(
+  # TODO(sen) Presumably this duplicate removal should be unnecessary
+  sercovid %>% 
+    group_by(pid, vax_inf, bleed_year, bleed_day_id, bleed_flu_covid, strain) %>% 
+    filter(row_number() == 1) %>%
+    ungroup(),
+  "data/serology-covid.csv"
+)
 
 seradeno_raw <- read_csv("data-raw/serology-covid/Ad5_hexon_ELISA.csv", col_types = cols())
 
