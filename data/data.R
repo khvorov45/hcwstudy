@@ -277,7 +277,7 @@ sercovid <- sercovid_raw %>%
     bleed_day_id = if_else(!is.na(TP) & TP == "EndSeason", 220L, bleed_day_id),
     strain = Strain,
     score = as.integer(str_detect(tolower(TP), "r$") | TP == "EndSeason" | (pid == "QCH-069" & TP == "post1")) %>% replace_na(0),
-    score = if_else(is.na(Batch), score, score + Batch),
+    score = if_else(is.na(Batch), score, score + as.integer(Batch)),
   ) %>%
   group_by(pid, bleed_flu_covid, bleed_day_id, bleed_year, vax_inf, strain) %>%
   filter(score == max(score)) %>%
