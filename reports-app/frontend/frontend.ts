@@ -1429,6 +1429,7 @@ type Data = {
 	missing_bleed_dates: any[]
 	missing_vaccination_history: any[]
 	missing_vaccination_records: any[]
+	missing_covax_dose: any[]
 	swabs_missing_date: any[]
 	withdrawn_missing_date: any[]
 	covid_vax_dates_not_ascending: any[]
@@ -2027,6 +2028,7 @@ const createProblemsPage = (data: Data, onDatapageChange: (page: DataPageID) => 
 	DOM.addDivWithText(helpEl, "Covid vax missing dates: missing covid vaccination date")
 	DOM.addDivWithText(helpEl, "Covid vax missing brand: missing covid vaccination brand")
 	DOM.addDivWithText(helpEl, "Bled d14 no vax: We have a d14 titre but there is no vaccination record")
+	DOM.addDivWithText(helpEl, "Missing covax dose: Non-withdrawn covid-consented participants missing covax info on dose 1, 2 or 3. Column `doses` shows the doses we have info for.")
 
 	const tablesContainer = DOM.addDiv(container)
 	tablesContainer.style.display = "flex"
@@ -2252,6 +2254,23 @@ const createProblemsPage = (data: Data, onDatapageChange: (page: DataPageID) => 
 				getTableHeightInit: () => 500,
 			})
 		)
+	}
+
+	if (data.missing_covax_dose.length > 0) {
+		DOM.addEl(
+			tablesContainer,
+			Table.createTableFromAos({
+				aos: data.missing_covax_dose,
+				colSpecInit: {
+					pid: {},
+					site: {},
+					doses: {},
+				},
+				title: "Missing covax dose",
+				getTableHeightInit: () => 500,
+			})
+		)
+		console.log(data.missing_covax_dose[0])
 	}
 
 	const page = createDatapageContainer()

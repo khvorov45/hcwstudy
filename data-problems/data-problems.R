@@ -11,6 +11,7 @@ all_csv_files <- tools::list_files_with_exts("data-problems", "csv")
 walk(all_csv_files, file.remove)
 
 save_split <- function(data, name) {
+	stopifnot(!str_detect(name, "-"))
 	write_csv(data, paste0("data-problems/", name, ".csv"))
 	data %>%
 		group_by(site) %>%
@@ -116,6 +117,26 @@ covid_bleeds_no_vax <- covid_bleed_dates %>%
 	inner_join(participants %>% select(pid, site), "pid")
 
 save_split(covid_bleeds_no_vax, "covid_bleeds_no_vax")
+
+#
+# SECTION Missing covid vax data
+#
+
+covid_vax %>%
+	group_by(pid, site) %>%
+	filter(!all(1:3 %in% dose)) %>%
+	select(pid, site, dose) %>%
+	summarise(doses = paste0(dose, collapse = " "), .groups = "drop") %>%
+	bind_rows(
+		participants %>% 
+			filter(!pid %in% covid_vax$pid) %>%
+			select(pid, site) %>%
+			mutate(doses = "")
+	) %>%
+	filter(!pid %in% withdrawn$pid) %>%
+	filter(pid %in% (consent %>% filter(disease == "covid", consent != "no") %>% pull(pid) %>% unique())) %>%
+	arrange(pid) %>%
+	save_split("missing_covax_dose")
 
 #
 # SECTION Covid vax dates
