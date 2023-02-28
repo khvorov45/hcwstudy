@@ -1,6 +1,5 @@
 suppressPackageStartupMessages(library(tidyverse))
 
-# Double-check consent + bleed
 # Check consent signatures
 # Check consent names
 # Check bleed dates go in ascending order
@@ -19,19 +18,26 @@ save_split <- function(data, name) {
 }
 
 participants <- read_csv("data/participants.csv", col_types = cols())
+withdrawn <- read_csv("data/withdrawn.csv", col_types = cols()) %>% left_join(participants %>% select(pid, site), "pid")
+consent <- read_csv("data/consent.csv", col_types = cols()) %>% left_join(participants %>% select(pid, site), "pid")
+serology <- read_csv("data/serology.csv", col_types = cols()) %>% left_join(participants %>% select(pid, site), "pid")
+serology_covid <- read_csv("data/serology-covid.csv", col_types = cols()) %>% left_join(participants %>% select(pid, site), "pid")
+bleed_dates <- read_csv("data/bleed-dates.csv", col_types = cols()) %>% left_join(participants %>% select(pid, site), "pid")
+swabs <- read_csv("data/swabs.csv", col_types = cols()) %>% left_join(participants %>% select(pid, site), "pid")
 
-withdrawn <- read_csv("data/withdrawn.csv", col_types = cols())
+stopifnot(sum(is.na(withdrawn$site)) == 0)
+stopifnot(sum(is.na(consent$site)) == 0)
+stopifnot(sum(is.na(serology$site)) == 0)
+stopifnot(sum(is.na(serology_covid$site)) == 0)
+stopifnot(sum(is.na(bleed_dates$site)) == 0)
+stopifnot(sum(is.na(swabs$site)) == 0)
 
-missing_baseline <- participants %>%
+participants %>%
 	select(-email, -mobile) %>%
-	filter(!complete.cases(.), !pid %in% withdrawn$pid)
+	filter(!complete.cases(.), !pid %in% withdrawn$pid) %>%
+	save_split("missing_baseline")
 
-save_split(missing_baseline, "missing_baseline")
-
-consent <- read_csv("data/consent.csv", col_types = cols()) %>%
-	inner_join(participants %>% select(pid, site), "pid")
-
-consent_conflicts <- consent %>%
+consent %>%
   group_by(pid, year, disease) %>%
   filter(length(unique(na.omit(consent))) > 1) %>%
   ungroup() %>%
@@ -39,29 +45,43 @@ consent_conflicts <- consent %>%
   arrange(form) %>%
   select(-disease, -date) %>%
   pivot_wider(names_from = "form", values_from = "consent") %>%
-  arrange(pid, site, year)
+  arrange(pid, site, year) %>%
+  save_split("consent_conflicts")
 
-save_split(consent_conflicts, "consent_conflicts")
+serology %>%
+	left_join(
+		consent %>%
+			filter(consent != "no", disease == "flu") %>%
+			select(pid, year) %>%
+			distinct() %>%
+			mutate(consented = TRUE),
+		c("pid", "year")
+	) %>%
+	filter(is.na(consented)) %>%
+	select(pid, site, year) %>%
+	distinct() %>%
+	save_split("bleed_no_consent")
 
-consent_multiple <- consent %>%
-  group_by(pid, year, disease) %>%
-  filter(length(na.omit(consent)) > 1) %>%
-  ungroup() %>%
-  pivot_wider(names_from = "form", values_from = "consent") %>%
-  arrange(pid, site, year, disease)
-
-save_split(consent_multiple, "consent_multiple")
-
-bleed_dates <- read_csv("data/bleed-dates.csv", col_types = cols()) %>%
-	inner_join(participants %>% select(pid, site), "pid")
-
-serology <- read_csv("data/serology.csv", col_types = cols())
+serology_covid %>%
+	filter(vax_inf == "V") %>%
+	left_join(
+		consent %>%
+			filter(consent != "no", disease == "covid") %>%
+			select(pid) %>%
+			distinct() %>%
+			mutate(consented = TRUE),
+		c("pid")
+	) %>%
+	filter(is.na(consented)) %>%
+	select(pid, site) %>%
+	distinct() %>%
+	save_split("bleed_no_consent_covid")
 
 # NOTE(sen) All serology pids should match
 # setdiff(serology$pid, bleed_dates$pid)
 
 missing_bleed_dates <- serology %>%
-	inner_join(bleed_dates, c("pid", "year", "day")) %>%
+	inner_join(bleed_dates, c("pid", "year", "day", "site")) %>%
 	filter(is.na(date))
 
 save_split(missing_bleed_dates, "missing_bleed_dates")
@@ -85,8 +105,6 @@ missing_vaccination_records <- participants %>%
 
 save_split(missing_vaccination_records, "missing_vaccination_records")
 
-swabs <- read_csv("data/swabs.csv", col_types = cols()) %>%
-	inner_join(participants %>% select(pid, site), "pid")
 
 swabs_missing_date <- swabs %>%
 	filter(is.na(samp_date), !pid %in% withdrawn$pid) %>%
@@ -96,7 +114,6 @@ swabs_missing_date <- swabs %>%
 save_split(swabs_missing_date, "swabs_missing_date")
 
 withdrawn_missing_date <- withdrawn %>%
-	inner_join(participants %>% select(pid, site), "pid") %>%
 	filter(is.na(withdrawal_date)) %>%
 	arrange(pid)
 

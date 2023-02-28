@@ -1436,6 +1436,8 @@ type Data = {
 	covid_vax_missing_dates: any[]
 	covid_vax_missing_brand: any[]
 	bled_d14_no_vax_record: any[]
+	bleed_no_consent: any[]
+	bleed_no_consent_covid: any[]
 }
 
 type Pages = {
@@ -2028,7 +2030,12 @@ const createProblemsPage = (data: Data, onDatapageChange: (page: DataPageID) => 
 	DOM.addDivWithText(helpEl, "Covid vax missing dates: missing covid vaccination date")
 	DOM.addDivWithText(helpEl, "Covid vax missing brand: missing covid vaccination brand")
 	DOM.addDivWithText(helpEl, "Bled d14 no vax: We have a d14 titre but there is no vaccination record")
-	DOM.addDivWithText(helpEl, "Missing covax dose: Non-withdrawn covid-consented participants missing covax info on dose 1, 2 or 3. Column `doses` shows the doses we have info for.")
+	DOM.addDivWithText(
+		helpEl,
+		"Missing covax dose: Non-withdrawn covid-consented participants missing covax info on dose 1, 2 or 3. Column `doses` shows the doses we have info for."
+	)
+	DOM.addDivWithText(helpEl, "Bleed no consent: No recorded flu consent but we have antibody titre.")
+	DOM.addDivWithText(helpEl, "Bleed no consent covid: No recorded covid consent but we have antibody titre.")
 
 	const tablesContainer = DOM.addDiv(container)
 	tablesContainer.style.display = "flex"
@@ -2267,6 +2274,30 @@ const createProblemsPage = (data: Data, onDatapageChange: (page: DataPageID) => 
 					doses: {},
 				},
 				title: "Missing covax dose",
+				getTableHeightInit: () => 500,
+			})
+		)
+	}
+
+	if (data.bleed_no_consent.length > 0) {
+		DOM.addEl(
+			tablesContainer,
+			Table.createTableFromAos({
+				aos: data.bleed_no_consent,
+				colSpecInit: { pid: {}, site: {width: 150} },
+				title: "Bleed no consent",
+				getTableHeightInit: () => 500,
+			})
+		)
+	}
+
+	if (data.bleed_no_consent_covid.length > 0) {
+		DOM.addEl(
+			tablesContainer,
+			Table.createTableFromAos({
+				aos: data.bleed_no_consent_covid,
+				colSpecInit: { pid: {width: 300} },
+				title: "Bleed no consent covid",
 				getTableHeightInit: () => 500,
 			})
 		)
