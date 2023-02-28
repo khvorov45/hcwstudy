@@ -71,7 +71,10 @@ serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[012]
           mutate(Designation = "A/Victoria/2570/2019e", year = 2022)
       } else if (str_ends(path, "BVic_egg_2022_all.xlsx")) {
         tbl <- readxl::read_excel(path, guess_max = 1e5) %>%
-          mutate(Designation = "B/Austria/1359417/2021e", year = 2022)
+          mutate(Designation = "B/Austria/1359417/2021e", year = 2022) %>%
+          group_by(PID, VisitN) %>%
+          filter(n() == 1 | `Plate Name` == "B Vic Repeat Plate 1") %>%
+          ungroup()
       } else if (str_ends(path, "New Caledonia HI_H1N1 immunogenicity_allplates.xlsx")) {
         tbl <- readxl::read_excel(path, guess_max = 1e5) %>%
           mutate(Designation = "A/NewCaledonia/20/1999e", year = as.integer(StudyYear))
@@ -121,11 +124,10 @@ serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[012]
       filter(!is.na(titre))
   })
 
-check_no_rows(serology_all_tables %>% filter(is.na(day)), "serology missing day")
+check_no_rows(serology_all_tables %>% filter(pid != "JHH-018", is.na(day)), "serology missing day")
 
-# TODO(sen) Let's assume JHH-018's titres are all at V0 (they are missing day).
-# Check what's up here
 serology_all_tables_fix_day <- serology_all_tables %>%
+  # NOTE(sen) Only bled at baseline in 2020
   mutate(day = if_else(pid == "JHH-018", 0L, day))
 
 # NOTE(sen) Fix virus names
@@ -252,35 +254,35 @@ check_no_rows(
   "serology duplicates"
 )
 
-write_csv(
-  serology_all_tables_fix_pids %>%
-    select(-path) %>%
-    # TODO(sen) Presumably this deduplication will be unnecessary eventually
-    group_by(pid, year, day, virus, vax_inf) %>%
-    filter(row_number() == max(row_number())) %>%
-    ungroup(),
-  "data/serology.csv"
-)
+write_csv(serology_all_tables_fix_pids %>% select(-path), "data/serology.csv")
 
 sercovid_raw <- read_csv("data-raw/serology-covid/sVNT_higher_sensitivity.csv", col_types = cols())
 
+check_no_rows(
+  sercovid_raw %>%
+    filter(SampleComment != "repeat") %>%
+    group_by(Sample_ID, Strain, Batch) %>%
+    filter(n() > 1) %>%
+    arrange(Sample_ID, Strain),
+  "raw covid serology duplicates"
+)
+
 sercovid <- sercovid_raw %>%
   mutate(
-    pid = str_replace(Sample_ID, "^([[:alpha:]]{3}-\\d{3}).*$", "\\1") %>% fun_fix_pids(),
-    timepoint_id = str_replace(Sample_ID, "^[[:alpha:]]{3}-\\d{3}\\s*[-_]", ""),
+    sample_id_split = str_split(Sample_ID, "[-_]"),
+    pid = paste(map(sample_id_split, 1), map(sample_id_split, 2), sep = "-") %>% str_trim() %>% fun_fix_pids(),
+    timepoint_id = as.character(map(sample_id_split, 3)),
+    bleed_day_id = timepoint_id %>% str_replace("^[^\\d]+", "") %>% as.integer(),
+    bleed_year = as.character(map(sample_id_split, 4)),
+    bleed_year = if_else(bleed_year == "NULL", NA_character_, bleed_year),
+    bleed_year = as.integer(bleed_year) %>% replace_na(2021),
     vax_inf = if_else(str_starts(timepoint_id, "I"), "I", "V"),
     bleed_flu_covid = if_else(str_starts(timepoint_id, "C") | str_starts(timepoint_id, "I"), "C", "F"),
-    bleed_year = str_replace(timepoint_id, "^.*-(\\d{4})$", "\\1"),
-    bleed_year = suppressWarnings(as.integer(bleed_year)) %>% replace_na(2021),
-    bleed_day_id = str_replace(timepoint_id, "^C?[VI](\\d+).*$", "\\1") %>% as.integer(),
-    bleed_day_id = if_else(!is.na(TP) & str_detect(TP, "^pre"), 0L, bleed_day_id),
-    bleed_day_id = if_else(!is.na(TP) & TP == "EndSeason", 220L, bleed_day_id),
     strain = Strain,
-    score = as.integer(str_detect(tolower(TP), "r$") | TP == "EndSeason" | (pid == "QCH-069" & TP == "post1")) %>% replace_na(0),
-    score = if_else(is.na(Batch), score, score + as.integer(Batch)),
   ) %>%
   group_by(pid, bleed_flu_covid, bleed_day_id, bleed_year, vax_inf, strain) %>%
-  filter(score == max(score)) %>%
+  filter(Batch == max(Batch)) %>%
+  filter(n() == 1 | TP == "pre_r") %>%
   ungroup() %>%
   arrange(pid) %>%
   select(pid, ic50 = IC50, vax_inf, bleed_flu_covid, bleed_year, bleed_day_id, strain) %>%
@@ -302,14 +304,7 @@ check_no_rows(
   "serology covid missing data"
 )
 
-write_csv(
-  # TODO(sen) Presumably this duplicate removal should be unnecessary
-  sercovid %>% 
-    group_by(pid, vax_inf, bleed_year, bleed_day_id, bleed_flu_covid, strain) %>% 
-    filter(row_number() == 1) %>%
-    ungroup(),
-  "data/serology-covid.csv"
-)
+write_csv(sercovid, "data/serology-covid.csv")
 
 seradeno_raw <- read_csv("data-raw/serology-covid/Ad5_hexon_ELISA.csv", col_types = cols())
 
@@ -332,8 +327,22 @@ write_csv(seradeno, "data/serology-adenovirus.csv")
 
 serlandscape_raw <- read_csv("data-raw/serology-landscapes/HI.csv", col_types = cols(), guess_max = 1e5)
 
+check_no_rows(
+  serlandscape_raw %>% 
+    group_by(Sample_ID, VirusN) %>% 
+    filter(n() > 1) %>% 
+    arrange(Sample_ID, VirusN),
+  "raw landscape serology duplicates"
+)
+
 serlandscape <- serlandscape_raw %>%
-  select(pid = PID, year = Year, day = TP, virus_number = VirusN, titre = Titer)
+  mutate(
+    sample_id_split = str_split(Sample_ID, "[-_]"),
+    pid = paste(map(sample_id_split, 1), map(sample_id_split, 2), sep = "-"),
+    year = as.integer(map(sample_id_split, 3)),
+    day = as.character(map(sample_id_split, 4)) %>% str_replace("^[vV]", "") %>% as.integer(),
+  ) %>%
+  select(pid, year, day, virus_number = VirusN, titre = Titer)
 
 check_no_rows(
   serlandscape %>% filter(!pid %in% serology_all_tables_fix_pids$pid),
@@ -341,7 +350,9 @@ check_no_rows(
 )
 
 check_no_rows(
-  serlandscape %>% group_by(pid, year, day, virus_number) %>% filter(n() > 1) %>% arrange(pid, year, day, virus_number),
+  serlandscape %>% 
+    group_by(pid, year, day, virus_number) %>% 
+    filter(n() > 1),
   "landscape serology duplicates"
 )
 
@@ -537,21 +548,22 @@ vaccination_history_raw <- redcap_vaccination_history_request(2020) %>%
   ) %>%
   select(-record_id)
 
-vaccination_history_no_duplicates <- vaccination_history_raw %>%
+vaccination_history_processed <- vaccination_history_raw %>%
   pivot_longer(contains("vac_"), names_to = "year", values_to = "status") %>%
   filter(!is.na(status)) %>%
   mutate(
-    status = str_replace(status, "Yes - ", "")
+    status = str_replace(status, "Yes - ", ""),
+    year = str_replace(year, "vac_", "") %>% as.integer(),
   ) %>%
   group_by(pid, year) %>%
   filter(n() == 1 | status != "Unknown") %>%
-  summarise(
-    .groups = "drop",
-    status = paste(unique(status), collapse = ","),
-  ) %>%
-  mutate(
-    year = str_replace(year, "vac_", "") %>% as.integer(),
-  )
+  ungroup()
+
+vaccination_history_no_duplicates <- vaccination_history_processed %>%
+  group_by(pid, year) %>%
+  filter(redcap_project_year == max(redcap_project_year)) %>%
+  filter(row_number() == 1) %>%
+  ungroup()
 
 check_no_rows(
   vaccination_history_no_duplicates %>% filter(!complete.cases(.)),
@@ -566,8 +578,10 @@ check_no_rows(
 )
 
 check_no_rows(
-  vaccination_history_no_duplicates %>%
-    filter(str_detect(status, ",")),
+  vaccination_history_processed %>%
+    group_by(pid, year) %>%
+    filter(length(unique(status)) > 1) %>%
+    arrange(pid, year),
   "vaccination history conflicts (screening)"
 )
 
@@ -678,7 +692,10 @@ covax_request <- covax_request_raw %>%
   select(pid, redcap_project_year, dose, received, date, batch, brand)
 
 check_no_rows(
-  covax_request %>% filter(lubridate::year(date) <= 2020),
+  covax_request %>% 
+    filter(lubridate::year(date) <= 2020) %>%
+    # NOTE(sen) Seems to be fine
+    filter(!(pid == "JHH-383" & dose == 1)),
   "wrong covax date"
 )
 
