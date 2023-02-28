@@ -626,6 +626,7 @@ vaccination_instrument_renamed <- vaccination_instrument_raw_no_duplicates %>%
 vaccination_history_with_instrument <- vaccination_instrument_renamed %>%
   bind_rows(
     vaccination_history_no_duplicates %>%
+      select(-redcap_project_year) %>%
       filter(!paste0(pid, year) %in% with(vaccination_instrument_renamed, paste0(pid, year)))
   )
 

@@ -1,8 +1,5 @@
 suppressPackageStartupMessages(library(tidyverse))
 
-# Check consent signatures
-# Check consent names
-# Check bleed dates go in ascending order
 # Check dob/other baseline stuff makes sense
 # Check serology d7/d14 is only present for those with a vaccination record
 
@@ -12,9 +9,11 @@ walk(all_csv_files, file.remove)
 save_split <- function(data, name) {
 	stopifnot(!str_detect(name, "-"))
 	write_csv(data, paste0("data-problems/", name, ".csv"))
-	data %>%
-		group_by(site) %>%
-		group_walk(~write_csv(.x, paste0("data-problems/", name, "-", .y, ".csv")))
+	if (nrow(data) > 0) {
+		data %>%
+			group_by(site) %>%
+			group_walk(~write_csv(.x, paste0("data-problems/", name, "-", .y, ".csv")))
+	}
 }
 
 participants <- read_csv("data/participants.csv", col_types = cols())
@@ -24,6 +23,9 @@ serology <- read_csv("data/serology.csv", col_types = cols()) %>% left_join(part
 serology_covid <- read_csv("data/serology-covid.csv", col_types = cols()) %>% left_join(participants %>% select(pid, site), "pid")
 bleed_dates <- read_csv("data/bleed-dates.csv", col_types = cols()) %>% left_join(participants %>% select(pid, site), "pid")
 swabs <- read_csv("data/swabs.csv", col_types = cols()) %>% left_join(participants %>% select(pid, site), "pid")
+covid_bleed_dates <- read_csv("data/covid-bleed-dates.csv", col_types = cols()) %>% left_join(participants %>% select(pid, site), "pid")
+covid_vax <- read_csv("data/covid-vax.csv", col_types = cols()) %>% left_join(participants %>% select(pid, site), "pid")
+vaccinations <- read_csv("data/vaccinations.csv", col_types = cols()) %>% left_join(participants %>% select(pid, site), "pid")
 
 stopifnot(sum(is.na(withdrawn$site)) == 0)
 stopifnot(sum(is.na(consent$site)) == 0)
@@ -31,6 +33,9 @@ stopifnot(sum(is.na(serology$site)) == 0)
 stopifnot(sum(is.na(serology_covid$site)) == 0)
 stopifnot(sum(is.na(bleed_dates$site)) == 0)
 stopifnot(sum(is.na(swabs$site)) == 0)
+stopifnot(sum(is.na(covid_bleed_dates$site)) == 0)
+stopifnot(sum(is.na(covid_vax$site)) == 0)
+stopifnot(sum(is.na(vaccinations$site)) == 0)
 
 participants %>%
 	select(-email, -mobile) %>%
@@ -78,66 +83,43 @@ serology_covid %>%
 	save_split("bleed_no_consent_covid")
 
 # NOTE(sen) All serology pids should match
-# setdiff(serology$pid, bleed_dates$pid)
+stopifnot(length(setdiff(serology$pid, bleed_dates$pid)) == 0)
 
-missing_bleed_dates <- serology %>%
+serology %>%
 	inner_join(bleed_dates, c("pid", "year", "day", "site")) %>%
-	filter(is.na(date))
-
-save_split(missing_bleed_dates, "missing_bleed_dates")
-
-vaccinations <- read_csv("data/vaccinations.csv", col_types = cols()) %>%
-	inner_join(participants, "pid")
+	filter(is.na(date)) %>%
+	save_split("missing_bleed_dates")
 
 vaccinations_before_recruitment <- vaccinations %>%
+	left_join(participants %>% select(pid, recruitment_year), "pid") %>%
 	filter(year < recruitment_year)
 
 vaccinations_after_recruitment <- vaccinations %>%
+	left_join(participants %>% select(pid, recruitment_year), "pid") %>%
 	filter(year >= recruitment_year)
 
 missing_vaccination_history <- participants %>%
-	filter(!pid %in% vaccinations_before_recruitment$pid, !pid %in% withdrawn$pid)
+	filter(!pid %in% vaccinations_before_recruitment$pid, !pid %in% withdrawn$pid) %>%
+	save_split("missing_vaccination_history")
 
-save_split(missing_vaccination_history, "missing_vaccination_history")
+participants %>%
+	filter(!pid %in% vaccinations_after_recruitment$pid, !pid %in% withdrawn$pid) %>%
+	save_split("missing_vaccination_records")
 
-missing_vaccination_records <- participants %>%
-	filter(!pid %in% vaccinations_after_recruitment$pid, !pid %in% withdrawn$pid)
-
-save_split(missing_vaccination_records, "missing_vaccination_records")
-
-
-swabs_missing_date <- swabs %>%
+swabs %>%
 	filter(is.na(samp_date), !pid %in% withdrawn$pid) %>%
 	group_by(pid, site, year, postinf_instance, samp_date) %>%
-	summarise(.groups = "drop", viruses = paste(swab_virus[swab_result == 1], collapse = ","))
+	summarise(.groups = "drop", viruses = paste(swab_virus[swab_result == 1], collapse = ",")) %>%
+	save_split("swabs_missing_date")
 
-save_split(swabs_missing_date, "swabs_missing_date")
-
-withdrawn_missing_date <- withdrawn %>%
+withdrawn %>%
 	filter(is.na(withdrawal_date)) %>%
-	arrange(pid)
+	arrange(pid) %>%
+	save_split("withdrawn_missing_date")
 
-save_split(withdrawn_missing_date, "withdrawn_missing_date")
-
-#
-# SECTION Covid bleed dates but no covid vaccination records
-#
-
-covid_bleed_dates <- read_csv("data/covid-bleed-dates.csv", col_types = cols())
-
-covid_vax <- read_csv("data/covid-vax.csv", col_types = cols()) %>% left_join(participants %>% select(pid, site), "pid")
-covid_vax_only_rec <- covid_vax %>% select(pid) %>% distinct() %>% mutate(received = TRUE)
-
-covid_bleeds_no_vax <- covid_bleed_dates %>%
-	left_join(covid_vax_only_rec, "pid") %>%
-	filter(is.na(received)) %>%
-	inner_join(participants %>% select(pid, site), "pid")
-
-save_split(covid_bleeds_no_vax, "covid_bleeds_no_vax")
-
-#
-# SECTION Missing covid vax data
-#
+covid_bleed_dates %>% 
+	filter(!pid %in% covid_vax$pid) %>%
+	save_split("covid_bleeds_no_vax")
 
 covid_vax %>%
 	group_by(pid, site) %>%
@@ -155,10 +137,6 @@ covid_vax %>%
 	arrange(pid) %>%
 	save_split("missing_covax_dose")
 
-#
-# SECTION Covid vax dates
-#
-
 covid_vax %>%
 	group_by(pid) %>%
 	arrange(dose) %>%
@@ -174,15 +152,15 @@ covid_vax %>%
 	filter(is.na(brand)) %>%
 	save_split("covid_vax_missing_brand")
 
-#
-# SECTION D14 serology and vaccination records
-#
-
 serology %>% 
 	filter(day == 14) %>% 
-	select(pid, year) %>% 
-	inner_join(participants %>% select(pid, site), "pid") %>%
+	select(pid, year, site) %>% 
 	distinct() %>% 
 	left_join(vaccinations %>% select(pid, year, status), c("pid", "year")) %>% 
 	filter(is.na(status)) %>%
 	save_split("bled_d14_no_vax_record")
+
+bleed_dates %>%
+	pivot_wider(names_from = "day", values_from = "date") %>%
+	filter(`0` > `7` | `0` > `14` | `0` > `220` | `7` > `14` | `7` > `220` | `14` > `220`) %>%
+	save_split("bleed_dates_wrong_order")
