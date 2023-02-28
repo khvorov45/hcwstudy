@@ -1,7 +1,5 @@
 suppressPackageStartupMessages(library(tidyverse))
 
-# Check serology d7/d14 is only present for those with a vaccination record
-
 all_csv_files <- tools::list_files_with_exts("data-problems", "csv")
 walk(all_csv_files, file.remove)
 
@@ -49,6 +47,16 @@ participants %>%
 	) %>%
 	select(pid, site, dob, weight, height) %>%
 	save_split("baseline_nonsense")
+
+serology %>%
+	filter(day %in% c(7, 14)) %>%
+	left_join(
+		vaccinations %>% filter(status %in% c("Australia", "Overseas")) %>% select(pid, year) %>% mutate(has_vax_record = TRUE), 
+		c("pid", "year")
+	) %>%
+	filter(!has_vax_record) %>%
+	select(pid, site, year) %>%
+	save_split("serology_no_vax")
 
 consent %>%
   group_by(pid, year, disease) %>%
