@@ -1,6 +1,5 @@
 suppressPackageStartupMessages(library(tidyverse))
 
-# Check dob/other baseline stuff makes sense
 # Check serology d7/d14 is only present for those with a vaccination record
 
 all_csv_files <- tools::list_files_with_exts("data-problems", "csv")
@@ -41,6 +40,15 @@ participants %>%
 	select(-email, -mobile) %>%
 	filter(!complete.cases(.), !pid %in% withdrawn$pid) %>%
 	save_split("missing_baseline")
+
+participants %>%
+	filter(
+		age_screening < 18 | age_screening > 66 |
+		weight < 20 | weight > 250 |
+		height > 250 | height < 50
+	) %>%
+	select(pid, site, dob, weight, height) %>%
+	save_split("baseline_nonsense")
 
 consent %>%
   group_by(pid, year, disease) %>%
