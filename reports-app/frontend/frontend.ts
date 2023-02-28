@@ -1422,22 +1422,25 @@ type Data = {
 	weekly_surveys: any[]
 	postinf_bleed_dates: any[]
 	titres: any[]
+
+	baseline_nonsense: any[]
+	bled_d14_no_vax_record: any[]
+	bleed_dates_wrong_order: any[]
+	bleed_no_consent_covid: any[]
+	bleed_no_consent: any[]
 	consent_conflicts: any[]
-	consent_multiple: any[]
 	covid_bleeds_no_vax: any[]
+	covid_vax_dates_not_ascending: any[]
+	covid_vax_missing_brand: any[]
+	covid_vax_missing_dates: any[]
 	missing_baseline: any[]
 	missing_bleed_dates: any[]
+	missing_covax_dose: any[]
 	missing_vaccination_history: any[]
 	missing_vaccination_records: any[]
-	missing_covax_dose: any[]
+	serology_no_vax: any[]
 	swabs_missing_date: any[]
 	withdrawn_missing_date: any[]
-	covid_vax_dates_not_ascending: any[]
-	covid_vax_missing_dates: any[]
-	covid_vax_missing_brand: any[]
-	bled_d14_no_vax_record: any[]
-	bleed_no_consent: any[]
-	bleed_no_consent_covid: any[]
 }
 
 type Pages = {
@@ -2012,6 +2015,9 @@ const createProblemsPage = (data: Data, onDatapageChange: (page: DataPageID) => 
 	)
 	DOM.addDivWithText(helpEl, "Missing data - fill if able, leave missing if not.")
 	DOM.addDivWithText(helpEl, "List of tables:")
+	DOM.addDivWithText(helpEl, "Baseline nonsense: DOB, weight or height don't make sense.")
+	DOM.addDivWithText(helpEl, "Bleed dates wrong order: Successive bleed dates do not go in ascending order.")
+	DOM.addDivWithText(helpEl, "Serology no vax: We have flu antibody titres but there is no corresponding vaccination record.")
 	DOM.addDivWithText(
 		helpEl,
 		"Consent conflicts: Multiple consent forms filled and information on study group conflicts. We don't need the manual form in the presence of the electronic one. You can fix the wrong form or delete it."
@@ -2040,6 +2046,56 @@ const createProblemsPage = (data: Data, onDatapageChange: (page: DataPageID) => 
 	const tablesContainer = DOM.addDiv(container)
 	tablesContainer.style.display = "flex"
 	tablesContainer.style.flexWrap = "wrap"
+
+	if (data.baseline_nonsense.length > 0) {
+		DOM.addEl(
+			tablesContainer,
+			Table.createTableFromAos({
+				aos: data.baseline_nonsense,
+				colSpecInit: {
+					pid: {},
+					site: {},
+					dob: {},
+					weight: {},
+					height: {},
+				},
+				title: "Baseline nonsense",
+				getTableHeightInit: () => 500,
+			})
+		)
+	}
+
+	if (data.bleed_dates_wrong_order.length > 0) {
+		DOM.addEl(
+			tablesContainer,
+			Table.createTableFromAos({
+				aos: data.bleed_dates_wrong_order,
+				colSpecInit: {
+					pid: {},
+					site: {},
+					year: {},
+					"0": {},
+					"7": {},
+					"14": {},
+					"220": {},
+				},
+				title: "Bleed dates wrong order",
+				getTableHeightInit: () => 500,
+			})
+		)
+	}
+
+	if (data.serology_no_vax.length > 0) {
+		DOM.addEl(
+			tablesContainer,
+			Table.createTableFromAos({
+				aos: data.serology_no_vax,
+				colSpecInit: { pid: {}, site: {}, year: {} },
+				title: "Serology no vax",
+				getTableHeightInit: () => 500,
+			})
+		)
+	}
 
 	if (data.consent_conflicts.length > 0) {
 		DOM.addEl(
@@ -2284,7 +2340,7 @@ const createProblemsPage = (data: Data, onDatapageChange: (page: DataPageID) => 
 			tablesContainer,
 			Table.createTableFromAos({
 				aos: data.bleed_no_consent,
-				colSpecInit: { pid: {}, site: {width: 150} },
+				colSpecInit: { pid: {}, site: { width: 150 } },
 				title: "Bleed no consent",
 				getTableHeightInit: () => 500,
 			})
@@ -2296,7 +2352,7 @@ const createProblemsPage = (data: Data, onDatapageChange: (page: DataPageID) => 
 			tablesContainer,
 			Table.createTableFromAos({
 				aos: data.bleed_no_consent_covid,
-				colSpecInit: { pid: {width: 300} },
+				colSpecInit: { pid: { width: 300 } },
 				title: "Bleed no consent covid",
 				getTableHeightInit: () => 500,
 			})

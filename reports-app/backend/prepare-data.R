@@ -36,8 +36,6 @@ study_year_vax_tbl_wide <- study_year_vax_tbl %>%
 	pivot_wider(names_from = "year", values_from = "study_year_vax") %>%
 	mutate(across(contains("study_year_vac_"), ~replace_na(.x, 0)))
 
-# study_year_vax_tbl_wide %>% group_by(pid) %>% filter(n() > 1)
-
 swabs <- read_csv("./data/swabs.csv", col_types = cols())
 
 flu_positive_by_year <- swabs %>%
