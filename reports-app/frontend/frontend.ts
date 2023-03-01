@@ -2340,7 +2340,7 @@ const createProblemsPage = (data: Data, onDatapageChange: (page: DataPageID) => 
 			tablesContainer,
 			Table.createTableFromAos({
 				aos: data.bleed_no_consent,
-				colSpecInit: { pid: {}, site: { width: 150 } },
+				colSpecInit: { pid: {}, site: {}, year: {} },
 				title: "Bleed no consent",
 				getTableHeightInit: () => 500,
 			})
