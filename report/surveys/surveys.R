@@ -25,6 +25,8 @@ weekly_survey_start_dates <- bind_rows(
     )
 ) %>% mutate(weeks_from_start = (week_start - min(week_start)) / lubridate::dweeks(1),)
 
+weekly_filled <- weekly %>% filter(!is.na(ari), !is.na(respiratory), !is.na(systemic))
+
 # NOTE(sen) This should include only the surveys each participant should have completed
 survey_completions <- participants %>%
     group_by(pid, site, date_screening) %>%
@@ -44,17 +46,14 @@ survey_completions <- participants %>%
     filter(month(week_start) >= 3, month(week_start) <= 10) %>%
     select(pid, site, year, survey_index) %>%
     left_join(
-        weekly %>% 
-            # NOTE(sen) Try to limit to surveys that were actually filled.
-            # This seems to be the most reliable way to do that.
-            filter(!is.na(ari), !is.na(respiratory), !is.na(systemic)) %>%
+        weekly_filled %>% 
             select(pid, year, survey_index) %>%
             mutate(completed = TRUE),
         c("pid", "year", "survey_index")
     ) %>%
     mutate(completed = replace_na(completed, FALSE), year = as.character(year))
 
-propsum <- function(completed, total) glue::glue("{round(completed / total * 100)}% ({completed}/{total})")
+propsum <- function(completed, total) glue::glue("{signif(completed / total * 100, 2)}% ({completed}/{total})")
 
 bind_rows(
     summarise(survey_completions, .by = c(site, year), prop = propsum(sum(completed), n())),
@@ -66,9 +65,10 @@ bind_rows(
     mutate(Site = tools::toTitleCase(Site) %>% fct_relevel("Total", after = 6L)) %>%
     arrange(Site) %>%
     pivot_wider(names_from = "Year", values_from = "prop") %>%
+    write_csv("report/surveys/weekly-survey-completion.csv") %>%
     kbl(
         format = "latex",
-        caption = "Completion of weekly surveys. Format: proprtion percentage (completed/total).
+        caption = "Completion of weekly surveys. Format: proprtion percentage (relevant/total).
         The surves included in the total count are only the surveys participants should have completed.
         To qualify as 'should have completed' the survey for any participant 
         must have been issued between the first week of March and the last week of October,
@@ -151,10 +151,13 @@ bind_rows(
     mutate(Site = tools::toTitleCase(Site) %>% fct_relevel("Total", after = 6L)) %>%
     arrange(Site, Year) %>%
     pivot_wider(names_from = "Year", values_from = "prop") %>%
+    write_csv("report/surveys/weekly-survey-swab-followup.csv") %>%
     kbl(
         format = "latex",
         caption = "Proportions of weekly surveys that reported an ARI that were followed up by a swab.
-        Format: proprtion percentage (completed/total). 
+        'Followed up by a swab' means that there is a swab dated to 7 days before the notification
+        at the earliest and 7 days after the notification at the latest.
+        Format: proprtion percentage (relevant/total). 
         If multiple consecutive surveys reported an ARI only the first one was taken.
         It was assumed that all of those consecutive surveys were reporting the same
         ARI event and so only one swab was expected to be taken.",
@@ -167,3 +170,80 @@ bind_rows(
     kable_styling(latex_options = "scale_down") %>%
     write("report/surveys/weekly-survey-swab-followup.tex")
 
+weekly_filled_for_count <- weekly_filled %>%
+    left_join(participants %>% select(pid, site), "pid") %>%
+    mutate(year = as.character(year))
+
+bind_rows(
+    summarise(weekly_filled_for_count, .by = c(site, year), prop = propsum(sum(ari), n())),
+    summarise(weekly_filled_for_count, .by = c(year), site = "Total", prop = propsum(sum(ari), n())),
+    summarise(weekly_filled_for_count, .by = c(site), year = "Total", prop = propsum(sum(ari), n())),
+    summarise(weekly_filled_for_count, .by = c(), site = "Total", year = "Total", prop = propsum(sum(ari), n())),
+) %>%
+    rename(Year = year, Site = site) %>%
+    mutate(Site = tools::toTitleCase(Site) %>% fct_relevel("Total", after = 6L)) %>%
+    arrange(Site, Year) %>%
+    pivot_wider(names_from = "Year", values_from = "prop") %>%
+    write_csv("report/surveys/weekly-survey-aris.csv") %>%
+    kbl(
+        format = "latex",
+        caption = "Proportions of all filled weekly surveys that reported an ARI.
+        Format: proprtion percentage (relevant/total).",
+        booktabs = TRUE,
+        label = "weekly-survey-aris",
+        linesep = c(
+            "", "", "", "", "", "\\addlinespace"
+        )
+    ) %>%
+    kable_styling(latex_options = "scale_down") %>%
+    write("report/surveys/weekly-survey-aris.tex")
+
+bind_rows(
+    summarise(weekly_filled_for_count, .by = c(site, year), prop = propsum(sum(diagnosis == "flu", na.rm = TRUE), n())),
+    summarise(weekly_filled_for_count, .by = c(year), site = "Total", prop = propsum(sum(diagnosis == "flu", na.rm = TRUE), n())),
+    summarise(weekly_filled_for_count, .by = c(site), year = "Total", prop = propsum(sum(diagnosis == "flu", na.rm = TRUE), n())),
+    summarise(weekly_filled_for_count, .by = c(), site = "Total", year = "Total", prop = propsum(sum(diagnosis == "flu", na.rm = TRUE), n())),
+) %>%
+    rename(Year = year, Site = site) %>%
+    mutate(Site = tools::toTitleCase(Site) %>% fct_relevel("Total", after = 6L)) %>%
+    arrange(Site, Year) %>%
+    pivot_wider(names_from = "Year", values_from = "prop") %>%
+    write_csv("report/surveys/weekly-survey-aris-flu.csv") %>%
+    kbl(
+        format = "latex",
+        caption = "Proportions of all filled weekly surveys that reported obtaining medical treatment and
+        getting diagnosed with flu.
+        Format: proprtion percentage (relevant/total).",
+        booktabs = TRUE,
+        label = "weekly-survey-aris-flu",
+        linesep = c(
+            "", "", "", "", "", "\\addlinespace"
+        )
+    ) %>%
+    kable_styling(latex_options = "scale_down") %>%
+    write("report/surveys/weekly-survey-aris-flu.tex")
+
+bind_rows(
+    summarise(weekly_filled_for_count, .by = c(site, year), prop = propsum(sum(diagnosis == "covid", na.rm = TRUE), n())),
+    summarise(weekly_filled_for_count, .by = c(year), site = "Total", prop = propsum(sum(diagnosis == "covid", na.rm = TRUE), n())),
+    summarise(weekly_filled_for_count, .by = c(site), year = "Total", prop = propsum(sum(diagnosis == "covid", na.rm = TRUE), n())),
+    summarise(weekly_filled_for_count, .by = c(), site = "Total", year = "Total", prop = propsum(sum(diagnosis == "covid", na.rm = TRUE), n())),
+) %>%
+    rename(Year = year, Site = site) %>%
+    mutate(Site = tools::toTitleCase(Site) %>% fct_relevel("Total", after = 6L)) %>%
+    arrange(Site, Year) %>%
+    pivot_wider(names_from = "Year", values_from = "prop") %>%
+    write_csv("report/surveys/weekly-survey-aris-covid.csv") %>%
+    kbl(
+        format = "latex",
+        caption = "Proportions of all filled weekly surveys that reported obtaining medical treatment and
+        getting diagnosed with covid.
+        Format: proprtion percentage (relevant/total).",
+        booktabs = TRUE,
+        label = "weekly-survey-aris-covid",
+        linesep = c(
+            "", "", "", "", "", "\\addlinespace"
+        )
+    ) %>%
+    kable_styling(latex_options = "scale_down") %>%
+    write("report/surveys/weekly-survey-aris-covid.tex")

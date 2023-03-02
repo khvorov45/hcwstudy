@@ -1182,10 +1182,10 @@ redcap_weekly_survey_req <- function(year) {
     # "duration_absent",
     # "health_advice",
     # "medical_service_v2", # NOTE(sen) Checkbox
-    # "diagnosis_v2",
+    "diagnosis_v2",
     # "new_illness",
     # "new_illness_desc",
-    # "week_surv_gen_com",
+    "week_surv_gen_com",
     "weekly_symptom_survey_complete"
   )
   redcap_request(year, survey_events, paste(weekly_survey_fields, collapse = ",")) %>%
@@ -1202,7 +1202,10 @@ weekly_surveys <- weekly_surveys_raw %>%
       select(record_id, pid, redcap_project_year),
     c("record_id", "redcap_project_year")
   ) %>%
-  mutate(survey_index = str_replace(redcap_event_name, "weekly_survey_(\\d+)_arm_1", "\\1")) %>%
+  mutate(
+    survey_index = str_replace(redcap_event_name, "weekly_survey_(\\d+)_arm_1", "\\1"),
+    diagnosis = recode(diagnosis_v2, "1" = "flu", "2" = "covid", "3" = "other", "4" = "unknown"),
+  ) %>%
   select(
     pid,
     year = redcap_project_year,
@@ -1212,6 +1215,8 @@ weekly_surveys <- weekly_surveys_raw %>%
     systemic,
     ari = ari_definition,
     symptom_duration = symptom_duration,
+    diagnosis,
+    comments = week_surv_gen_com,
     complete = weekly_symptom_survey_complete
   )
 
