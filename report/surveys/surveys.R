@@ -247,3 +247,87 @@ bind_rows(
     ) %>%
     kable_styling(latex_options = "scale_down") %>%
     write("report/surveys/weekly-survey-aris-covid.tex")
+
+weekly_filled_per_participant <- weekly_filled_for_count %>%
+    mutate(diagnosis = replace_na(diagnosis, "na")) %>%
+    summarise(
+        .by = c(pid, year, site),
+        everari = any(ari == 1),
+        everflu = any(diagnosis == "flu"),
+        evercovid = any(diagnosis == "covid"),
+    )
+
+bind_rows(
+    summarise(weekly_filled_per_participant, .by = c(site, year), prop = propsum(sum(everari, na.rm = TRUE), n())),
+    summarise(weekly_filled_per_participant, .by = c(year), site = "Total", prop = propsum(sum(everari, na.rm = TRUE), n())),
+    summarise(weekly_filled_per_participant, .by = c(site), year = "Total", prop = propsum(sum(everari, na.rm = TRUE), n())),
+    summarise(weekly_filled_per_participant, .by = c(), site = "Total", year = "Total", prop = propsum(sum(everari, na.rm = TRUE), n())),
+) %>%
+    rename(Year = year, Site = site) %>%
+    mutate(Site = tools::toTitleCase(Site) %>% fct_relevel("Total", after = 6L)) %>%
+    arrange(Site, Year) %>%
+    pivot_wider(names_from = "Year", values_from = "prop") %>%
+    write_csv("report/surveys/weekly-survey-aris-participants.csv") %>%
+    kbl(
+        format = "latex",
+        caption = "Proportions of all participants (that filled at least one survey) 
+        that reported an ARI on any of their surveys.
+        Format: proprtion percentage (relevant/total).",
+        booktabs = TRUE,
+        label = "weekly-survey-aris-participants",
+        linesep = c(
+            "", "", "", "", "", "\\addlinespace"
+        )
+    ) %>%
+    kable_styling(latex_options = "scale_down") %>%
+    write("report/surveys/weekly-survey-aris-participants.tex")
+
+bind_rows(
+    summarise(weekly_filled_per_participant, .by = c(site, year), prop = propsum(sum(everflu, na.rm = TRUE), n())),
+    summarise(weekly_filled_per_participant, .by = c(year), site = "Total", prop = propsum(sum(everflu, na.rm = TRUE), n())),
+    summarise(weekly_filled_per_participant, .by = c(site), year = "Total", prop = propsum(sum(everflu, na.rm = TRUE), n())),
+    summarise(weekly_filled_per_participant, .by = c(), site = "Total", year = "Total", prop = propsum(sum(everflu, na.rm = TRUE), n())),
+) %>%
+    rename(Year = year, Site = site) %>%
+    mutate(Site = tools::toTitleCase(Site) %>% fct_relevel("Total", after = 6L)) %>%
+    arrange(Site, Year) %>%
+    pivot_wider(names_from = "Year", values_from = "prop") %>%
+    write_csv("report/surveys/weekly-survey-aris-flu-participants.csv") %>%
+    kbl(
+        format = "latex",
+        caption = "Proportions of all participants (that filled at least one survey) 
+        that reported getting medical treatment and diagnosed with flu on any of their surveys.
+        Format: proprtion percentage (relevant/total).",
+        booktabs = TRUE,
+        label = "weekly-survey-aris-flu-participants",
+        linesep = c(
+            "", "", "", "", "", "\\addlinespace"
+        )
+    ) %>%
+    kable_styling(latex_options = "scale_down") %>%
+    write("report/surveys/weekly-survey-aris-flu-participants.tex")
+
+bind_rows(
+    summarise(weekly_filled_per_participant, .by = c(site, year), prop = propsum(sum(evercovid, na.rm = TRUE), n())),
+    summarise(weekly_filled_per_participant, .by = c(year), site = "Total", prop = propsum(sum(evercovid, na.rm = TRUE), n())),
+    summarise(weekly_filled_per_participant, .by = c(site), year = "Total", prop = propsum(sum(evercovid, na.rm = TRUE), n())),
+    summarise(weekly_filled_per_participant, .by = c(), site = "Total", year = "Total", prop = propsum(sum(evercovid, na.rm = TRUE), n())),
+) %>%
+    rename(Year = year, Site = site) %>%
+    mutate(Site = tools::toTitleCase(Site) %>% fct_relevel("Total", after = 6L)) %>%
+    arrange(Site, Year) %>%
+    pivot_wider(names_from = "Year", values_from = "prop") %>%
+    write_csv("report/surveys/weekly-survey-aris-covid-participants.csv") %>%
+    kbl(
+        format = "latex",
+        caption = "Proportions of all participants (that filled at least one survey) 
+        that reported getting medical treatment and diagnosed with covid on any of their surveys.
+        Format: proprtion percentage (relevant/total).",
+        booktabs = TRUE,
+        label = "weekly-survey-aris-covid-participants",
+        linesep = c(
+            "", "", "", "", "", "\\addlinespace"
+        )
+    ) %>%
+    kable_styling(latex_options = "scale_down") %>%
+    write("report/surveys/weekly-survey-aris-covid-participants.tex")
