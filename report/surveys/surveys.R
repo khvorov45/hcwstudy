@@ -106,6 +106,29 @@ label_consecutive <- function(values) {
 label_consecutive(c(1))
 label_consecutive(c(1, 2, 3, 60, 80, 81))
 
+collapse_swab_results <- function(swab_results) {
+    swab_results <- as.character(flatten(swab_results))
+    result <- ""
+    if (any(swab_results != "Negative" & swab_results != "No result")) {
+        result <- paste0(unique(swab_results[swab_results != "Negative" & swab_results != "No result"]), collapse = ",")
+    } else if (any(swab_results == "Negative")) {
+        result <- "Negative"
+    } else {
+        result <- "No result"
+    }
+    if (str_detect(result, ",Negative")) {
+        print(swab_results)
+    }
+    result
+}
+
+collapse_swab_results(list("Negative"))
+collapse_swab_results(list("Negative", "No result"))
+collapse_swab_results(list("Negative", "No result", "flu"))
+collapse_swab_results(list("Negative", "No result", "flu", "covid"))
+collapse_swab_results(list("No result", "flu", "covid"))
+collapse_swab_results(list("Negative", "covid"))
+
 swab_followups <- weekly %>%
     filter(ari == 1) %>%
     left_join(weekly_survey_start_dates, c("year", "survey_index")) %>%
@@ -116,17 +139,22 @@ swab_followups <- weekly %>%
     # NOTE(sen) Consecutive ari weeks should probably only have one swab so only keep
     # the first week from any consecutive group
     group_by(pid) %>%
-    mutate(consecutive_ari_group = label_consecutive(weeks_from_start)) %>%
+    mutate(consecutive_ari_group = label_consecutive(weeks_from_start), diagnosis = replace_na(diagnosis, "na")) %>%
     group_by(pid, consecutive_ari_group) %>%
-    filter(row_number() == 1) %>%
-    ungroup() %>%
-    select(pid, year, ari_date) %>%
+    summarise(
+        .groups = "drop", 
+        ari_date = min(ari_date), 
+        year = unique(year), 
+        anyflu = any(diagnosis == "flu"),
+        anycovid = any(diagnosis == "covid"),
+    ) %>%
+    select(pid, year, ari_date, anyflu, anycovid) %>%
     left_join(
         swabs %>%
             group_by(pid, year, samp_date) %>%
             summarise(
                 .groups = "drop",
-                swab_result = if_else(sum(swab_result) == 0, "Negative", paste0(unique(swab_virus[swab_result == 1]), collapse = ","))
+                swab_result = if_else(sum(swab_result) == 0, list("Negative"), list(unique(swab_virus[swab_result == 1])))
             ),
         c("pid", "year"),
         multiple = "all",
@@ -137,7 +165,13 @@ swab_followups <- weekly %>%
         swab_close_enough = replace_na(swab_close_enough, FALSE),
     ) %>%
     group_by(pid, year, ari_date) %>%
-    summarise(.groups = "drop", swab_taken = sum(swab_close_enough) > 0) %>%
+    summarise(
+        .groups = "drop", 
+        swab_taken = sum(swab_close_enough) > 0,
+        swab_result = collapse_swab_results(swab_result[swab_close_enough]),
+        anyflu = unique(anyflu), 
+        anycovid = unique(anycovid),
+    ) %>%
     left_join(participants %>% select(pid, site), "pid") %>%
     mutate(year = as.character(year))
 
@@ -169,6 +203,77 @@ bind_rows(
     ) %>%
     kable_styling(latex_options = "scale_down") %>%
     write("report/surveys/weekly-survey-swab-followup.tex")
+
+swab_followups_flu <- swab_followups %>% filter(anyflu) %>%
+    mutate(swab_result = fct_relevel(swab_result, 
+        "Flu A (unsubtyped)", "Flu A H3", "Flu A (unsubtyped),Piconavirus",
+        "Parainfluenza", "Other",
+        "Negative", "No result"
+    ))
+
+bind_rows(
+    summarise(swab_followups_flu, .by = c(site, year, swab_result), n = n()),
+    summarise(swab_followups_flu, .by = c(site, swab_result), year = "Total", n = n()),
+    summarise(swab_followups_flu, .by = c(year, swab_result), site  = "Total", n = n()),
+    summarise(swab_followups_flu, .by = c(swab_result), site = "Total", year = "Total", n = n()),
+) %>%
+    rename(Year = year, Site = site) %>%
+    mutate(Site = tools::toTitleCase(Site) %>% fct_relevel("Total", after = 6L)) %>%
+    arrange(Site, Year) %>%
+    pivot_wider(names_from = "Year", values_from = "n") %>%
+    select(Site, swab_result, `2020`, `2021`, `2022`, Total) %>%
+    mutate(across(starts_with("2"), ~replace_na(.x, 0))) %>%
+    arrange(Site, swab_result) %>%
+    write_csv("report/surveys/swab-followup-flu.csv") %>%
+    kbl(
+        format = "latex",
+        caption = "Swab results for every weekly survey where the participant reported having seeked medical treatment and been diagnosed
+        with flu. 'No result' means no swab result was recorded close enough (at most 7 days before or after) the weekly survey.
+        If one swab has multiple positive results, those result are joined together and reported
+        separately (e.g., a swab positive for flu and piconavirus would contibute to the `Flu,Piconavirus` row but not to
+        the 'Flu' or 'Piconavirus' rows).",
+        booktabs = TRUE,
+        label = "weekly-survey-swab-followup-flu",
+    ) %>%
+    collapse_rows(columns = 1, latex_hline = "major") %>%
+    write("report/surveys/swab-followup-flu.tex")
+
+swab_followups_covid <- swab_followups %>% filter(anycovid) %>%
+    mutate(swab_result = fct_relevel(swab_result, 
+        "SARS-CoV-2", "SARS-CoV-2,Other", "Other",
+        "Negative", "No result"
+    ))
+
+bind_rows(
+    summarise(swab_followups_covid, .by = c(site, year, swab_result), n = n()),
+    summarise(swab_followups_covid, .by = c(site, swab_result), year = "Total", n = n()),
+    summarise(swab_followups_covid, .by = c(year, swab_result), site  = "Total", n = n()),
+    summarise(swab_followups_covid, .by = c(swab_result), site = "Total", year = "Total", n = n()),
+) %>%
+    rename(Year = year, Site = site) %>%
+    mutate(Site = tools::toTitleCase(Site) %>% fct_relevel("Total", after = 6L)) %>%
+    arrange(Site, Year) %>%
+    pivot_wider(names_from = "Year", values_from = "n") %>%
+    select(Site, swab_result, `2020`, `2021`, `2022`, Total) %>%
+    mutate(across(starts_with("2"), ~replace_na(.x, 0))) %>%
+    arrange(Site, swab_result) %>%
+    write_csv("report/surveys/swab-followup-covid.csv") %>%
+    kbl(
+        format = "latex",
+        caption = "Swab results for every weekly survey where the participant reported having seeked medical treatment and been diagnosed
+        with covid. 'No result' means no swab result was recorded close enough (at most 7 days before or after) the weekly survey.
+        If one swab has multiple positive results, those result are joined together and reported
+        separately (e.g., a swab positive for covid and piconavirus would contibute to the `covid,Piconavirus` row but not to
+        the 'covid' or 'Piconavirus' rows).",
+        booktabs = TRUE,
+        label = "weekly-survey-swab-followup-covid",
+    ) %>%
+    collapse_rows(columns = 1, latex_hline = "major") %>%
+    write("report/surveys/swab-followup-covid.tex")
+
+swab_followups %>% 
+    filter(anyflu) %>%
+    count(swab_result)
 
 weekly_filled_for_count <- weekly_filled %>%
     left_join(participants %>% select(pid, site), "pid") %>%
