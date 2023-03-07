@@ -107,13 +107,14 @@ bleed_dates_plot <- ggpubr::ggarrange(plotlist = bleed_dates_plots, common.legen
 )
 
 bleed_intervals_plot <- bleed_intervals %>%
-    select(pid, year, starts_with("i")) %>%
+    select(pid, site, year, starts_with("i")) %>%
     pivot_longer(starts_with("i"), names_to = "timepoint", values_to = "interval") %>%
     filter(!is.na(interval)) %>%
     mutate(
         interval = as.integer(interval),
         timepoint = factor(timepoint, c("i0_vax", "ivax_7", "ivax_14", "ivax_220", "i0_flupos", "ivax_flupos"))
     ) %>%
+    bind_rows(mutate(., site = "total")) %>%
     ggplot(aes(timepoint, interval)) +
     theme_bw() +
     theme(
@@ -122,14 +123,14 @@ bleed_intervals_plot <- bleed_intervals %>%
         panel.spacing = unit(0, "null"),
         axis.text.x = element_text(angle = 30, hjust = 1)
     ) +
-    facet_wrap(~year, nrow = 1, strip.position = "top", scales = "free_x") +
+    facet_grid(site~year, scales = "free_x") +
     scale_y_continuous("Days", breaks = c(0, 7, 14, 30, 60, 90, 120, 150, 180, 220)) +
     scale_x_discrete("Interval", labels = c("0 to vax", "vax to 7", "vax to 14", "vax to 220", "0 to flupos", "vax to flupos")) +
     geom_jitter(shape = 18, width = 0.2, alpha = 0.3, color = "gray50") +
     geom_boxplot(color = "blue", fill = NA, outlier.alpha = 0)
 
 (function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
-    "report/figure-bleed-dates/figure-bleed-intervals", bleed_intervals_plot, width = 15, height = 15, units = "cm"
+    "report/figure-bleed-dates/figure-bleed-intervals", bleed_intervals_plot, width = 20, height = 25, units = "cm"
 )
 
 covid_vax <- read_csv("data/covid-vax.csv", col_types = cols())
