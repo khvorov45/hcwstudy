@@ -272,16 +272,17 @@ sercovid <- sercovid_raw %>%
     sample_id_split = str_split(Sample_ID, "[-_]"),
     pid = paste(map(sample_id_split, 1), map(sample_id_split, 2), sep = "-") %>% str_trim() %>% fun_fix_pids(),
     timepoint_id = as.character(map(sample_id_split, 3)),
-    bleed_day_id = timepoint_id %>% str_replace("^[^\\d]+", "") %>% as.integer(),
     bleed_year = as.character(map(sample_id_split, 4)),
     bleed_year = if_else(bleed_year == "NULL", NA_character_, bleed_year),
     bleed_year = as.integer(bleed_year) %>% replace_na(2021),
+    bleed_day_id = timepoint_id %>% str_replace("^[^\\d]+", "") %>% as.integer(),
+    bleed_day_id = if_else(bleed_day_id == 220 & bleed_year == 2020, 0, bleed_day_id),
     vax_inf = if_else(str_starts(timepoint_id, "I"), "I", "V"),
     bleed_flu_covid = if_else(str_starts(timepoint_id, "C") | str_starts(timepoint_id, "I"), "C", "F"),
     strain = Strain,
   ) %>%
   group_by(pid, bleed_flu_covid, bleed_day_id, bleed_year, vax_inf, strain) %>%
-  filter(Batch == max(Batch)) %>%
+  filter(Batch == max(Batch) | all(is.na(Batch))) %>%
   filter(n() == 1 | TP == "pre_r") %>%
   ungroup() %>%
   arrange(pid) %>%

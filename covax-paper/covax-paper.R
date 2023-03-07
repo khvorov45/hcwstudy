@@ -178,4 +178,21 @@ gmts_plot_comorbidities <- colnames(covidser)[str_starts(colnames(covidser), "co
 
 ggsave("covax-paper/wuhan-gmts-comorbidities.pdf", gmts_plot_comorbidities, width = 15, height = 30, units = "cm")
 
+fit_models <- function(data, formulas) {
+    map_dfr(formulas, function(formula) {
+        lm(as.formula(formula), data) %>%
+            broom::tidy() %>%
+            mutate(estimate_multiplicative = exp(estimate)) %>%
+            mutate(formula = formula)
+    })
+}
+
+covidser %>%
+    select(-bleed_flu_covid, -bleed_year) %>%
+    pivot_wider(names_from = "bleed_day_id", values_from = "ic50") %>%
+    mutate(logd14 = log(`14`), logd0 = log(`0`)) %>%
+    fit_models(c(
+        "logd14 ~ logd0 + brand", 
+        "logd14 ~ logd0 + brand + age_screening"
+    ))
 
