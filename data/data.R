@@ -1050,7 +1050,9 @@ redcap_postinf <- redcap_postinf_request(2020) %>%
 
 swabs_no_missing <- redcap_postinf %>%
   filter(!is.na(swab_collection), swab_collection == 1) %>%
-  select(-contains("postinfection_blood"), -swab_collection)
+  select(-contains("postinfection_blood"), -swab_collection) %>%
+  # NOTE(sen) Try to get rid of "partially collected" swabs sydney has apparenlty recorded
+  filter(!(str_starts(pid, "CHW") & year <= 2022 & is.na(samp_date)))
 
 swabs_long <- swabs_no_missing %>%
   pivot_longer(contains("swab_result___"), names_to = "swab_virus", values_to = "swab_result") %>%
