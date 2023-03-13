@@ -6,6 +6,8 @@ daily <- read_csv("data/daily-surveys.csv", col_types = cols())
 participants <- read_csv("data/participants.csv", col_types = cols())
 withdrawn <- read_csv("data/withdrawn.csv", col_types = cols())
 swabs <- read_csv("data/swabs.csv", col_types = cols())
+serology <- read_csv("data/serology.csv", col_types = cols())
+bleed_dates <- read_csv("data/bleed-dates.csv", col_types = cols())
 
 weekly_survey_start_dates <- bind_rows(
     tibble(
@@ -27,10 +29,14 @@ weekly_survey_start_dates <- bind_rows(
 
 weekly_filled <- weekly %>% filter(!is.na(ari), !is.na(respiratory), !is.na(systemic))
 
+contributed_blood <- bleed_dates %>% select(pid, year) %>% distinct()
+
 # NOTE(sen) This should include only the surveys each participant should have completed
 survey_completions <- participants %>%
     group_by(pid, site, date_screening) %>%
     reframe(year = 2020:2022) %>%
+    # NOTE(sen) Look only at participants who contributed blood that year
+    inner_join(contributed_blood, c("pid", "year")) %>%
     left_join(weekly_survey_start_dates, c("year"), multiple = "all") %>%
     filter(date_screening <= week_start) %>%
     left_join(
@@ -42,8 +48,8 @@ survey_completions <- participants %>%
         c("pid")
     ) %>%
     filter(is.na(withdrawal_date) | withdrawal_date > week_start) %>%
-    # NOTE(sen) Look at surveys from March-October only
-    filter(month(week_start) >= 3, month(week_start) <= 10) %>%
+    # NOTE(sen) Look at surveys from April-October only
+    filter(month(week_start) >= 4, month(week_start) <= 10) %>%
     select(pid, site, year, survey_index) %>%
     left_join(
         weekly_filled %>% 
@@ -70,8 +76,9 @@ bind_rows(
         format = "latex",
         caption = "Completion of weekly surveys. Format: proprtion percentage (relevant/total).
         The surves included in the total count are only the surveys participants should have completed.
-        To qualify as 'should have completed' the survey for any participant 
-        must have been issued between the first week of March and the last week of October,
+        To qualify as 'should have completed' the participant must have contributed at least one
+        bleed that year and the survey
+        must have been issued between the first week of April and the last week of October,
         after the participant was recruited and before the participant was withdrawn 
         (if they withdrew before the end of the study).",
         booktabs = TRUE,
