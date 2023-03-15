@@ -113,8 +113,24 @@ postinf_bleed_dates <- read_csv("./data/postinf-bleed-dates.csv", col_types = co
 consent <- read_csv("./data/consent.csv", col_types = cols()) %>%
     left_join(participants %>% select(pid, site), "pid")
 
+have_postinf_bleed <- read_csv("./data/postinf-bleed-dates.csv", col_types = cols()) %>%
+    select(pid, year) %>%
+    distinct() %>%
+    full_join(
+        read_csv("./data/serology.csv", col_types = cols()) %>%
+            filter(vax_inf == "I") %>%
+            select(pid, year) %>%
+            distinct(),
+        c("pid", "year")
+    )
+
 weekly_surveys <- read_csv("./data/weekly-surveys.csv", col_types = cols()) %>%
-    left_join(participants %>% select(pid, site), "pid")
+    mutate(complete = as.integer(!is.na(ari) & !is.na(respiratory) & !is.na(systemic))) %>%
+    select(pid, year, survey_index, date, ari, complete) %>%
+    left_join(participants %>% select(pid, site), "pid") %>%
+    left_join(have_postinf_bleed %>% mutate(postinf_bleed = 1), c("pid", "year")) %>%
+    mutate(have_postinf_bleed = replace_na(postinf_bleed, 0)) %>%
+    arrange(pid, survey_index)
 
 titres <- read_csv("./data/serology.csv", col_types = cols()) %>%
 	left_join(participants %>% select(-contains("bled202"), -contains("Arm"), -email, -mobile), "pid")

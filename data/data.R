@@ -188,8 +188,21 @@ serology_all_tables_fix_viruses <- serology_all_tables_fix_day %>%
       "B/Washington/02/2019e" = "V1A.3a",
       "A/NewCaledonia/20/1999e" = "None",
       "A/Brazil/11/1978e" = "None",
-    )
+    ),
+
+    virus_vaccine = 
+      year == 2020 & (str_starts(virus, "A/Brisbane/02/2018") | str_starts(virus, "A/South Australia/34/2019") | str_starts(virus, "B/Washington/02/2019") | str_starts(virus, "B/Phuket/3073/2013")) |
+      year == 2021 & (str_starts(virus, "A/Victoria/2570/2019") | str_starts(virus, "A/Hong Kong/2671/2019") | str_starts(virus, "A/Darwin/726/2019") | str_starts(virus, "B/Washington/02/2019") | str_starts(virus, "B/Phuket/3073/2013")) |
+      year == 2022 & (str_starts(virus, "A/Victoria/2570/2019") | str_starts(virus, "A/Darwin/09/2021") | str_starts(virus, "B/Austria/1359417/2021") | str_starts(virus, "B/Phuket/3073/2013"))
   )
+
+check_no_rows(
+  serology_all_tables_fix_viruses %>% 
+    filter(virus_vaccine) %>%
+    group_by(year, subtype, virus_egg_cell) %>%
+    filter(length(unique(virus)) != 1),
+  "wrong vaccine viruses"
+)
 
 check_no_rows(
   serology_all_tables_fix_viruses %>% select(virus, virus_clade) %>% distinct() %>% filter(virus == virus_clade),
@@ -656,6 +669,7 @@ write_csv(vaccination_history_with_instrument, "data/vaccinations.csv")
 # SECTION Covid vaccination
 #
 
+# TODO(sen) 5th dose info
 redcap_covax_request <- function(year) {
   redcap_request(
     year, "vaccination_arm_1",

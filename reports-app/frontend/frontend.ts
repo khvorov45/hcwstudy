@@ -1017,18 +1017,18 @@ const createTitrePlot = (data: any[], settings: TitresSettings) => {
 	return container
 }
 
-const createSurveyTable = (completions: { [key: string]: number[] }, data: Data, year: number) => {
+const createSurveyTable = (completions: { [key: string]: {weeks: number[], priorInfection: number} }, data: Data, year: number) => {
 	const tableContainer = DOM.createDiv()
 
 	const tableEl = Table.createTableFromAos({
 		aos: data.weekly_surveys.filter((row: any) => row.year === year && row.complete !== 0),
-		colSpecInit: { pid: {}, site: {}, week: { access: "survey_index" }, date: {}, ari: {} },
+		colSpecInit: { pid: {}, site: {}, week: { access: "survey_index" }, date: {}, ari: {}, priorInfection: {access: "have_postinf_bleed"} },
 		title: "Completed weekly surveys",
 		forRow: (row) => {
 			if (completions[row.pid] === undefined) {
-				completions[row.pid] = []
+				completions[row.pid] = {weeks: [], priorInfection: row.have_postinf_bleed}
 			}
-			completions[row.pid].push(row.survey_index)
+			completions[row.pid].weeks.push(row.survey_index)
 		},
 	})
 
@@ -1036,20 +1036,20 @@ const createSurveyTable = (completions: { [key: string]: number[] }, data: Data,
 	return tableContainer
 }
 
-const createCompletionsTable = (completions: { [key: string]: number[] }) => {
+const createCompletionsTable = (completions: { [key: string]: {weeks: number[], priorInfection: number} }) => {
 	const collapsed = []
-	for (let [pid, completedSurveys] of Object.entries(completions)) {
-		completedSurveys = completedSurveys.sort((a, b) => a - b)
+	for (const [pid, completedSurveys] of Object.entries(completions)) {
+		completedSurveys.weeks = completedSurveys.weeks.sort((a, b) => a - b)
 		let collapsedCompletions = ""
-		if (completedSurveys.length > 0) {
-			collapsedCompletions += completedSurveys[0]
-			if (completedSurveys.length > 1) {
-				let prev = completedSurveys[0]
+		if (completedSurveys.weeks.length > 0) {
+			collapsedCompletions += completedSurveys.weeks[0]
+			if (completedSurveys.weeks.length > 1) {
+				let prev = completedSurveys.weeks[0]
 				let currentStreak = 1
-				for (let completeIndex = 1; completeIndex < completedSurveys.length; completeIndex += 1) {
-					const compl = completedSurveys[completeIndex]
+				for (let completeIndex = 1; completeIndex < completedSurveys.weeks.length; completeIndex += 1) {
+					const compl = completedSurveys.weeks[completeIndex]
 
-					if (completeIndex == completedSurveys.length - 1) {
+					if (completeIndex == completedSurveys.weeks.length - 1) {
 						if (currentStreak > 1) {
 							collapsedCompletions += "-"
 						} else {
@@ -1072,12 +1072,12 @@ const createCompletionsTable = (completions: { [key: string]: number[] }) => {
 				}
 			}
 		}
-		collapsed.push({ pid: pid, completions: collapsedCompletions })
+		collapsed.push({ pid: pid, priorInfection: completedSurveys.priorInfection, completions: collapsedCompletions })
 	}
 
 	const tableEl = Table.createTableFromAos({
 		aos: collapsed,
-		colSpecInit: { pid: {}, completions: { width: 300 } },
+		colSpecInit: { pid: {}, priorInfection: {}, completions: { width: 500 } },
 		title: "Collapsed completions",
 	})
 
