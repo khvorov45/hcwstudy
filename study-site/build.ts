@@ -129,11 +129,6 @@ const main = () => {
 
 		writePage("index.html", home)
 	}
-
-	{
-		const forParticipants = readFile("for-participants-partial.html")
-		writePage("for-participants.html", forParticipants)
-	}
 }
 
 main()
