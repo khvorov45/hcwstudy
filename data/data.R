@@ -57,7 +57,7 @@ quick_summary <- function(data) {
 
 serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[012]_", full.names = TRUE) %>%
   c(
-    "data-raw/serology/Y3_2023_H1_egg_all.xlsx", 
+    "data-raw/serology/Y3_2023_H1_egg_all.xlsx",
     "data-raw/serology/BVic_egg_2022_all.xlsx",
     "data-raw/serology/New Caledonia HI_H1N1 immunogenicity_allplates.xlsx",
     "data-raw/serology/NIH_H1N1_ABrazil_11_egg_All.xlsx"
@@ -175,7 +175,7 @@ serology_all_tables_fix_viruses <- serology_all_tables_fix_day %>%
       "A/Brisbane/02/2018e" = "6B.1A.1",
       "A/Darwin/09/2021e" = "3C.2a1b.2a.2",
       "A/Darwin/726/2019" = "3C.2a1b.1b",
-      "A/Hong Kong/2671/2019e" = "V1A.3a",
+      "A/Hong Kong/2671/2019e" = "3C.2a1b",
       "A/South Australia/34/2019" = "2a1b",
       "A/South Australia/34/2019e" = "2a1b",
       "A/Victoria/2570/2019" = "6B.1A.5a.2",
@@ -185,19 +185,18 @@ serology_all_tables_fix_viruses <- serology_all_tables_fix_day %>%
       "B/Phuket/3073/2013e" = "Y3",
       "B/Washington/02/2019" = "V1A.3a",
       "B/Washington/02/2019e" = "V1A.3a",
-      "B/Washington/02/2019e" = "V1A.3a",
       "A/NewCaledonia/20/1999e" = "None",
       "A/Brazil/11/1978e" = "None",
     ),
 
-    virus_vaccine = 
+    virus_vaccine =
       year == 2020 & (str_starts(virus, "A/Brisbane/02/2018") | str_starts(virus, "A/South Australia/34/2019") | str_starts(virus, "B/Washington/02/2019") | str_starts(virus, "B/Phuket/3073/2013")) |
       year == 2021 & (str_starts(virus, "A/Victoria/2570/2019") | str_starts(virus, "A/Hong Kong/2671/2019") | str_starts(virus, "A/Darwin/726/2019") | str_starts(virus, "B/Washington/02/2019") | str_starts(virus, "B/Phuket/3073/2013")) |
       year == 2022 & (str_starts(virus, "A/Victoria/2570/2019") | str_starts(virus, "A/Darwin/09/2021") | str_starts(virus, "B/Austria/1359417/2021") | str_starts(virus, "B/Phuket/3073/2013"))
   )
 
 check_no_rows(
-  serology_all_tables_fix_viruses %>% 
+  serology_all_tables_fix_viruses %>%
     filter(virus_vaccine) %>%
     group_by(year, subtype, virus_egg_cell) %>%
     filter(length(unique(virus)) != 1),
@@ -206,12 +205,12 @@ check_no_rows(
 
 check_no_rows(
   serology_all_tables_fix_viruses %>% select(virus, virus_clade) %>% distinct() %>% filter(virus == virus_clade),
-  "missing clade"  
+  "missing clade"
 )
 
 check_no_rows(
   serology_all_tables_fix_viruses %>% filter(is.na(subtype)),
-  "missing subtype"  
+  "missing subtype"
 )
 
 check_virus_fix <- function(serology_data) {
@@ -289,7 +288,7 @@ sercovid <- sercovid_raw %>%
     bleed_year = if_else(bleed_year == "NULL", NA_character_, bleed_year),
     bleed_year = as.integer(bleed_year) %>% replace_na(2021),
     bleed_day_id = timepoint_id %>% str_replace("^[^\\d]+", "") %>% as.integer(),
-    bleed_day_id = if_else(bleed_day_id == 220 & bleed_year == 2020, 0, bleed_day_id),
+    bleed_day_id = if_else(bleed_day_id == 220 & bleed_year == 2020, 0L, bleed_day_id),
     vax_inf = if_else(str_starts(timepoint_id, "I"), "I", "V"),
     bleed_flu_covid = if_else(str_starts(timepoint_id, "C") | str_starts(timepoint_id, "I"), "C", "F"),
     strain = Strain,
@@ -342,9 +341,9 @@ write_csv(seradeno, "data/serology-adenovirus.csv")
 serlandscape_raw <- read_csv("data-raw/serology-landscapes/HI.csv", col_types = cols(), guess_max = 1e5)
 
 check_no_rows(
-  serlandscape_raw %>% 
-    group_by(Sample_ID, VirusN) %>% 
-    filter(n() > 1) %>% 
+  serlandscape_raw %>%
+    group_by(Sample_ID, VirusN) %>%
+    filter(n() > 1) %>%
     arrange(Sample_ID, VirusN),
   "raw landscape serology duplicates"
 )
@@ -364,8 +363,8 @@ check_no_rows(
 )
 
 check_no_rows(
-  serlandscape %>% 
-    group_by(pid, year, day, virus_number) %>% 
+  serlandscape %>%
+    group_by(pid, year, day, virus_number) %>%
     filter(n() > 1),
   "landscape serology duplicates"
 )
@@ -411,10 +410,24 @@ redcap_request <- function(project_year, event, fields, ...) {
 }
 
 redcap_participants_request <- function(project_year) {
+  names <- c(
+    "record_id",
+    "pid",
+    "date_screening",
+    "a1_gender",
+    "a2_dob",
+    "a3_atsi",
+    "a5_height",
+    "a6_weight",
+    "c1_yrs_employed",
+    "d1_future_vacc",
+    "email",
+    "mobile_number"
+  )
   redcap_request(
     project_year,
     "baseline_arm_1",
-    "record_id,pid,date_screening,a1_gender,a2_dob,a3_atsi,a5_height,a6_weight,email,mobile_number",
+    paste0(names, collapse = ","),
     exportDataAccessGroups = "true",
     rawOrLabel = "label"
   ) %>%
@@ -430,12 +443,12 @@ participants <- bind_rows(participants2020, participants2021, participants2022) 
   select(
     pid,
     site = redcap_data_access_group, gender = a1_gender, dob = a2_dob, atsi = a3_atsi,
-    height = a5_height, weight = a6_weight,
+    height = a5_height, weight = a6_weight, years_employed = c1_yrs_employed, future_vacc_intent = d1_future_vacc,
     date_screening, email = email, mobile = mobile_number, redcap_project_year,
   ) %>%
   mutate(
     pid = fun_fix_pids(pid),
-    atsi = if_else(atsi == "Yes", 1, 0)
+    atsi = if_else(atsi == "Yes", 1, 0),
   )
 
 check_no_rows(
@@ -464,7 +477,9 @@ participants_with_extras <- participants %>%
     atsi = last(na.omit(atsi)),
     height = last(na.omit(height)),
     weight = last(na.omit(weight)),
+    years_employed = first(na.omit(years_employed)),
     date_screening = first(na.omit(date_screening)),
+    future_vacc_intent = first(na.omit(future_vacc_intent)),
     email = last(na.omit(email)),
     mobile = last(na.omit(mobile)),
     recruitment_year = first(na.omit(redcap_project_year)),
@@ -498,15 +513,44 @@ write_csv(participants_with_extras, "data/participants.csv")
 #
 
 redcap_yearly_changes_request <- function(year) {
-  redcap_request(year, "baseline_arm_1", "pid,record_id")
+  redcap_request(year, "baseline_arm_1", "pid,record_id,a4_children,children1,c2_emp_status,emp_status1,c3_occupation,occupation1")
 }
 
 yearly_changes_raw <- redcap_yearly_changes_request(2020) %>%
   bind_rows(redcap_yearly_changes_request(2021)) %>%
   bind_rows(redcap_yearly_changes_request(2022)) %>%
-  select(record_id, pid, redcap_project_year)
+  select(
+    record_id, pid, redcap_project_year,
+    children_base = a4_children, children_ret = children1,
+    emp_status_base = c2_emp_status, emp_status_ret = emp_status1,
+    occupation_base = c3_occupation, occupation_ret = occupation1,
+  )
 
-yearly_changes_fix_pids <- yearly_changes_raw %>%
+yearly_changes_baseret_merged <- yearly_changes_raw %>%
+  arrange(pid) %>%
+  mutate(
+    children = if_else(!is.na(children_ret), children_ret, children_base),
+    emp_status = if_else(!is.na(emp_status_ret), emp_status_ret, emp_status_base),
+    occupation = if_else(!is.na(occupation_ret), occupation_ret, occupation_base),
+    emp_status = recode(emp_status,
+      "1" = "Full time",
+      "2" = "Casual",
+      "3" = "Part time",
+    ),
+    occupation = recode(occupation,
+      "1" = "Medical",
+      "2" = "Nursing",
+      "3" = "Allied health",
+      "4" = "Laboratory",
+      "5" = "Administrative",
+      "6" = "Ancillary",
+      "8" = "Research",
+      "7" = "Other",
+    )
+  ) %>%
+  select(-contains("ret"), -contains("base"))
+
+yearly_changes_fix_pids <- yearly_changes_baseret_merged %>%
   filter(!is.na(pid)) %>%
   mutate(
     pid_og = pid,
@@ -538,6 +582,62 @@ check_no_rows(
 )
 
 write_csv(yearly_changes_fix_pids, "data/yearly-changes.csv")
+
+#
+# SECTION Work department
+#
+
+redcap_workdept_request <- function(project_year) {
+  names <- c(
+    "record_id",
+    "c4_workdept",
+    "workdept1"
+  )
+  redcap_request(
+    project_year,
+    "baseline_arm_1",
+    paste0(names, collapse = ",")
+  )
+}
+
+workdept_raw <- redcap_workdept_request(2020) %>%
+  bind_rows(redcap_workdept_request(2021)) %>%
+  bind_rows(redcap_workdept_request(2022))
+
+# TODO(sen) Update with survey from returning participants
+workdept <- workdept_raw %>%
+  select(record_id, redcap_project_year, contains("c4")) %>%
+  pivot_longer(contains("c4"), names_to = "dept", values_to = "status") %>%
+  mutate(dept = str_replace(dept, "c4_workdept___", "") %>% recode(
+    "1" = "Emergency Department",
+    "2" = "Critical Care or Intensive Care Unit",
+    "3" = "General Medicine and/or Medical Specialities",
+    "4" = "Paediatrics and/or Paediatric Specialities",
+    "5" = "Surgery and/or Surgical Specialties",
+    "6" = "Gynaecology and/or Obstetrics",
+    "7" = "Oncology and/or Haematology",
+    "8" = "Radiology",
+    "9" = "Outpatient clinic",
+    "10" = "Pharmacy",
+    "11" = "Laboratory",
+    "12" = "Nutrition",
+    "13" = "Social Work",
+    "14" = "Physiotherapy",
+    "15" = "Occupational therapy",
+    "16" = "Other",
+  )) %>%
+  inner_join(
+    yearly_changes_fix_pids %>%
+      select(record_id, pid, redcap_project_year),
+    c("record_id", "redcap_project_year")
+  ) %>%
+  filter(.by = pid, redcap_project_year == min(redcap_project_year)) %>%
+  select(pid, dept, status) %>%
+  distinct()
+
+check_no_rows(filter(workdept, .by = c(pid, dept), n() > 1), "workdept duplicates")
+
+write_csv(workdept, "data/workdept.csv")
 
 #
 # SECTION Vaccination history
@@ -708,7 +808,7 @@ covax_request <- covax_request_raw %>%
   select(pid, redcap_project_year, dose, received, date, batch, brand)
 
 check_no_rows(
-  covax_request %>% 
+  covax_request %>%
     filter(lubridate::year(date) <= 2020) %>%
     # NOTE(sen) Seems to be fine
     filter(!(pid == "JHH-383" & dose == 1)),
@@ -750,8 +850,8 @@ check_no_rows(
 
 covax_fix_brand <- covax_dedup %>%
   mutate(brand = case_when(
-    str_detect(tolower(brand), "moderna") ~ "Moderna", 
-    str_detect(tolower(brand), "novavax") ~ "Novavax trial", 
+    str_detect(tolower(brand), "moderna") ~ "Moderna",
+    str_detect(tolower(brand), "novavax") ~ "Novavax trial",
     TRUE ~ brand
   ) %>% recode(
     "Covid vax study- Novovax" = "Novavax trial",
@@ -1308,6 +1408,7 @@ write_csv(daily_surveys, "data/daily-surveys.csv")
 # SECTION Medial history (comorbidities)
 #
 
+# TODO(sen) Update with survey for returning participants
 redcap_medhx_req <- function(year) {
   fields <- c(
     "record_id",
@@ -1338,7 +1439,7 @@ comorbidities <- bind_rows(medhx_raw_2020, medhx_raw_2021, medhx_raw_2022) %>%
         "8" = "Smoker",
         "9" = "None",
       )
-  ) %>% 
+  ) %>%
   filter(condition != "None") %>%
   inner_join(
     yearly_changes_fix_pids %>%
