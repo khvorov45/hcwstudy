@@ -1188,7 +1188,7 @@ swabs_long <- swabs_no_missing %>%
     "15" = "Negative",
     "ni" = "NI",
   )) %>%
-  select(pid, year, postinf_instance, samp_date, swab_virus, swab_result)
+  select(pid, year, postinf_instance, samp_date, swab_virus, swab_result, redcap_event_name)
 
 check_no_rows(
   swabs_long %>%
@@ -1204,7 +1204,7 @@ postinf_bleed_dates <- redcap_postinf %>%
   pivot_longer(contains("postinfection_blood"), names_to = "day", values_to = "bleed_date") %>%
   mutate(day = str_replace(day, "d(\\d+)_postinfection_blood", "\\1") %>% as.integer()) %>%
   filter(!is.na(bleed_date)) %>%
-  select(pid, year, postinf_instance, samp_date, day, swab_collection, bleed_date)
+  select(pid, year, postinf_instance, samp_date, day, swab_collection, bleed_date, redcap_event_name)
 
 check_no_rows(
   postinf_bleed_dates %>%
@@ -1222,7 +1222,7 @@ postinf_comments <- redcap_postinf %>%
     str_replace(redcap_event_name, "^weekly_survey_(\\d+)_arm_1$", "\\1")
   )) %>%
   filter(!is.na(ari_swab_notes)) %>%
-  select(pid, year, survey_week, postinf_instance, ari_swab_notes)
+  select(pid, year, survey_week, postinf_instance, ari_swab_notes, redcap_event_name)
 
 write_csv(postinf_comments, "data/postinf-comments.csv")
 
