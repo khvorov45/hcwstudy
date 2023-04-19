@@ -20,7 +20,7 @@ redcap_request <- function(project_year, event, fields, ...) {
     )
   ) %>%
     httr::content(as = "text") %>%
-    read_csv(col_types = cols()) %>%
+    read_csv(col_types = cols(), guess_max = 1e5) %>%
     mutate(redcap_project_year = project_year)
 }
 
@@ -130,7 +130,7 @@ active2022 <- consent2022 %>%
   filter(consent == 1 | !is.na(study_group_vacc) | consent_unvacc == 1) %>%
   filter(!record_id %in% withdrawn2022$record_id)
 
-redcap_upload_spoonfed(20, 2023, "baseline_arm_1", active2022)
+# redcap_upload_spoonfed(20, 2023, "baseline_arm_1", active2022)
 
 data_access_groups2021 <- consent2021 %>%
   select(record_id, redcap_data_access_group) %>%
@@ -146,10 +146,10 @@ data_access_groups2022 <- consent2022 %>%
 # redcap_upload_spoonfed(20, 2023, "", data_access_groups2022)
 
 # redcap_upload(
-#   "2022", "baseline_arm_1",
-#   consent2021 %>%
-#     filter(record_id == "168-4") %>%
-#     select(record_id, redcap_data_access_group)
+#   2023, "baseline_arm_1",
+#   consent2022 %>%
+#     filter(record_id == "172-75") %>%
+#     select(-redcap_project_year)
 # )
 
 #
@@ -182,16 +182,10 @@ process_pid <- function(data) {
     select(record_id, pid, recruit_year, studygroup_y1, studygroup_y2, studygroup_y3)
 }
 
-# NOTE(sen) Should be empty
-pid2022_active %>% filter(is.na(studygroup_y3))
-pid2022_active %>% filter(is.na(recruit_year))
-
-redcap_upload_spoonfed(20, 2023, "baseline_arm_1", pid2022_active)
-
 # redcap_upload(
-#   2022, "baseline_arm_1", 
-#   pid2021 %>% 
-#     filter(pid == "JHH-060") %>% 
+#   2023, "baseline_arm_1", 
+#   pid2022 %>% 
+#     filter(pid == "QCH051") %>% 
 #     process_pid()
 # )
 
@@ -246,10 +240,10 @@ screening2022_active <- screening2022 %>%
 # redcap_upload_spoonfed(20, 2023, "baseline_arm_1", screening2022_active)
 
 # redcap_upload(
-#   2022,
+#   2023,
 #   "baseline_arm_1",
-#   screening2021 %>%
-#     filter(record_id == "170-71") %>%
+#   screening2022 %>%
+#     filter(record_id == "172-75") %>%
 #     filter(!is.na(date_screening) | !is.na(site_name)) %>%
 #     select(-contains("redcap"))
 # )
@@ -301,10 +295,10 @@ baseline2022_active <- baseline2022 %>%
 # redcap_upload_spoonfed(10, 2023, "baseline_arm_1", baseline2022_active)
 
 # redcap_upload(
-#   2022,
+#   2023,
 #   "baseline_arm_1",
-#   baseline2021 %>%
-#     filter(record_id == "170-71") %>%
+#   baseline2022 %>%
+#     filter(record_id == "172-75") %>%
 #     process_baseline()
 # )
 
@@ -375,11 +369,11 @@ covax2022_active <- covax2022 %>%
 # redcap_upload_spoonfed(10, 2023, "vaccination_arm_1", covax2022_active)
 
 # redcap_upload(
-#   2022,
+#   2023,
 #   "vaccination_arm_1",
-#   covax2021 %>%
+#   covax2022 %>%
 #     select(-contains("redcap")) %>%
-#     filter(record_id == "170-71")
+#     filter(record_id == "172-75")
 # )
 
 # redcap_upload(
