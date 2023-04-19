@@ -869,7 +869,7 @@ write_csv(covax_fix_brand, "data/covid-vax.csv")
 redcap_bleed_dates_request <- function(year) {
   redcap_request(
     year, "baseline_arm_1",
-    "record_id,date_baseline_blood,date_7d_blood,date_14d_blood,date_end_season_blood"
+    "record_id,date_baseline_blood,date_7d_blood,date_14d_blood,date_end_season_blood,samp_type_baseline,samp_type_7d,samp_type_14d,samp_type_endseason"
   ) %>%
     mutate(across(
       c(date_baseline_blood, date_7d_blood, date_14d_blood, date_end_season_blood),
@@ -898,9 +898,33 @@ bleed_dates_long <- bleed_dates_raw %>%
   select(pid, year, day, date) %>%
   filter(!is.na(date))
 
+bleed_types_long <- bleed_dates_raw %>%
+  select(-contains("date")) %>%
+  pivot_longer(contains("samp_type"), names_to = "timepoint", values_to = "checked") %>%
+  mutate(
+    day = str_replace(timepoint, "^samp_type_([^_]*)_.*$", "\\1") %>%
+      recode("baseline" = "0", "7d" = "7", "14d" = "14", "endseason" = "220"),
+    opt = str_replace(timepoint, "^.*___([^_]*)$", "\\1"),
+  ) %>%
+  filter(opt != "ni") %>%
+  summarise(.by = c(pid, year, day), samp_type = paste0(opt[checked == 1], collapse = "")) %>%
+  mutate(samp_type = case_when(
+    str_detect(samp_type, "1") & str_detect(samp_type, "2") ~ "both",
+    str_detect(samp_type, "1") ~ "serum",
+    str_detect(samp_type, "2") ~ "pbmc",
+    TRUE ~ "none",
+  ))
+
 bleed_dates_long_no_duplicates <- bleed_dates_long %>%
+  left_join(bleed_types_long, c("pid", "year", "day")) %>%
+  mutate(date = ymd(date)) %>%
   group_by(pid, year, day) %>%
-  summarise(.groups = "drop", date = max(lubridate::ymd(date)))
+  summarise(.groups = "drop", date = max(date), samp_type = paste(unique(samp_type), collapse = ","))
+
+check_no_rows(
+  bleed_dates_long_no_duplicates %>% filter(str_detect(samp_type, ",")), 
+  "conflicting sample types"
+)
 
 check_empty_set(
   setdiff(bleed_dates_long_no_duplicates$pid, participants_with_extras$pid),
@@ -925,7 +949,7 @@ write_csv(bleed_dates_long_no_duplicates, "data/bleed-dates.csv")
 redcap_covid_bleed_dates_request <- function(year) {
   redcap_request(
     year, "baseline_arm_1",
-    "record_id,covax_d0_sampdate,covax_d7_sampdate,covax_d14_sampdate"
+    "record_id,covax_d0_sampdate,covax_d7_sampdate,covax_d14_sampdate,covax_samptype_d0,covax_samptype_d7,covax_samptype_d14"
   )
 }
 
@@ -940,13 +964,29 @@ covid_bleed_dates_raw <- redcap_covid_bleed_dates_request(2020) %>%
   select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance, -record_id) %>%
   rename(year = redcap_project_year)
 
+covid_bleed_types <- covid_bleed_dates_raw %>%
+  select(-contains("date")) %>%
+  pivot_longer(contains("samptype"), names_to = "timepoint", values_to = "checked") %>%
+  mutate(
+    day = str_replace(timepoint, "^covax_samptype_d([^_]*)_.*$", "\\1"),
+    opt = str_replace(timepoint, "^.*___([^_]*)$", "\\1"),
+  ) %>%
+  filter(opt != "ni") %>%
+  mutate(samp_type = recode(opt, "1" = "serum", "2" = "pbmc", "3" = "paxgene")) %>%
+  summarise(.by = c(pid, year, day), samp_type = paste0(unique(samp_type[checked == 1]), collapse = ",")) %>%
+  mutate(
+    samp_type = recode(samp_type, "NA" = "none"),
+    samp_type = if_else(samp_type == "", "none", samp_type),
+  )
+
 covid_bleed_dates_long <- covid_bleed_dates_raw %>%
   pivot_longer(contains("date"), names_to = "timepoint", values_to = "date") %>%
   mutate(
     day = str_replace(timepoint, "covax_d(\\d+)_sampdate", "\\1"),
   ) %>%
   select(pid, year, day, date) %>%
-  filter(!is.na(date))
+  filter(!is.na(date)) %>%
+  left_join(covid_bleed_types, c("pid", "year", "day"))
 
 check_no_rows(
   covid_bleed_dates_long %>%
