@@ -52,24 +52,21 @@ quick_summary <- function(data) {
 # NOTE(sen) Export tables from access, one csv per table
 # file.remove(list.files("data-raw/serology", full.names = TRUE))
 # file.remove(list.files("data-raw/serology-covid", full.names = TRUE))
+# file.remove(list.files("data-raw/serology-landscapes", full.names = TRUE))
 # system("data-raw/pull-NIHHCWserol.sh")
 # system("data-raw/export-NIHHCWserol.sh")
 
 serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[012]_", full.names = TRUE) %>%
   c(
-    "data-raw/serology/Y3_2023_H1_egg_all.xlsx",
     "data-raw/serology/BVic_egg_2022_all.xlsx",
     "data-raw/serology/New Caledonia HI_H1N1 immunogenicity_allplates.xlsx",
-    "data-raw/serology/NIH_H1N1_ABrazil_11_egg_All.xlsx"
+    "data-raw/serology/23-04-18_WCH_BVicegg_v76.xlsx"
   ) %>%
   map_dfr(function(path) {
 
     tbl <- NULL
     if (str_ends(path, "xlsx")) {
-      if (str_ends(path, "Y3_2023_H1_egg_all.xlsx")) {
-        tbl <- readxl::read_excel(path, "2023-01-23_HCW_Y3_H1N1_egg", guess_max = 1e5) %>%
-          mutate(Designation = "A/Victoria/2570/2019e", year = 2022)
-      } else if (str_ends(path, "BVic_egg_2022_all.xlsx")) {
+      if (str_ends(path, "BVic_egg_2022_all.xlsx")) {
         tbl <- readxl::read_excel(path, guess_max = 1e5) %>%
           mutate(Designation = "B/Austria/1359417/2021e", year = 2022) %>%
           group_by(PID, VisitN) %>%
@@ -78,24 +75,31 @@ serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[012]
       } else if (str_ends(path, "New Caledonia HI_H1N1 immunogenicity_allplates.xlsx")) {
         tbl <- readxl::read_excel(path, guess_max = 1e5) %>%
           mutate(Designation = "A/NewCaledonia/20/1999e", year = as.integer(StudyYear))
-      } else if (str_ends(path, "NIH_H1N1_ABrazil_11_egg_All.xlsx")) {
-        tbl <- readxl::read_excel(path, guess_max = 1e5, na = c("", "repeat", "No result")) %>%
-          mutate(Designation = "A/Brazil/11/1978e", year = as.integer(Year))
+      } else if (str_ends(path, "23-04-18_WCH_BVicegg_v76.xlsx")) {
+        tbl <- readxl::read_excel(path, guess_max = 1e5) %>%
+          mutate(Designation = "B/Austria/1359417/2021e", year = 2022)
       }
     } else {
-      year <- 2022
+      year <- NULL
       if (str_starts(basename(path), "HI")) {
         year <- str_replace(path, ".*HI_.*_(202[012])_.*", "\\1") %>% as.integer()
       }
       if (str_ends(path, "sera.csv")) {
         year <- str_replace(path, ".*_(202[012])sera\\.csv$", "\\1") %>% as.integer()
       }
+      stopifnot(!is.null(year))
       tbl <- read_csv(path, col_types = cols(), guess_max = 1e5) %>%
         mutate(year = year)
     }
 
-    if (str_ends(path, "HI_H3N2egg_2022_V73.csv")) {
+    if (str_ends(path, "HI_H3N2egg_2022_V75.csv")) {
       tbl <- mutate(tbl, Designation = "A/Darwin/9/2021e")
+    } else if (str_ends(path, "HI_H3N2cell_2022_V78.csv")) {
+      tbl <- mutate(tbl, Designation = "A/Darwin/9/2021")
+    } else if (str_ends(path, "HI_H1N1egg_ivr_2022_V72.csv")) {
+      tbl <- mutate(tbl, Designation = "A/Victoria/2570/2019e")
+    } else if (str_ends(path, "HI_H1N1cell_2022_V67.csv")) {
+      tbl <- mutate(tbl, Designation = "A/Victoria/2570/2019")
     }
 
     tblcols <- colnames(tbl)
@@ -173,6 +177,7 @@ serology_all_tables_fix_viruses <- serology_all_tables_fix_day %>%
       # NOTE(sen) From VCM trees (data-raw/trees)
       "A/Brisbane/02/2018" = "6B.1A.1",
       "A/Brisbane/02/2018e" = "6B.1A.1",
+      "A/Darwin/09/2021" = "3C.2a1b.2a.2",
       "A/Darwin/09/2021e" = "3C.2a1b.2a.2",
       "A/Darwin/726/2019" = "3C.2a1b.1b",
       "A/Hong Kong/2671/2019e" = "3C.2a1b",
@@ -246,6 +251,7 @@ fun_fix_pids <- function(pid) {
       "JHH-305 (813)" = "JHH-813", # NOTE(sen) Changed from 2021 to 2022
       "WCH-025" = "WCH-818", # NOTE(sen) Changed study group in 2020
       "ALF-092" = "ALF-819", # NOTE(sen) Changed study group in 2022
+      "ALF-092 (819)" = "ALF-819"
     )
 }
 
