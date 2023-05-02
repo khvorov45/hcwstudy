@@ -19,3 +19,4 @@ temp*
 *.log
 *.synctex.gz
 *.tex
+*Rmd
