@@ -235,6 +235,7 @@ check_empty_set(sort(unique(serology_all_tables_fix_viruses$virus)) %>% .[!str_d
 
 fun_fix_pids <- function(pid) {
   str_replace(pid, "([[:alpha:]]{3})\\s?-?(\\d{3})", "\\1-\\2") %>%
+    toupper() %>%
     recode(
       "QCH-42-" = "QCH-042", "QCH-47-" = "QCH-047",
       "WCH-26" = "WCH-026", "WCH-26_" = "WCH-026", "WCH-26-" = "WCH-026",
@@ -249,6 +250,8 @@ fun_fix_pids <- function(pid) {
       "JHH-830 (082)" = "JHH-082", # NOTE(sen) Changed from 2021 to 2022
       "JHH-830" = "JHH-082",
       "JHH-305 (813)" = "JHH-813", # NOTE(sen) Changed from 2021 to 2022
+      "JHH-835 (090)" = "JHH-090",
+      "JHH-834 (158)" = "JHH-158",
       "WCH-025" = "WCH-818", # NOTE(sen) Changed study group in 2020
       "ALF-092" = "ALF-819", # NOTE(sen) Changed study group in 2022
       "ALF-092 (819)" = "ALF-819"
@@ -443,8 +446,9 @@ redcap_participants_request <- function(project_year) {
 participants2020 <- redcap_participants_request(2020)
 participants2021 <- redcap_participants_request(2021)
 participants2022 <- redcap_participants_request(2022)
+participants2023 <- redcap_participants_request(2023)
 
-participants <- bind_rows(participants2020, participants2021, participants2022) %>%
+participants <- bind_rows(participants2020, participants2021, participants2022, participants2023) %>%
   filter(!is.na(pid)) %>%
   select(
     pid,
@@ -463,13 +467,13 @@ check_no_rows(
 )
 
 check_no_rows(
-  participants %>% filter(!str_detect(pid, "^(PCH|CHW|WCH|JHH|QCH|ALF)-\\d{3}$")),
+  participants %>% filter(!str_detect(pid, "^(PCH|CHW|WCH|JHH|QCH|ALF)-\\d{3}$")) %>% select(pid),
   "participants with non-conforming pids"
 )
 
 check_no_rows(
-  participants %>% count(pid) %>% filter(n > 3, pid != "WCH-818"),
-  "(unkndown) pids present more than 3 times"
+  participants %>% count(pid) %>% filter(n > 4, pid != "WCH-818"),
+  "(unkndown) pids present more than 4 times"
 )
 
 # TODO(sen) Check conflicting info
@@ -525,6 +529,7 @@ redcap_yearly_changes_request <- function(year) {
 yearly_changes_raw <- redcap_yearly_changes_request(2020) %>%
   bind_rows(redcap_yearly_changes_request(2021)) %>%
   bind_rows(redcap_yearly_changes_request(2022)) %>%
+  bind_rows(redcap_yearly_changes_request(2023)) %>%
   select(
     record_id, pid, redcap_project_year,
     children_base = a4_children, children_ret = children1,
@@ -608,7 +613,8 @@ redcap_workdept_request <- function(project_year) {
 
 workdept_raw <- redcap_workdept_request(2020) %>%
   bind_rows(redcap_workdept_request(2021)) %>%
-  bind_rows(redcap_workdept_request(2022))
+  bind_rows(redcap_workdept_request(2022)) %>%
+  bind_rows(redcap_workdept_request(2023))
 
 # TODO(sen) Update with survey from returning participants
 workdept <- workdept_raw %>%
@@ -660,6 +666,7 @@ redcap_vaccination_history_request <- function(year) {
 vaccination_history_raw <- redcap_vaccination_history_request(2020) %>%
   bind_rows(redcap_vaccination_history_request(2021)) %>%
   bind_rows(redcap_vaccination_history_request(2022)) %>%
+  bind_rows(redcap_vaccination_history_request(2023)) %>%
   select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance) %>%
   inner_join(
     yearly_changes_fix_pids %>%
@@ -714,6 +721,7 @@ redcap_vaccination_instrument_request <- function(year) {
 vaccination_instrument_raw <- redcap_vaccination_instrument_request(2020) %>%
   bind_rows(redcap_vaccination_instrument_request(2021)) %>%
   bind_rows(redcap_vaccination_instrument_request(2022)) %>%
+  bind_rows(redcap_vaccination_instrument_request(2023)) %>%
   inner_join(
     yearly_changes_fix_pids %>%
       select(record_id, pid, redcap_project_year),
@@ -789,7 +797,9 @@ redcap_covax_request <- function(year) {
   )
 }
 
-covax_request_raw <- redcap_covax_request(2021) %>% bind_rows(redcap_covax_request(2022))
+covax_request_raw <- redcap_covax_request(2021) %>% 
+  bind_rows(redcap_covax_request(2022)) %>%
+  bind_rows(redcap_covax_request(2023))
 
 covax_request <- covax_request_raw %>%
   select(-redcap_event_name, -redcap_repeat_instrument, -redcap_repeat_instance) %>%
@@ -886,6 +896,7 @@ redcap_bleed_dates_request <- function(year) {
 bleed_dates_raw <- redcap_bleed_dates_request(2020) %>%
   bind_rows(redcap_bleed_dates_request(2021)) %>%
   bind_rows(redcap_bleed_dates_request(2022)) %>%
+  bind_rows(redcap_bleed_dates_request(2023)) %>%
   inner_join(
     yearly_changes_fix_pids %>%
       select(record_id, pid, redcap_project_year),
@@ -962,6 +973,7 @@ redcap_covid_bleed_dates_request <- function(year) {
 covid_bleed_dates_raw <- redcap_covid_bleed_dates_request(2020) %>%
   bind_rows(redcap_covid_bleed_dates_request(2021)) %>%
   bind_rows(redcap_covid_bleed_dates_request(2022)) %>%
+  bind_rows(redcap_covid_bleed_dates_request(2023)) %>%
   inner_join(
     yearly_changes_fix_pids %>%
       select(record_id, pid, redcap_project_year),
@@ -1036,7 +1048,8 @@ redcap_consent_request <- function(year) {
 
 redcap_consent_raw <- redcap_consent_request(2020) %>%
   bind_rows(redcap_consent_request(2021)) %>%
-  bind_rows(redcap_consent_request(2022))
+  bind_rows(redcap_consent_request(2022)) %>%
+  bind_rows(redcap_consent_request(2023))
 
 redcap_consent_long <- redcap_consent_raw %>%
   mutate(
@@ -1199,6 +1212,7 @@ redcap_postinf_request <- function(year) {
 redcap_postinf <- redcap_postinf_request(2020) %>%
   bind_rows(redcap_postinf_request(2021)) %>%
   bind_rows(redcap_postinf_request(2022)) %>%
+  bind_rows(redcap_postinf_request(2023)) %>%
   inner_join(
     yearly_changes_fix_pids %>%
       select(record_id, pid, redcap_project_year),
@@ -1282,7 +1296,8 @@ redcap_withdrawn_request <- function(year) {
 
 withdrawn_raw <- redcap_withdrawn_request(2020) %>%
   bind_rows(redcap_withdrawn_request(2021)) %>%
-  bind_rows(redcap_withdrawn_request(2022))
+  bind_rows(redcap_withdrawn_request(2022)) %>%
+  bind_rows(redcap_withdrawn_request(2023))
 
 withdrawn <- withdrawn_raw %>%
   inner_join(
@@ -1357,7 +1372,8 @@ redcap_weekly_survey_req <- function(year) {
 
 weekly_surveys_raw <- redcap_weekly_survey_req(2020) %>%
   bind_rows(redcap_weekly_survey_req(2021)) %>%
-  bind_rows(redcap_weekly_survey_req(2022))
+  bind_rows(redcap_weekly_survey_req(2022)) %>%
+  bind_rows(redcap_weekly_survey_req(2023))
 
 weekly_surveys <- weekly_surveys_raw %>%
   inner_join(
@@ -1427,7 +1443,8 @@ redcap_daily_survey_req <- function(year) {
 
 daily_surveys_raw <- redcap_daily_survey_req(2020) %>%
   bind_rows(redcap_daily_survey_req(2021)) %>%
-  bind_rows(redcap_daily_survey_req(2022))
+  bind_rows(redcap_daily_survey_req(2022)) %>%
+  bind_rows(redcap_daily_survey_req(2023))
 
 daily_surveys <- daily_surveys_raw %>%
   inner_join(
@@ -1466,8 +1483,9 @@ redcap_medhx_req <- function(year) {
 medhx_raw_2020 <- redcap_medhx_req(2020)
 medhx_raw_2021 <- redcap_medhx_req(2021)
 medhx_raw_2022 <- redcap_medhx_req(2022)
+medhx_raw_2023 <- redcap_medhx_req(2023)
 
-comorbidities <- bind_rows(medhx_raw_2020, medhx_raw_2021, medhx_raw_2022) %>%
+comorbidities <- bind_rows(medhx_raw_2020, medhx_raw_2021, medhx_raw_2022, medhx_raw_2023) %>%
   pivot_longer(starts_with("b1_medicalhx"), names_to = "condition", values_to = "status") %>%
   filter(status == 1) %>%
   select(record_id, redcap_project_year, condition) %>%
