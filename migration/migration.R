@@ -69,6 +69,7 @@ redcap_withdrawal_request <- function(project_year) {
 withdrawn2020 <- redcap_withdrawal_request(2020) %>% filter(withdrawn == 1)
 withdrawn2021 <- redcap_withdrawal_request(2021) %>% filter(withdrawn == 1)
 withdrawn2022 <- redcap_withdrawal_request(2022) %>% filter(withdrawn == 1)
+withdrawn2023 <- redcap_withdrawal_request(2023) %>% filter(withdrawn == 1)
 
 #
 # SECTION Consent
@@ -114,6 +115,7 @@ redcap_consent_request <- function(project_year) {
 consent2020 <- redcap_consent_request(2020)
 consent2021 <- redcap_consent_request(2021)
 consent2022 <- redcap_consent_request(2022)
+consent2023 <- redcap_consent_request(2023)
 
 active2020 <- consent2020 %>%
   select(-contains("redcap")) %>%
@@ -130,6 +132,11 @@ active2022 <- consent2022 %>%
   filter(consent == 1 | !is.na(study_group_vacc) | consent_unvacc == 1) %>%
   filter(!record_id %in% withdrawn2022$record_id)
 
+active2023 <- consent2023 %>%
+  select(-contains("redcap")) %>%
+  filter(consent == 1 | !is.na(study_group_vacc) | consent_unvacc == 1) %>%
+  filter(!record_id %in% withdrawn2022$record_id)
+
 # redcap_upload_spoonfed(20, 2023, "baseline_arm_1", active2022)
 
 data_access_groups2021 <- consent2021 %>%
@@ -139,6 +146,10 @@ data_access_groups2021 <- consent2021 %>%
 data_access_groups2022 <- consent2022 %>%
   select(record_id, redcap_data_access_group) %>%
   filter(record_id %in% active2022$record_id)
+
+data_access_groups2023 <- consent2023 %>%
+  select(record_id, redcap_data_access_group) %>%
+  filter(record_id %in% active2023$record_id)
 
 # NOTE(sen) If data access group doesn't get assigned, the record will be invisible
 # unless you have full access.
