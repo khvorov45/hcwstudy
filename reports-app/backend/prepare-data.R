@@ -75,6 +75,7 @@ participants <- read_csv("./data/participants.csv", col_types = cols()) %>%
             	bled2020 = as.integer(any(lubridate::year(date) == 2020)),
             	bled2021 = as.integer(any(lubridate::year(date) == 2021)),
             	bled2022 = as.integer(any(lubridate::year(date) == 2022)),
+            	bled2023 = as.integer(any(lubridate::year(date) == 2023)),
             ),
         "pid"
     ) %>%
@@ -94,9 +95,15 @@ bleed_dates_flu <- read_csv("./data/bleed-dates.csv", col_types = cols())
 
 bleed_dates_flu_wide <- bleed_dates_flu %>%
     mutate(day = paste0("flu_day_", day)) %>%
-    pivot_wider(names_from = "day", values_from = "date")
+    pivot_wider(names_from = "day", values_from = "date") %>%
+    filter(str_detect(samp_type, "serum")) %>%
+    select(-samp_type) %>%
+    filter(.by = c(pid, year), row_number() == 1)
 
-bleed_dates_covid <- read_csv("./data/covid-bleed-dates.csv", col_types = cols())
+bleed_dates_covid <- read_csv("./data/covid-bleed-dates.csv", col_types = cols()) %>%
+    filter(str_detect(samp_type, "serum")) %>%
+    select(-samp_type) %>%
+    filter(.by = c(pid, year), row_number() == 1)
 
 bleed_dates_covid_wide <- bleed_dates_covid %>%
     mutate(day = paste0("covid_day_", day)) %>%
