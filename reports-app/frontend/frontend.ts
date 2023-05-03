@@ -282,9 +282,9 @@ const createCountsRecordsTable = (data: Data, groups: RecordGroups[]) => {
 			bled2020: 0,
 			bled2021: 0,
 			bled2022: 0,
-			flupos2020: 0,
-			flupos2021: 0,
+			bled2023: 0,
 			flupos2022: 0,
+			flupos2023: 0,
 		},
 		filter: (row) => row.pid !== undefined && row.pid.length >= 3,
 		getKey: getParticipantsKey,
@@ -303,24 +303,13 @@ const createCountsRecordsTable = (data: Data, groups: RecordGroups[]) => {
 				}
 			}
 
-			if (row.bled2020 === 1) {
-				counts.bled2020 += 1
-			}
-			if (row.bled2021 === 1) {
-				counts.bled2021 += 1
-			}
-			if (row.bled2022 === 1) {
-				counts.bled2022 += 1
-			}
-			if (row.flupos2020 === 1) {
-				counts.flupos2020 += 1
-			}
-			if (row.flupos2021 === 1) {
-				counts.flupos2021 += 1
-			}
-			if (row.flupos2022 === 1) {
-				counts.flupos2022 += 1
-			}
+			counts.bled2020 += row.bled2020
+			counts.bled2021 += row.bled2021
+			counts.bled2022 += row.bled2022
+			counts.bled2023 += row.bled2023
+
+			counts.flupos2022 += row.flupos2022
+			counts.flupos2023 += row.flupos2023
 		},
 	})
 
@@ -333,9 +322,9 @@ const createCountsRecordsTable = (data: Data, groups: RecordGroups[]) => {
 	colSpec.bled2020 = {}
 	colSpec.bled2021 = {}
 	colSpec.bled2022 = {}
-	colSpec.flupos2020 = {}
-	colSpec.flupos2021 = {}
+	colSpec.bled2023 = {}
 	colSpec.flupos2022 = {}
+	colSpec.flupos2023 = {}
 
 	const countsAos = Arr.aoaToAos(groupedCountsFlat, Object.keys(colSpec))
 
@@ -349,18 +338,14 @@ const createCountsRecordsTable = (data: Data, groups: RecordGroups[]) => {
 	DOM.addDivWithText(countsTableDesc.desc, "bled2020 - total records in redcap that have any bleed date in 2020")
 	DOM.addDivWithText(countsTableDesc.desc, "bled2021 - total records in redcap that have any bleed date in 2021")
 	DOM.addDivWithText(countsTableDesc.desc, "bled2022 - total records in redcap that have any bleed date in 2022")
+	DOM.addDivWithText(countsTableDesc.desc, "bled2023 - total records in redcap that have any bleed date in 2023")
+
 	DOM.addDivWithText(
 		countsTableDesc.desc,
-		"flupos2020 - total records in redcap that have a flu positive swab in 2020"
+		"flupos2022 - total records in redcap that have a flu positive swab in 2022. 2020 and 2021 have no flu positive swabs"
 	)
-	DOM.addDivWithText(
-		countsTableDesc.desc,
-		"flupos2021 - total records in redcap that have a flu positive swab in 2021"
-	)
-	DOM.addDivWithText(
-		countsTableDesc.desc,
-		"flupos2022 - total records in redcap that have a flu positive swab in 2022"
-	)
+	DOM.addDivWithText(countsTableDesc.desc, "flupos2023 - total records in redcap that have a flu positive swab in 2023.")
+
 	addCountsExplanatoryNotes(countsTableDesc.desc, groups)
 
 	const descDim = DOM.measureEl(countsTableDesc.container, window.innerWidth - SIDEBAR_WIDTH_PX, window.innerHeight)
