@@ -70,4 +70,4 @@ time_at_risk_plot <- time_at_risk_data %>%
 ggsave("hadrien/time_at_risk_plot.pdf", width = 15, height = 10, units = "cm")
 
 library(survival)
-coxph(Surv(time_to_event, as.integer(infected)) ~ average_postvax_flua_titre, data = time_at_risk_data)
+coxph(Surv(time_to_event, as.integer(infected)) ~ I(log(average_postvax_flua_titre)), data = time_at_risk_data)
