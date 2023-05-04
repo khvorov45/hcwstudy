@@ -8,6 +8,8 @@ postinf_bleed_dates <- read_csv("data/postinf-bleed-dates.csv", col_types = cols
 bleed_dates <- read_csv("data/bleed-dates.csv", col_types = cols())
 covid_bleed_dates <- read_csv("data/covid-bleed-dates.csv", col_types = cols())
 covid_vax <- read_csv("data/covid-vax.csv", col_types = cols())
+withdrawn <- read_csv("data/withdrawn.csv", col_types = cols())
+serology_covid <- read_csv("data/serology-covid.csv", col_types = cols())
 
 label_consecutive <- function(values) {
     result = c()
@@ -97,3 +99,67 @@ annette_list %>%
     }) %>%
     paste(collapse = "\n\n") %>%
     cat()
+
+withdrawn_for_sure <- withdrawn %>%
+    filter(withdrawn == 1) %>%
+    filter(.by = pid, withdrawal_date == max(withdrawal_date)) %>%
+    filter(withdrawn_reentered == 0)
+
+had_2022_d220_bleed <- bleed_dates %>% filter(day == 220, year == 2022) %>% select(pid) %>% distinct()
+
+consented_to_covid <- consent %>% filter(disease == "covid", consent != "no")
+
+covid_bleed_dates %>%
+    filter(!pid %in% withdrawn_for_sure$pid) %>%
+    filter(pid %in% had_2022_d220_bleed$pid) %>%
+    filter(pid %in% consented_to_covid$pid) %>%
+    select(pid) %>%
+    distinct()
+
+swabs %>% filter(year == 2022, swab_result == 1, swab_virus == "SARS-CoV-2") %>% select(pid) %>% distinct()
+
+bleed_dates %>% filter(year == 2022) %>% select(pid) %>% distinct()
+
+serology_covid %>% filter(bleed_day_id == 14, vax_inf == "V") %>% mutate(logic50 = log(ic50)) %>% pull(ic50) %>% log() %>% hist(breaks = 50)
+
+simone <- function(n_followups, covid_prop_lowt, titre_effect) {
+    tibble(
+        logtitre_postvax = rnorm(n_followups, 4, 1.5),
+        infected = rbinom(n_followups, 1, covid_prop_lowt * (titre_effect ^ logtitre_postvax))
+    )
+}
+
+simone(3000, 0.2, 0.7) %>%
+    mutate(logtitrecat = cut(logtitre_postvax, c(-Inf, 2, 4, 6, Inf))) %>%
+    summarise(.by = logtitrecat, prop = sum(infected) / n()) %>%
+    arrange(logtitrecat)
+
+glm(infected ~ logtitre_postvax, binomial, simone(3000, 0.2, 0.8)) %>% 
+    broom::tidy() %>%
+    filter(term == "logtitre_postvax") %>%
+    mutate(low = estimate - 1.96 * std.error, high = estimate + 1.96 * std.error) %>%
+    select(estimate, low, high) %>%
+    pivot_longer(everything(), names_to = "kind", values_to = "value") %>%
+    mutate(logprot50 = log(0.5) / value, prot50 = exp(logprot50)) %>%
+    select(kind, prot50)
+
+expand.grid(
+    n_followups = c(300),
+    covid_prop_lowt = c(0.2),
+    titre_effect = c(0.75)
+) %>%
+    pmap_dfr(function(n_followups, covid_prop_lowt, titre_effect) {
+        map_dfr(1:100, function(index) {
+            pop <- simone(n_followups, covid_prop_lowt, titre_effect)
+            fit <- glm(infected ~ logtitre_postvax, binomial, pop)
+            bind_cols(broom::tidy(fit), tibble(n_followups, covid_prop_lowt, titre_effect, index))
+        })    
+    }) %>%
+    filter(term == "logtitre_postvax") %>%
+    mutate(low = estimate - 1.96 * std.error, high = estimate + 1.96 * std.error) %>%
+    select(-term, -std.error, -statistic, -p.value) %>%
+    pivot_longer(c(estimate, low, high), names_to = "kind", values_to = "value") %>%
+    mutate(logprot50 = log(0.5) / value, prot50 = signif(exp(logprot50), 2)) %>%
+    select(-value, -logprot50) %>%
+    pivot_wider(names_from = kind, values_from = prot50) %>%
+    summarise(.by = c(-estimate, -low, -high, -index), interval = mean(high - low))
