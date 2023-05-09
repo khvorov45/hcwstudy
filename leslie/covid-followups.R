@@ -144,12 +144,12 @@ glm(infected ~ logtitre_postvax, binomial, simone(3000, 0.2, 0.8)) %>%
     select(kind, prot50)
 
 expand.grid(
-    n_followups = c(300),
+    n_followups = c(300, 3000, 9000),
     covid_prop_lowt = c(0.2),
     titre_effect = c(0.75)
 ) %>%
     pmap_dfr(function(n_followups, covid_prop_lowt, titre_effect) {
-        map_dfr(1:100, function(index) {
+        map_dfr(1:500, function(index) {
             pop <- simone(n_followups, covid_prop_lowt, titre_effect)
             fit <- glm(infected ~ logtitre_postvax, binomial, pop)
             bind_cols(broom::tidy(fit), tibble(n_followups, covid_prop_lowt, titre_effect, index))
@@ -162,4 +162,4 @@ expand.grid(
     mutate(logprot50 = log(0.5) / value, prot50 = signif(exp(logprot50), 2)) %>%
     select(-value, -logprot50) %>%
     pivot_wider(names_from = kind, values_from = prot50) %>%
-    summarise(.by = c(-estimate, -low, -high, -index), interval = mean(high - low))
+    summarise(.by = c(-estimate, -low, -high, -index), interval = mean(high - low), interval_ratio = mean(high / low))
