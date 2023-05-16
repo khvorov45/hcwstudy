@@ -252,6 +252,7 @@ fun_fix_pids <- function(pid) {
       "JHH-305 (813)" = "JHH-813", # NOTE(sen) Changed from 2021 to 2022
       "JHH-835 (090)" = "JHH-090",
       "JHH-834 (158)" = "JHH-158",
+      "JHH-474 (828)" = "JHH-828",
       "WCH-025" = "WCH-818", # NOTE(sen) Changed study group in 2020
       "ALF-092" = "ALF-819", # NOTE(sen) Changed study group in 2022
       "ALF-092 (819)" = "ALF-819"
