@@ -48,7 +48,7 @@ const getColSpecFromGroups = (groups: string[]) => {
 
 const SIDEBAR_WIDTH_PX = 180
 
-const YEARS_ = [2020, 2021, 2022] as const
+const YEARS_ = [2020, 2021, 2022, 2023] as const
 const YEARS = YEARS_ as unknown as number[]
 type YearID = typeof YEARS_[number]
 
@@ -1787,6 +1787,11 @@ const createWeeklySurveysPage = (
 			colSpecInit: { week: {}, start: {}, end: {}, send: {} },
 			title: "Weekly survey dates 2022",
 		}),
+		2023: Table.createTableFromAos({
+			aos: getDates(52, "2023-01-02", "2023-01-08", "2023-01-09"),
+			colSpecInit: { week: {}, start: {}, end: {}, send: {} },
+			title: "Weekly survey dates 2023",
+		}),
 	}
 
 	const datesTableParent = DOM.addDiv(container)
@@ -2439,7 +2444,7 @@ const goToCurrentURL = (domMain: HTMLElement, data: Data, onLogout: () => void) 
 		groupsBleeds: ["year"],
 		groupsPostinfBleeds: ["year"],
 	}
-	const defYear = 2022
+	const defYear = 2023
 	const defTitresSettings: TitresSettings = {
 		groupsGMTs: ["year", "day"],
 		groupsGMRs: ["year"],
