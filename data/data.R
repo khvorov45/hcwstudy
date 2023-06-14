@@ -660,7 +660,7 @@ write_csv(workdept, "data/workdept.csv")
 redcap_vaccination_history_request <- function(year) {
   redcap_request(
     year, "baseline_arm_1",
-    "vac_2021,vac_2020,vac_2019,vac_2018,vac_2017,vac_2016,vac_2015,record_id",
+    "vac_2022,vac_2021,vac_2020,vac_2019,vac_2018,vac_2017,vac_2016,vac_2015,record_id",
     rawOrLabel = "label"
   )
 }
@@ -785,7 +785,6 @@ write_csv(vaccination_history_with_instrument, "data/vaccinations.csv")
 # SECTION Covid vaccination
 #
 
-# TODO(sen) 5th dose info
 redcap_covax_request <- function(year) {
   redcap_request(
     year, "vaccination_arm_1",
@@ -794,7 +793,8 @@ redcap_covax_request <- function(year) {
       "covid_vac_brand,other_covax_brand,covid_vac_dose1_rec,covid_vacc_date1,covid_vac_batch1,",
       "covid_vac_brand2,other_covax_brand2,covid_vac_dose2_rec,covid_vacc_date2,covid_vac_batch2,",
       "covid_vac_brand3,other_covax_brand3,covid_vac_dose3_rec,covid_vacc_date3,covid_vac_batch3,",
-      "covid_vac_brand4,other_covax_brand4,covid_vac_dose4_rec,covid_vacc_date4,covid_vac_batch4"
+      "covid_vac_brand4,other_covax_brand4,covid_vac_dose4_rec,covid_vacc_date4,covid_vac_batch4,",
+      "covid_vac_brand5,other_covax_brand5,covid_vac_dose5_rec,covid_vacc_date5,covid_vac_batch5"
     )
   )
 }
