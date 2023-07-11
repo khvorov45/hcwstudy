@@ -35,13 +35,13 @@ known_prior_vac_counts %>%
         reference_year = str_replace(reference_year, "known_prior", ""),
         recruitment_year = as.character(recruitment_year),
     ) %>%
-    group_by(reference_year, known_prior, recruitment_year) %>%
-    summarise(n = sum(status), .groups = "drop") %>%
-    bind_rows(summarise(group_by(., reference_year, known_prior), n = sum(n), recruitment_year = "Total", .groups = "drop")) %>%
+    summarise(.by = c(reference_year, known_prior, recruitment_year), n = sum(status)) %>%
+    bind_rows(summarise(., .by = c(reference_year, known_prior), n = sum(n), recruitment_year = "Total")) %>%
+    mutate(.by = c(reference_year, recruitment_year), n = paste0(n, " (", round(n / n[known_prior == "Total"] * 100), "%)")) %>%
     arrange(reference_year, known_prior) %>%
-    pivot_wider(names_from = "recruitment_year", values_from = "n", values_fill = 0) %>%
+    pivot_wider(names_from = "recruitment_year", values_from = "n", values_fill = "0") %>%
     rename(`Ref year` = reference_year, `Prior years with known status` = known_prior) %>%
-    (function(x) {write_csv(x, "report/missing-vachist/missing-vachist.csv"); x}) %>%
+    write_csv("report/missing-vachist/missing-vachist.csv") %>%
     kbl(
         format = "latex",
         caption = "Counts of participants split by the number of years for which we have their vaccination history.
@@ -52,8 +52,9 @@ known_prior_vac_counts %>%
         booktabs = TRUE,
         label = "missing-vachist"
     ) %>%
-    add_header_above(c(" " = 2, "Recruitment year" = 3)) %>%
-    column_spec(3:5, width = "1cm") %>%
+    kable_styling(latex_options = "scale_down") %>%
+    add_header_above(c(" " = 2, "Recruitment year" = 4)) %>%
+    column_spec(3:7, width = "2.5cm") %>%
     column_spec(2, width = "2cm") %>%
     collapse_rows(columns = 1, latex_hline = "major") %>%
     write("report/missing-vachist/missing-vachist.tex")
