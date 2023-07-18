@@ -1,10 +1,26 @@
 library(tidyverse)
 
 serology <- read_csv("data/serology.csv", col_types = cols())
+vaccinations <- read_csv("data/vaccinations.csv", col_types = cols())
+
+priors <- vaccinations %>%
+    summarise(
+        .by = pid,
+        prior2020 = sum((status == "Australia" | status == "Overseas") & (year < 2020) & (year >= 2020 - 5)),
+        prior2021 = sum((status == "Australia" | status == "Overseas") & (year < 2021) & (year >= 2021 - 5)),
+        prior2022 = sum((status == "Australia" | status == "Overseas") & (year < 2022) & (year >= 2022 - 5)),
+        prior2023 = sum((status == "Australia" | status == "Overseas") & (year < 2023) & (year >= 2023 - 5)),
+    )
 
 serology_relevant <- serology %>%
     filter(day %in% c(0, 14), vax_inf == "V", subtype == "H1", virus_vaccine) %>%
-    select(-vax_inf, -subtype, -virus_clade, -virus_vaccine)
+    select(-vax_inf, -subtype, -virus_clade, -virus_vaccine) %>%
+    left_join(
+        priors %>% 
+            pivot_longer(-pid, names_to = "year", values_to = "priors") %>%
+            mutate(year = str_replace(year, "prior", "") %>% as.integer()),
+        c("pid", "year")
+    )
 
 serology_relevant_wide <- serology_relevant %>%
     mutate(day = paste0("d", day)) %>%
@@ -19,6 +35,12 @@ titre_and_ratio_common <- list(
         panel.grid.minor = element_blank(),
         axis.title.x = element_blank(),
     ),
+    facet_grid(year~priors, labeller = function(breaks) {
+        if ("priors" %in% names(breaks)) {
+            breaks$priors <- paste0(breaks$priors, " priors (in serology year)")
+        }
+        breaks
+    }),
     scale_x_continuous(breaks = c(1, 2), labels = c("Cell", "Egg"))
 )
 
@@ -38,7 +60,6 @@ titre_plot <- serology_relevant %>%
     ) %>%
     ggplot(aes(xcoord, ycoord)) +
     titre_and_ratio_common +
-    facet_wrap(~year, nrow = 1) +
     scale_y_log10("Titre (D0 and D14)", breaks = 5 * 2^(0:15)) +
     geom_point(shape = 18, alpha = 0.1, color = "gray50") +
     geom_line(aes(group = paste0(pid, virus_egg_cell)), alpha = 0.01, color = "gray50") +
@@ -49,14 +70,13 @@ ratio_plot <- serology_relevant_wide %>%
     mutate(xcoord = as.integer(factor(virus_egg_cell))) %>%
     ggplot(aes(xcoord, ratio)) +
     titre_and_ratio_common +
-    facet_wrap(~year) +
     scale_y_log10("D14/D0 ratio", breaks = 2^(0:15)) +
     geom_jitter(width = 0.1, alpha = 0.1, shape = 18, color = "gray50") +
     geom_boxplot(aes(group = virus_egg_cell), color = "red", fill = NA, outlier.alpha = 0, width = 0.4)
 
 titre_and_ratio_plot <- ggpubr::ggarrange(titre_plot, ratio_plot, ncol = 1, align = "v")
 
-ggsave("h1-eggcell/titre_and_ratio.pdf", titre_and_ratio_plot, width = 15, height = 15, units = "cm")
+ggsave("h1-eggcell/titre_and_ratio.pdf", titre_and_ratio_plot, width = 30, height = 25, units = "cm")
 
 serology_relevant_wide_eggcell <- serology_relevant %>%
     select(-virus) %>%
