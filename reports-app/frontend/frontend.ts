@@ -38,6 +38,9 @@ const getColSpecFromGroups = (groups: string[]) => {
 	}
 	for (const group of groups) {
 		colSpec[group] = {}
+		if (group == "swab_results") {
+			colSpec[group].width = 400
+		}
 	}
 	return colSpec
 }
@@ -100,7 +103,7 @@ const ALL_BLEEDS_GROUPS_ = [
 const ALL_BLEEDS_GROUPS = ALL_BLEEDS_GROUPS_ as unknown as string[]
 type BleedsGroups = typeof ALL_BLEEDS_GROUPS_[number]
 
-const ALL_POSTINF_BLEEDS_GROUPS_ = ALL_BLEEDS_GROUPS_
+const ALL_POSTINF_BLEEDS_GROUPS_ = [...ALL_BLEEDS_GROUPS_, "swab_results"] as const
 const ALL_POSTINF_BLEEDS_GROUPS = ALL_POSTINF_BLEEDS_GROUPS_ as unknown as string[]
 type PostinfBleedsGroups = typeof ALL_POSTINF_BLEEDS_GROUPS_[number]
 
