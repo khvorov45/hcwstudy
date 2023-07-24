@@ -113,6 +113,13 @@ bleed_dates_wide <- full_join(bleed_dates_flu_wide, bleed_dates_covid_wide, c("p
     left_join(participants, "pid")
 
 postinf_bleed_dates <- read_csv("./data/postinf-bleed-dates.csv", col_types = cols()) %>%
+    left_join(
+        swabs %>%
+            select(pid, year, postinf_instance, swab_virus, swab_result) %>%
+            summarise(.by = c(pid, year, postinf_instance), swab_results = paste0(swab_virus[swab_result == 1], collapse = ",")) %>%
+            mutate(swab_results = if_else(swab_results == "", NA_character_, swab_results)),
+        c("pid", "year", "postinf_instance")
+    ) %>%
     mutate(day = paste0("day", day)) %>%
     pivot_wider(names_from = "day", values_from = "bleed_date") %>%
     left_join(participants, "pid")
