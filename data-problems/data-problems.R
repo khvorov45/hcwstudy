@@ -34,9 +34,26 @@ stopifnot(sum(is.na(covid_bleed_dates$site)) == 0)
 stopifnot(sum(is.na(covid_vax$site)) == 0)
 stopifnot(sum(is.na(vaccinations$site)) == 0)
 
+withdrawn_for_sure <- withdrawn %>%
+	filter(.by = pid, withdrawal_date == max(withdrawal_date)) %>%
+	filter(withdrawn_reentered == 0)
+
+have_some_useful_data <- serology %>% 
+	select(pid) %>% 
+	distinct() %>%
+	bind_rows(
+		bleed_dates %>%
+			select(pid) %>%
+			distinct()
+	) %>%
+	distinct()
+
 participants %>%
 	select(-email, -mobile) %>%
-	filter(!complete.cases(.), !pid %in% withdrawn$pid) %>%
+	filter(!complete.cases(.), !pid %in% withdrawn_for_sure$pid) %>%
+	left_join(have_some_useful_data %>% mutate(have_data = TRUE), "pid") %>%
+	filter(!is.na(have_data)) %>%
+	select(-have_data) %>%
 	save_split("missing_baseline")
 
 participants %>%
@@ -115,15 +132,15 @@ vaccinations_after_recruitment <- vaccinations %>%
 	filter(year >= recruitment_year)
 
 missing_vaccination_history <- participants %>%
-	filter(!pid %in% vaccinations_before_recruitment$pid, !pid %in% withdrawn$pid) %>%
+	filter(!pid %in% vaccinations_before_recruitment$pid, !pid %in% withdrawn_for_sure$pid) %>%
 	save_split("missing_vaccination_history")
 
 participants %>%
-	filter(!pid %in% vaccinations_after_recruitment$pid, !pid %in% withdrawn$pid) %>%
+	filter(!pid %in% vaccinations_after_recruitment$pid, !pid %in% withdrawn_for_sure$pid) %>%
 	save_split("missing_vaccination_records")
 
 swabs %>%
-	filter(is.na(samp_date), !pid %in% withdrawn$pid) %>%
+	filter(is.na(samp_date), !pid %in% withdrawn_for_sure$pid) %>%
 	group_by(pid, site, year, postinf_instance, samp_date) %>%
 	summarise(.groups = "drop", viruses = paste(swab_virus[swab_result == 1], collapse = ",")) %>%
 	save_split("swabs_missing_date")
@@ -148,7 +165,7 @@ covid_vax %>%
 			select(pid, site) %>%
 			mutate(doses = "")
 	) %>%
-	filter(!pid %in% withdrawn$pid) %>%
+	filter(!pid %in% withdrawn_for_sure$pid) %>%
 	filter(pid %in% (consent %>% filter(disease == "covid", consent != "no") %>% pull(pid) %>% unique())) %>%
 	arrange(pid) %>%
 	save_split("missing_covax_dose")
