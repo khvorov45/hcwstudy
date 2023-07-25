@@ -15,6 +15,8 @@ flupos_dates <- swabs %>%
     ungroup()
 
 all_dates <- bleed_dates %>%
+    filter(samp_type == "serum") %>%
+    select(-samp_type) %>%
     mutate(day = as.character(day)) %>%
     bind_rows(vac_dates %>% select(pid, year, date = vaccination_date) %>% mutate(day = "vax")) %>%
     bind_rows(flupos_dates %>% select(pid, year, date = samp_date) %>% mutate(day = "flupos")) %>%
@@ -102,11 +104,13 @@ bleed_dates_plots <- all_dates %>%
 
 bleed_dates_plot <- ggpubr::ggarrange(plotlist = bleed_dates_plots, common.legend = TRUE, ncol = 1)
 
-(function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
+save2 <- function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)}
+
+save2(
     "report/figure-bleed-dates/figure-bleed-dates", bleed_dates_plot, width = 15, height = 20, units = "cm"
 )
 
-bleed_intervals_plot <- bleed_intervals %>%
+bleed_intervals_plots <- bleed_intervals %>%
     select(pid, site, year, starts_with("i")) %>%
     pivot_longer(starts_with("i"), names_to = "timepoint", values_to = "interval") %>%
     filter(!is.na(interval)) %>%
@@ -115,22 +119,50 @@ bleed_intervals_plot <- bleed_intervals %>%
         timepoint = factor(timepoint, c("i0_vax", "ivax_7", "ivax_14", "ivax_220", "i0_flupos", "ivax_flupos"))
     ) %>%
     bind_rows(mutate(., site = "total")) %>%
-    ggplot(aes(timepoint, interval)) +
-    theme_bw() +
-    theme(
-        panel.grid.minor = element_blank(),
-        strip.background = element_blank(),
-        panel.spacing = unit(0, "null"),
-        axis.text.x = element_text(angle = 30, hjust = 1)
-    ) +
-    facet_grid(site~year, scales = "free_x") +
-    scale_y_continuous("Days", breaks = c(0, 7, 14, 30, 60, 90, 120, 150, 180, 220)) +
-    scale_x_discrete("Interval", labels = c("0 to vax", "vax to 7", "vax to 14", "vax to 220", "0 to flupos", "vax to flupos")) +
-    geom_jitter(shape = 18, width = 0.2, alpha = 0.3, color = "gray50") +
-    geom_boxplot(color = "blue", fill = NA, outlier.alpha = 0)
+    mutate(plot_group = case_when(
+        timepoint == "ivax_220" ~ "1", 
+        timepoint %in% c("i0_flupos", "ivax_flupos") ~ "2", 
+        TRUE ~ "3",
+    )) %>%
+    group_by(plot_group) %>%
+    group_split() %>%
+    map(function(data_subset) {
+        ggplot(data_subset, aes(timepoint, interval)) +
+        theme_bw() +
+        theme(
+            panel.grid.minor = element_blank(),
+            strip.background = element_blank(),
+            panel.spacing = unit(0, "null"),
+            axis.text.x = element_text(angle = 30, hjust = 1)
+        ) +
+        facet_grid(site~year, scales = "free_x") +
+        geom_jitter(shape = 18, width = 0.2, alpha = 0.3, color = "gray50") +
+        geom_boxplot(color = "blue", fill = NA, outlier.alpha = 0)
+    })
 
-(function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
-    "report/figure-bleed-dates/figure-bleed-intervals", bleed_intervals_plot, width = 20, height = 25, units = "cm"
+save2(
+    "report/figure-bleed-dates/figure-bleed-intervals1",
+    bleed_intervals_plots[[1]] +
+        scale_x_discrete("Interval", labels = c("vax to 220")) +
+        scale_y_continuous("Days", breaks = c(60, 100, 140, 180)),
+    width = 12, height = 15, units = "cm"
+)
+
+save2(
+    "report/figure-bleed-dates/figure-bleed-intervals2",
+    bleed_intervals_plots[[2]] +
+        scale_x_discrete("Interval", labels = c("0 to flupos", "vax to flupos")) +
+        scale_y_continuous("Days", breaks = c(0, 30, 60, 90, 120, 150, 180, 220)),
+    width = 12, height = 15, units = "cm"
+)
+
+save2(
+    "report/figure-bleed-dates/figure-bleed-intervals3",
+    bleed_intervals_plots[[3]] +
+        coord_cartesian(ylim = c(-10, 40)) +
+        scale_x_discrete("Interval", labels = c("0 to vax", "vax to 7", "vax to 14")) +
+        scale_y_continuous("Days", breaks = c(0, 14, 30, 60)),
+    width = 12, height = 15, units = "cm"
 )
 
 covid_vax <- read_csv("data/covid-vax.csv", col_types = cols())
@@ -157,12 +189,12 @@ covid_vax_plots <- covid_vax %>%
     left_join(covid_vax_dosedates, "pid") %>%
     filter(!is.na(date)) %>%
     mutate(
-        date_type = factor(date_type, c("Dose 1", "Dose 2", "Bleed (post-vax)", "Dose 3", "Dose 4")),
+        date_type = factor(date_type, c("Dose 1", "Dose 2", "Bleed (post-vax)", "Dose 3", "Dose 4", "Dose 5")),
         dosedate2 = replace_na(dosedate2, lubridate::date("2000-01-01")),
         dosedate1 = replace_na(dosedate1, lubridate::date("2000-01-01")),
     ) %>%
     left_join(covid_vax %>% filter(dose == 2) %>% select(pid, dose2brand = brand), "pid") %>%
-    filter(dose2brand %in% c("Astra-Zeneca", "Pfizer")) %>%
+    filter(dose2brand %in% c("Astra-Zeneca", "Pfizer"), date_type != "Dose 5") %>%
     group_by(dose2brand) %>%
     group_map(.keep = TRUE, function(onebrand, key) {
         addtheme <- theme()
@@ -203,12 +235,12 @@ covid_vax_plots <- covid_vax %>%
     })
 
 covid_vax_plot <- ggpubr::ggarrange(
-    plotlist = covid_vax_plots, 
+    plotlist = covid_vax_plots,
     ncol = 1, common.legend = TRUE,
     align = "v", heights = c(0.85, 1)
 )
 
-(function(name, ...) {ggsave(paste0(name, ".pdf"), ...);ggsave(paste0(name, ".png"), ...)})(
+save2(
     "report/figure-bleed-dates/figure-covid-bleed-dates", covid_vax_plot, width = 15, height = 20, units = "cm"
 )
 

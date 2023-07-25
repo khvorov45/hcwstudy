@@ -13,7 +13,8 @@ prior_vac_counts <- vac_hist %>%
     )
 
 serology <- read_csv("data/serology.csv", col_types = cols()) %>%
-    filter(vax_inf == "V") %>%
+    filter(vax_inf == "V", virus_vaccine) %>%
+    select(-vax_inf, -virus_vaccine) %>%
     left_join(prior_vac_counts, "pid") %>%
     mutate(
         prior_study_year = case_when(

@@ -9,6 +9,10 @@ swabs <- read_csv("data/swabs.csv", col_types = cols())
 serology <- read_csv("data/serology.csv", col_types = cols())
 bleed_dates <- read_csv("data/bleed-dates.csv", col_types = cols())
 
+withdrawn_for_sure <- withdrawn %>%
+    filter(.by = pid, withdrawal_date == max(withdrawal_date)) %>%
+    filter(!withdrawn_reentered)
+
 weekly_survey_start_dates <- bind_rows(
     tibble(
         year = 2020,
@@ -24,6 +28,11 @@ weekly_survey_start_dates <- bind_rows(
         year = 2022,
         survey_index = 1:52,
         week_start = seq(lubridate::ymd("2022-01-03"), by = 7, length.out = 52)
+    ),
+    tibble(
+        year = 2023,
+        survey_index = 1:52,
+        week_start = seq(lubridate::ymd("2023-01-02"), by = 7, length.out = 52)
     )
 ) %>% mutate(weeks_from_start = (week_start - min(week_start)) / lubridate::dweeks(1),)
 
@@ -34,14 +43,14 @@ contributed_blood <- bleed_dates %>% select(pid, year) %>% distinct()
 # NOTE(sen) This should include only the surveys each participant should have completed
 survey_completions <- participants %>%
     group_by(pid, site, date_screening) %>%
-    reframe(year = 2020:2022) %>%
+    reframe(year = 2020:2023) %>%
     # NOTE(sen) Look only at participants who contributed blood that year
     inner_join(contributed_blood, c("pid", "year")) %>%
-    left_join(weekly_survey_start_dates, c("year"), multiple = "all") %>%
+    left_join(weekly_survey_start_dates, c("year"), relationship = "many-to-many") %>%
     filter(date_screening <= week_start) %>%
     left_join(
-        withdrawn %>% 
-            filter(!is.na(withdrawal_date)) %>% 
+        withdrawn %>%
+            filter(!is.na(withdrawal_date)) %>%
             group_by(pid) %>%
             # NOTE(sen) Be conservative and stop tracking surveys at the first withdrawal
             summarise(withdrawal_date = min(withdrawal_date), .groups = "drop"),
@@ -52,7 +61,7 @@ survey_completions <- participants %>%
     filter(month(week_start) >= 4, month(week_start) <= 10) %>%
     select(pid, site, year, survey_index) %>%
     left_join(
-        weekly_filled %>% 
+        weekly_filled %>%
             select(pid, year, survey_index) %>%
             mutate(completed = TRUE),
         c("pid", "year", "survey_index")
@@ -79,7 +88,7 @@ bind_rows(
         To qualify as 'should have completed' the participant must have contributed at least one
         bleed that year and the survey
         must have been issued between the first week of April and the last week of October,
-        after the participant was recruited and before the participant was withdrawn 
+        after the participant was recruited and before the participant was withdrawn
         (if they withdrew before the end of the study).",
         booktabs = TRUE,
         label = "weekly-survey-completion",
@@ -149,9 +158,9 @@ swab_followups <- weekly %>%
     mutate(consecutive_ari_group = label_consecutive(weeks_from_start), diagnosis = replace_na(diagnosis, "na")) %>%
     group_by(pid, consecutive_ari_group) %>%
     summarise(
-        .groups = "drop", 
-        ari_date = min(ari_date), 
-        year = unique(year), 
+        .groups = "drop",
+        ari_date = min(ari_date),
+        year = unique(year),
         anyflu = any(diagnosis == "flu"),
         anycovid = any(diagnosis == "covid"),
     ) %>%
@@ -164,7 +173,7 @@ swab_followups <- weekly %>%
                 swab_result = if_else(sum(swab_result) == 0, list("Negative"), list(unique(swab_virus[swab_result == 1])))
             ),
         c("pid", "year"),
-        multiple = "all",
+        relationship = "many-to-many",
     ) %>%
     arrange(pid, year, ari_date, samp_date) %>%
     mutate(
@@ -173,10 +182,10 @@ swab_followups <- weekly %>%
     ) %>%
     group_by(pid, year, ari_date) %>%
     summarise(
-        .groups = "drop", 
+        .groups = "drop",
         swab_taken = sum(swab_close_enough) > 0,
         swab_result = collapse_swab_results(swab_result[swab_close_enough]),
-        anyflu = unique(anyflu), 
+        anyflu = unique(anyflu),
         anycovid = unique(anycovid),
     ) %>%
     left_join(participants %>% select(pid, site), "pid") %>%
@@ -198,7 +207,7 @@ bind_rows(
         caption = "Proportions of weekly surveys that reported an ARI that were followed up by a swab.
         'Followed up by a swab' means that there is a swab dated to 7 days before the notification
         at the earliest and 7 days after the notification at the latest.
-        Format: proprtion percentage (relevant/total). 
+        Format: proprtion percentage (relevant/total).
         If multiple consecutive surveys reported an ARI only the first one was taken.
         It was assumed that all of those consecutive surveys were reporting the same
         ARI event and so only one swab was expected to be taken.",
@@ -212,7 +221,7 @@ bind_rows(
     write("report/surveys/weekly-survey-swab-followup.tex")
 
 swab_followups_flu <- swab_followups %>% filter(anyflu) %>%
-    mutate(swab_result = fct_relevel(swab_result, 
+    mutate(swab_result = fct_relevel(swab_result,
         "Flu A (unsubtyped)", "Flu A H3", "Flu A (unsubtyped),Piconavirus",
         "Parainfluenza", "Other",
         "Negative", "No result"
@@ -246,7 +255,7 @@ bind_rows(
     write("report/surveys/swab-followup-flu.tex")
 
 swab_followups_covid <- swab_followups %>% filter(anycovid) %>%
-    mutate(swab_result = fct_relevel(swab_result, 
+    mutate(swab_result = fct_relevel(swab_result,
         "SARS-CoV-2", "SARS-CoV-2,Other", "Other",
         "Negative", "No result"
     ))
@@ -278,7 +287,7 @@ bind_rows(
     collapse_rows(columns = 1, latex_hline = "major") %>%
     write("report/surveys/swab-followup-covid.tex")
 
-swab_followups %>% 
+swab_followups %>%
     filter(anyflu) %>%
     count(swab_result)
 
@@ -382,7 +391,7 @@ bind_rows(
     write_csv("report/surveys/weekly-survey-aris-participants.csv") %>%
     kbl(
         format = "latex",
-        caption = "Proportions of all participants (that filled at least one survey) 
+        caption = "Proportions of all participants (that filled at least one survey)
         that reported an ARI on any of their surveys.
         Format: proprtion percentage (relevant/total).",
         booktabs = TRUE,
@@ -407,7 +416,7 @@ bind_rows(
     write_csv("report/surveys/weekly-survey-aris-flu-participants.csv") %>%
     kbl(
         format = "latex",
-        caption = "Proportions of all participants (that filled at least one survey) 
+        caption = "Proportions of all participants (that filled at least one survey)
         that reported getting medical treatment and diagnosed with flu on any of their surveys.
         Format: proprtion percentage (relevant/total).",
         booktabs = TRUE,
@@ -432,7 +441,7 @@ bind_rows(
     write_csv("report/surveys/weekly-survey-aris-covid-participants.csv") %>%
     kbl(
         format = "latex",
-        caption = "Proportions of all participants (that filled at least one survey) 
+        caption = "Proportions of all participants (that filled at least one survey)
         that reported getting medical treatment and diagnosed with covid on any of their surveys.
         Format: proprtion percentage (relevant/total).",
         booktabs = TRUE,

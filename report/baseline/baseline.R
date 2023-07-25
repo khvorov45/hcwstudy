@@ -31,17 +31,15 @@ participants_age_priorvac_plot <- participants_filtered_age %>%
     mutate(recruitment_year = as.character(recruitment_year)) %>%
     bind_rows(participants_filtered_age %>% mutate(recruitment_year = "Combined")) %>%
     mutate(
-        recruitment_year = factor(recruitment_year, c("2020", "2021", "2022", "Combined")),
-        xpos = prior_at_recruitment + (as.integer(recruitment_year) - 2.5 + runif(n(), -0.3, 0.3)) * 0.2
+        recruitment_year = factor(recruitment_year, c("2020", "2021", "2022", "2023", "Combined")),
+        xpos = prior_at_recruitment + (as.integer(recruitment_year) - 3) * 0.15
     ) %>%
     ggplot(aes(xpos, age_screening, col = factor(recruitment_year))) +
     theme_bw() +
     scale_x_continuous("Known prior vaccinations in 5 years before recruitment", breaks = 0:5) +
     scale_y_continuous("Age") +
     scale_color_viridis_d("Recrutment year", begin = 0.2, end = 0.8, option = "A") +
-    geom_point(shape = 18, alpha = 0.2) +
-    geom_boxplot(aes(group = paste0(prior_at_recruitment, recruitment_year)), fill = NA, outlier.alpha = 0, size = 1.1, color = "black") +
-    geom_boxplot(aes(group = paste0(prior_at_recruitment, recruitment_year)), fill = NA, outlier.alpha = 0, size = 0.8)
+    geom_boxplot(aes(group = paste0(prior_at_recruitment, recruitment_year)))
 
 participants_with_bmi <- participants %>%
     filter(height > 100, height < 250, weight > 20, weight < 400) %>%
@@ -51,17 +49,15 @@ participants_bmi_priorvac_plot <- participants_with_bmi %>%
     mutate(recruitment_year = as.character(recruitment_year)) %>%
     bind_rows(participants_with_bmi %>% mutate(recruitment_year = "Combined")) %>%
     mutate(
-        recruitment_year = factor(recruitment_year, c("2020", "2021", "2022", "Combined")),
-        xpos = prior_at_recruitment + (as.integer(recruitment_year) - 2.5 + runif(n(), -0.3, 0.3)) * 0.2
+        recruitment_year = factor(recruitment_year, c("2020", "2021", "2022", "2023", "Combined")),
+        xpos = prior_at_recruitment + (as.integer(recruitment_year) - 3) * 0.15
     ) %>%
     ggplot(aes(xpos, bmi, col = factor(recruitment_year))) +
     theme_bw() +
     scale_x_continuous("Known prior vaccinations in 5 years before recruitment", breaks = 0:5) +
     scale_y_continuous("BMI") +
     scale_color_viridis_d("Recrutment year", begin = 0.2, end = 0.8, option = "A") +
-    geom_point(shape = 18, alpha = 0.2) +
-    geom_boxplot(aes(group = paste0(prior_at_recruitment, recruitment_year)), fill = NA, outlier.alpha = 0, size = 1.1, color = "black") +
-    geom_boxplot(aes(group = paste0(prior_at_recruitment, recruitment_year)), fill = NA, outlier.alpha = 0, size = 0.8)
+    geom_boxplot(aes(group = paste0(prior_at_recruitment, recruitment_year)))
 
 baseline_plots <- ggpubr::ggarrange(
     plotlist = list(
@@ -88,12 +84,12 @@ sumgender <- function(data) {
         count(gender) %>%
         mutate(gender = recode(gender, "female" = "f", "male" = "m", "other" = "o", "missing" = "n") %>% factor(c("f", "m", "o", "n"))) %>%
         arrange(gender) %>%
-        mutate(str = paste0(gender, ": ", n))
+        mutate(str = paste0(n, "", gender))
     tibble(genderstr = paste(sums$str, collapse = " "))
 }
 
 arrange_by_year <- function(data) {
-    data %>% mutate(year = factor(year, c("2020", "2021", "2022", "Combined"))) %>% arrange(year)
+    data %>% mutate(year = factor(year, c("2020", "2021", "2022", "2023", "Combined"))) %>% arrange(year)
 }
 
 participants %>%
@@ -191,7 +187,7 @@ participants %>%
         col.names = c("", "Year", colnames(.)[3:ncol(.)]),
     ) %>%
     add_header_above(c(" " = 2, "Known vaccinations in the 5 years before recruitment" = 6)) %>%
-    column_spec(1, width = "2.5cm") %>%
+    column_spec(1, width = "2cm") %>%
     column_spec(3:9, width = "2.5cm") %>%
     collapse_rows(columns = 1, latex_hline = "major") %>%
     kable_styling(latex_options = "scale_down") %>%

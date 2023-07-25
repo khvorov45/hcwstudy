@@ -14,13 +14,6 @@ prior_vac_counts <- vac_hist %>%
         prior2023 = sum(year >= 2018 & year < 2023 & (status == "Australia" | status == "Overseas")),
     )
 
-serology %>% filter(pid %in% paste0("QCH-06", 5:9), year == 2020) %>% select(pid, year, day) %>% distinct()
-serology %>% filter(pid %in% paste0("QCH-07", 0:1), year == 2020) %>% select(pid, year, day) %>% distinct()
-
-serology %>% 
-    filter(pid == "QCH-071", year == 2020, day %in% c(0, 14)) %>%
-    pivot_wider(names_from = "day", values_from = "titre")
-
 serology_for_counting <- serology %>% 
     left_join(prior_vac_counts, "pid") %>%
     mutate(prior_study_year = case_when(
@@ -33,9 +26,6 @@ serology_for_counting <- serology %>%
     select(pid, year, day, prior_study_year, vax_inf) %>%
     distinct() %>%
     mutate(across(c(year, prior_study_year, day), as.character))
-
-#bind_rows(summarise(group_by(serology_for_counting, vax_inf, year, prior_study_year), n = length(unique(pid)), day = "Subjects", .groups = "drop")) %>%
-    #bind_rows(summarise(group_by(serology_for_counting, vax_inf, day, prior_study_year), n = length(unique(pid)), year = "Subjects", .groups = "drop")) %>%
 
 serology_for_counting %>%
     count(vax_inf, day, year, prior_study_year) %>%
@@ -79,6 +69,7 @@ serology_for_counting %>%
 covid_serology <- read_csv("data/serology-covid.csv", col_types = cols())
 
 covid_serology %>%
+    filter(strain == "Wuhan") %>%
     mutate(
         day_cat = if_else(vax_inf == "V" & bleed_day_id > 0 & bleed_day_id < 220, 14, bleed_day_id) %>% as.character(),
         vax_inf = fct_relevel(vax_inf, "V") %>% recode("V" = "Vaccination", "I" = "Infection"),

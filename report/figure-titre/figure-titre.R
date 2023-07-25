@@ -14,7 +14,8 @@ prior_vac_counts <- vac_hist %>%
 
 # TODO(sen) Exclude bleeds that don't make sense (e.g., baseline after vaccination)?
 serology <- read_csv("data/serology.csv", col_types = cols()) %>%
-    filter(vax_inf == "V") %>%
+    filter(vax_inf == "V", virus_vaccine) %>%
+    select(-vax_inf, -virus_vaccine) %>%
     left_join(prior_vac_counts, "pid") %>%
     mutate(
         prior_study_year = case_when(
@@ -85,22 +86,8 @@ plots_averages <- serology_averages %>%
             scale_color_manual("Known prior vaccinations in study year", values = viridis::viridis_pal(option = "A", end = 0.8)(6)) +
             scale_shape_manual("Known prior vaccinations in study year", values = c(8, 20, 17, 15, 18, 4)) +
             coord_cartesian(ylim = serology_averages_ylims) +
-            geom_point(
-                aes(y = titre),
-                data = serology %>%
-                    filter(subtype == key$subtype) %>%
-                    mutate(
-                        day = if_else(day == 220, 50, day),
-                        xpos = day + (prior_study_year - 2.5),
-                        prior_vac_factor = factor(prior_study_year),
-                        virus_egg_cell = tools::toTitleCase(virus_egg_cell),
-                        low = 1, high = 1
-                    ),
-                alpha = 0.1
-            ) +
             geom_line() +
-            geom_point(size = 4, color = "gray20") +
-            geom_point(size = 3) +
+            geom_pointrange() +
             geom_text(
                 aes(0, 10, label = paste(virus, virus_clade)),
                 data = onesubtype %>% select(year, virus_clade, virus_egg_cell, virus) %>% distinct(),
@@ -122,7 +109,8 @@ walk(plots_averages, function(plot) {
 covid_vax <- read_csv("data/covid-vax.csv", col_types = cols())
 
 covid_serology <- read_csv("data/serology-covid.csv", col_types = cols()) %>%
-    filter(vax_inf == "V") %>%
+    filter(vax_inf == "V", strain == "Wuhan", bleed_day_id %in% c(0, 14, 220)) %>%
+    select(-vax_inf, -strain) %>%
     left_join(covid_vax %>% filter(dose == 2) %>% select(pid, dose2_brand = brand), "pid")
 
 covid_serology %>%
