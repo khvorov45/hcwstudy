@@ -796,7 +796,8 @@ redcap_covax_request <- function(year) {
       "covid_vac_brand4,other_covax_brand4,covid_vac_dose4_rec,covid_vacc_date4,covid_vac_batch4,",
       "covid_vac_brand5,other_covax_brand5,covid_vac_dose5_rec,covid_vacc_date5,covid_vac_batch5"
     )
-  )
+  ) %>%
+    mutate(across(starts_with("covid_vac_batch"), as.character))
 }
 
 covax_request_raw <- redcap_covax_request(2021) %>% 
