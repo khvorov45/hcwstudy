@@ -6,7 +6,7 @@ week_span is how many survey weeks the ari event lasted. If someone reports an a
 
 first_week_from_start is the survey week index where the ari for that ari event was first reported. Week 0 is the first survey week of 2020 and this counter does not reset between years (so continuity across years is easier to see).
 
-last_week_from_start is like first_week_from_start but it's the last week the ari for that ari event was reported. If they are the same then ari was only reported in that week (next week's survey did not show an air).
+last_week_from_start is like first_week_from_start but it's the last week the ari for that ari event was reported. If they are the same then ari was only reported in that week (next week's survey did not show an ari).
 
 The way duration (total_known_symptom_duration) is calculated is
 
