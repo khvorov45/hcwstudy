@@ -478,7 +478,6 @@ check_no_rows(
   "(unkndown) pids present more than 4 times"
 )
 
-# TODO(sen) Check conflicting info
 participants_with_extras <- participants %>%
   group_by(pid, site) %>%
   summarise(
@@ -618,40 +617,47 @@ workdept_raw <- redcap_workdept_request(2020) %>%
   bind_rows(redcap_workdept_request(2022)) %>%
   bind_rows(redcap_workdept_request(2023))
 
-# TODO(sen) Update with survey from returning participants
-workdept <- workdept_raw %>%
-  select(record_id, redcap_project_year, contains("c4")) %>%
-  pivot_longer(contains("c4"), names_to = "dept", values_to = "status") %>%
-  mutate(dept = str_replace(dept, "c4_workdept___", "") %>% recode(
-    "1" = "Emergency Department",
-    "2" = "Critical Care or Intensive Care Unit",
-    "3" = "General Medicine and/or Medical Specialities",
-    "4" = "Paediatrics and/or Paediatric Specialities",
-    "5" = "Surgery and/or Surgical Specialties",
-    "6" = "Gynaecology and/or Obstetrics",
-    "7" = "Oncology and/or Haematology",
-    "8" = "Radiology",
-    "9" = "Outpatient clinic",
-    "10" = "Pharmacy",
-    "11" = "Laboratory",
-    "12" = "Nutrition",
-    "13" = "Social Work",
-    "14" = "Physiotherapy",
-    "15" = "Occupational therapy",
-    "16" = "Other",
-  )) %>%
-  inner_join(
-    yearly_changes_fix_pids %>%
-      select(record_id, pid, redcap_project_year),
-    c("record_id", "redcap_project_year")
-  ) %>%
-  filter(.by = pid, redcap_project_year == min(redcap_project_year)) %>%
-  select(pid, dept, status) %>%
-  distinct()
+get_workdept <- function(data, name) {
+  data %>%
+    select(record_id, redcap_project_year, contains(name)) %>%
+    pivot_longer(contains(name), names_to = "dept", values_to = "status") %>%
+    mutate(dept = str_replace(dept, name, "") %>% recode(
+      "1" = "Emergency Department",
+      "2" = "Critical Care or Intensive Care Unit",
+      "3" = "General Medicine and/or Medical Specialities",
+      "4" = "Paediatrics and/or Paediatric Specialities",
+      "5" = "Surgery and/or Surgical Specialties",
+      "6" = "Gynaecology and/or Obstetrics",
+      "7" = "Oncology and/or Haematology",
+      "8" = "Radiology",
+      "9" = "Outpatient clinic",
+      "10" = "Pharmacy",
+      "11" = "Laboratory",
+      "12" = "Nutrition",
+      "13" = "Social Work",
+      "14" = "Physiotherapy",
+      "15" = "Occupational therapy",
+      "16" = "Other",
+    )) %>%
+    inner_join(
+      yearly_changes_fix_pids %>%
+        select(record_id, pid, redcap_project_year),
+      c("record_id", "redcap_project_year")
+    ) %>%
+    select(pid, dept, status, year = redcap_project_year) %>%
+    distinct()
+}
 
-check_no_rows(filter(workdept, .by = c(pid, dept), n() > 1), "workdept duplicates")
+workdept <- get_workdept(workdept_raw, "c4_workdept___")
+workdept_updates <- get_workdept(workdept_raw, "workdept1___")
+workdept_together <- bind_rows(workdept, workdept_updates) %>%
+  filter(!is.na(status), status == 1) %>%
+  select(-status) %>%
+  distinct()  
 
-write_csv(workdept, "data/workdept.csv")
+check_no_rows(filter(workdept_together, .by = c(pid, year, dept), n() > 1), "workdept duplicates")
+
+write_csv(workdept_together, "data/workdept.csv")
 
 #
 # SECTION Vaccination history
@@ -800,7 +806,7 @@ redcap_covax_request <- function(year) {
     mutate(across(starts_with("covid_vac_batch"), as.character))
 }
 
-covax_request_raw <- redcap_covax_request(2021) %>% 
+covax_request_raw <- redcap_covax_request(2021) %>%
   bind_rows(redcap_covax_request(2022)) %>%
   bind_rows(redcap_covax_request(2023))
 
@@ -942,7 +948,7 @@ bleed_dates_long_no_duplicates <- bleed_dates_long %>%
   summarise(.groups = "drop", date = max(date), samp_type = paste(unique(samp_type), collapse = ","))
 
 check_no_rows(
-  bleed_dates_long_no_duplicates %>% filter(str_detect(samp_type, ",")), 
+  bleed_dates_long_no_duplicates %>% filter(str_detect(samp_type, ",")),
   "conflicting sample types"
 )
 
@@ -1478,7 +1484,8 @@ write_csv(daily_surveys, "data/daily-surveys.csv")
 redcap_medhx_req <- function(year) {
   fields <- c(
     "record_id",
-    "b1_medicalhx"
+    "b1_medicalhx",
+    "medicalhx1"
   )
   redcap_request(year, "baseline_arm_1", paste(fields, collapse = ","))
 }
@@ -1487,13 +1494,15 @@ medhx_raw_2020 <- redcap_medhx_req(2020)
 medhx_raw_2021 <- redcap_medhx_req(2021)
 medhx_raw_2022 <- redcap_medhx_req(2022)
 medhx_raw_2023 <- redcap_medhx_req(2023)
+medhx_raw <- bind_rows(medhx_raw_2020, medhx_raw_2021, medhx_raw_2022, medhx_raw_2023)
 
-comorbidities <- bind_rows(medhx_raw_2020, medhx_raw_2021, medhx_raw_2022, medhx_raw_2023) %>%
-  pivot_longer(starts_with("b1_medicalhx"), names_to = "condition", values_to = "status") %>%
-  filter(status == 1) %>%
-  select(record_id, redcap_project_year, condition) %>%
-  mutate(
-    condition = str_replace(condition, "^b1_medicalhx___", "") %>%
+process_medicalhx <- function(data, name) {
+  data %>%
+    pivot_longer(starts_with(name), names_to = "condition", values_to = "status") %>%
+    filter(status == 1) %>%
+    select(record_id, redcap_project_year, condition) %>%
+    mutate(
+      condition = str_replace(condition, name, "") %>%
       recode(
         "1" = "Cardiac disease",
         "2" = "Renal disease",
@@ -1506,15 +1515,20 @@ comorbidities <- bind_rows(medhx_raw_2020, medhx_raw_2021, medhx_raw_2022, medhx
         "8" = "Smoker",
         "9" = "None",
       )
-  ) %>%
-  filter(condition != "None") %>%
-  inner_join(
-    yearly_changes_fix_pids %>%
-      select(record_id, pid, redcap_project_year),
-    c("record_id", "redcap_project_year")
-  ) %>%
-  select(pid, condition) %>%
-  distinct() %>%
-  arrange(pid, condition)
+    ) %>%
+    filter(condition != "None") %>%
+    inner_join(
+      yearly_changes_fix_pids %>%
+        select(record_id, pid, redcap_project_year),
+      c("record_id", "redcap_project_year")
+    ) %>%
+    select(pid, condition, year = redcap_project_year) %>%
+    distinct() %>%
+    arrange(pid, condition, year)
+}
 
-write_csv(comorbidities, "data/comorbidities.csv")
+comorbidities <- process_medicalhx(medhx_raw, "b1_medicalhx___")
+comorbidities_update <- process_medicalhx(medhx_raw, "medicalhx1___")
+comorbities_combined <- bind_rows(comorbidities, comorbidities_update) %>% distinct()
+
+write_csv(comorbities_combined, "data/comorbidities.csv")
