@@ -246,7 +246,7 @@ vaccinations_tables <- create_tables(vaccinations, function(pid_data) {
 yearly_changes_tables <- create_tables(yearly_changes, function(pid_data) {
     pid_data %>%
         arrange(redcap_project_year) %>%
-        select(redcap_project_year, children, emp_status, occupation, dept, condition) %>%
+        select(redcap_project_year, children, clin_care, emp_status, occupation, dept, condition) %>%
         mutate(condition = replace_na(condition, "")) %>%
         kbl(
             format = "latex",
@@ -263,8 +263,9 @@ yearly_changes_tables <- create_tables(yearly_changes, function(pid_data) {
             booktabs = TRUE,
             label = "yearlychanges",
             escape = TRUE,
-            col.names = c("Year", "Children", "Employment", "Occupation", "Department", "Condition")
-        )
+            col.names = c("Year", "Children", "Clinical care", "Employment", "Occupation", "Department", "Condition")
+        ) %>%
+        kable_styling(latex_options = "scale_down")
 })
 
 all_tables <- participants_tables %>%

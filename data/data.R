@@ -524,7 +524,7 @@ write_csv(participants_with_extras, "data/participants.csv")
 #
 
 redcap_yearly_changes_request <- function(year) {
-  redcap_request(year, "baseline_arm_1", "pid,record_id,a4_children,children1,c2_emp_status,emp_status1,c3_occupation,occupation1")
+  redcap_request(year, "baseline_arm_1", "pid,record_id,a4_children,children1,c2_emp_status,emp_status1,c3_occupation,occupation1,c5_clin_care,clin_care1")
 }
 
 yearly_changes_raw <- redcap_yearly_changes_request(2020) %>%
@@ -536,6 +536,7 @@ yearly_changes_raw <- redcap_yearly_changes_request(2020) %>%
     children_base = a4_children, children_ret = children1,
     emp_status_base = c2_emp_status, emp_status_ret = emp_status1,
     occupation_base = c3_occupation, occupation_ret = occupation1,
+    clin_care_base = c5_clin_care, clin_care_ret = clin_care1,
   )
 
 yearly_changes_baseret_merged <- yearly_changes_raw %>%
@@ -544,6 +545,7 @@ yearly_changes_baseret_merged <- yearly_changes_raw %>%
     children = if_else(!is.na(children_ret), children_ret, children_base),
     emp_status = if_else(!is.na(emp_status_ret), emp_status_ret, emp_status_base),
     occupation = if_else(!is.na(occupation_ret), occupation_ret, occupation_base),
+    clin_care = if_else(!is.na(clin_care_ret), clin_care_ret, clin_care_base),
     emp_status = recode(emp_status,
       "1" = "Full time",
       "2" = "Casual",
