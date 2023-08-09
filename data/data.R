@@ -1480,7 +1480,6 @@ write_csv(daily_surveys, "data/daily-surveys.csv")
 # SECTION Medial history (comorbidities)
 #
 
-# TODO(sen) Update with survey for returning participants
 redcap_medhx_req <- function(year) {
   fields <- c(
     "record_id",
@@ -1529,6 +1528,6 @@ process_medicalhx <- function(data, name) {
 
 comorbidities <- process_medicalhx(medhx_raw, "b1_medicalhx___")
 comorbidities_update <- process_medicalhx(medhx_raw, "medicalhx1___")
-comorbities_combined <- bind_rows(comorbidities, comorbidities_update) %>% distinct()
+comorbidities_combined <- bind_rows(comorbidities, comorbidities_update) %>% distinct()
 
-write_csv(comorbities_combined, "data/comorbidities.csv")
+write_csv(comorbidities_combined, "data/comorbidities.csv")
