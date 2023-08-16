@@ -66,7 +66,7 @@ type CountTableID = typeof ALL_COUNTS_TABLES_[number]
 const ALL_RECORD_GROUPS_ = [
 	"site",
 	"recruited",
-	"fluArm2022",
+	"fluArm2023",
 	"covidArm2021",
 	"gender",
 	"age",
@@ -74,9 +74,11 @@ const ALL_RECORD_GROUPS_ = [
 	"prior2020",
 	"prior2021",
 	"prior2022",
+	"prior2023",
 	"vax2020",
 	"vax2021",
 	"vax2022",
+	"vax2023",
 ] as const
 const ALL_RECORD_GROUPS = ALL_RECORD_GROUPS_ as unknown as string[]
 type RecordGroups = typeof ALL_RECORD_GROUPS_[number]
@@ -85,7 +87,7 @@ const ALL_BLEEDS_GROUPS_ = [
 	"year",
 	"site",
 	"recruited",
-	"fluArm2022",
+	"fluArm2023",
 	"covidArm2021",
 	"gender",
 	"age",
@@ -93,12 +95,15 @@ const ALL_BLEEDS_GROUPS_ = [
 	"prior2020",
 	"prior2021",
 	"prior2022",
+	"prior2023",
 	"vax2020",
 	"vax2021",
 	"vax2022",
+	"vax2023",
 	"flupos2020",
 	"flupos2021",
 	"flupos2022",
+	"flupos2023",
 ] as const
 const ALL_BLEEDS_GROUPS = ALL_BLEEDS_GROUPS_ as unknown as string[]
 type BleedsGroups = typeof ALL_BLEEDS_GROUPS_[number]
@@ -121,12 +126,15 @@ const ALL_GMT_GROUPS_ = [
 	"prior2020",
 	"prior2021",
 	"prior2022",
+	"prior2023",
 	"vax2020",
 	"vax2021",
 	"vax2022",
+	"vax2023",
 	"flupos2020",
 	"flupos2021",
 	"flupos2022",
+	"flupos2023",
 ] as const
 const ALL_GMT_GROUPS = ALL_GMT_GROUPS_ as unknown as string[]
 type GMTGroups = typeof ALL_GMT_GROUPS_[number]
@@ -144,12 +152,15 @@ const ALL_GMR_GROUPS_ = [
 	"prior2020",
 	"prior2021",
 	"prior2022",
+	"prior2023",
 	"vax2020",
 	"vax2021",
 	"vax2022",
+	"vax2023",
 	"flupos2020",
 	"flupos2021",
 	"flupos2022",
+	"flupos2023",
 ] as const
 const ALL_GMR_GROUPS = ALL_GMR_GROUPS_ as unknown as string[]
 type GMRGroups = typeof ALL_GMR_GROUPS_[number]
@@ -175,8 +186,8 @@ const getParticipantsKey = (row: any, group: string) => {
 		case "aboriginal":
 			key = row.atsi
 			break
-		case "fluArm2022":
-			key = row.consent_fluArm2022
+		case "fluArm2023":
+			key = row.consent_fluArm2023
 			break
 		case "covidArm2021":
 			key = row.consent_covidArm2021
@@ -192,6 +203,9 @@ const getParticipantsKey = (row: any, group: string) => {
 			break
 		case "vax2022":
 			key = row.study_year_vac_2022
+			break
+		case "vax2023":
+			key = row.study_year_vac_2023
 			break
 	}
 	return key
@@ -212,6 +226,9 @@ const addGroupsExplanatoryNotes = (node: HTMLElement, groups: string[]) => {
 			case "prior2022":
 				DOM.addDivWithText(node, "prior2022 - vaccination count between 2017-2021 inclusive")
 				break
+			case "prior2023":
+				DOM.addDivWithText(node, "prior2023 - vaccination count between 2018-2022 inclusive")
+				break
 			case "vax2020":
 				DOM.addDivWithText(
 					node,
@@ -230,8 +247,14 @@ const addGroupsExplanatoryNotes = (node: HTMLElement, groups: string[]) => {
 					"vax2022 - vaccinated in 2022 (vaccination recorded or day14 bleed taken or day14 titre present)"
 				)
 				break
-			case "fluArm2022":
-				DOM.addDivWithText(node, "fluArm2022 - flu arm as per 2022 consent")
+			case "vax2023":
+				DOM.addDivWithText(
+					node,
+					"vax2023 - vaccinated in 2023 (vaccination recorded or day14 bleed taken or day14 titre present)"
+				)
+				break
+			case "fluArm2023":
+				DOM.addDivWithText(node, "fluArm2023 - flu arm as per 2023 consent")
 				break
 			case "covidArm2021":
 				DOM.addDivWithText(node, "covidArm2021 - covid arm as per 2021 consent")
@@ -244,6 +267,9 @@ const addGroupsExplanatoryNotes = (node: HTMLElement, groups: string[]) => {
 				break
 			case "flupos2022":
 				DOM.addDivWithText(node, "flupos2022 - total records in redcap that have a flu positive swab in 2022")
+				break
+			case "flupos2023":
+				DOM.addDivWithText(node, "flupos2023 - total records in redcap that have a flu positive swab in 2023")
 				break
 		}
 	}
@@ -281,7 +307,6 @@ const createCountsRecordsTable = (data: Data, groups: RecordGroups[]) => {
 		defaultCounts: {
 			total: 0,
 			notWithdrawn: 0,
-			consent2022: 0,
 			bled2020: 0,
 			bled2021: 0,
 			bled2022: 0,
@@ -299,13 +324,6 @@ const createCountsRecordsTable = (data: Data, groups: RecordGroups[]) => {
 				counts.notWithdrawn += 1
 			}
 
-			const consentDate = row.date_fluArm2022
-			if (consentDate !== undefined) {
-				if (consentDate.startsWith("2022")) {
-					counts.consent2022 += 1
-				}
-			}
-
 			counts.bled2020 += row.bled2020
 			counts.bled2021 += row.bled2021
 			counts.bled2022 += row.bled2022
@@ -321,7 +339,6 @@ const createCountsRecordsTable = (data: Data, groups: RecordGroups[]) => {
 	const colSpec = getColSpecFromGroups(groups)
 	colSpec.total = {}
 	colSpec.notWithdrawn = {}
-	colSpec.consent2022 = {}
 	colSpec.bled2020 = {}
 	colSpec.bled2021 = {}
 	colSpec.bled2022 = {}
@@ -334,19 +351,12 @@ const createCountsRecordsTable = (data: Data, groups: RecordGroups[]) => {
 	const countsTableDesc = createTableDesc()
 	DOM.addDivWithText(countsTableDesc.desc, "total - total records in redcap")
 	DOM.addDivWithText(countsTableDesc.desc, "notWithdrawn - total records in redcap who are not withdrawn")
-	DOM.addDivWithText(
-		countsTableDesc.desc,
-		"consent2022 - total records in redcap whose latest flu conset date is from 2022"
-	)
 	DOM.addDivWithText(countsTableDesc.desc, "bled2020 - total records in redcap that have any bleed date in 2020")
 	DOM.addDivWithText(countsTableDesc.desc, "bled2021 - total records in redcap that have any bleed date in 2021")
 	DOM.addDivWithText(countsTableDesc.desc, "bled2022 - total records in redcap that have any bleed date in 2022")
 	DOM.addDivWithText(countsTableDesc.desc, "bled2023 - total records in redcap that have any bleed date in 2023")
 
-	DOM.addDivWithText(
-		countsTableDesc.desc,
-		"flupos2022 - total records in redcap that have a flu positive swab in 2022. 2020 and 2021 have no flu positive swabs"
-	)
+	DOM.addDivWithText(countsTableDesc.desc, "flupos2022 - total records in redcap that have a flu positive swab in 2022. 2020 and 2021 have no flu positive swabs")
 	DOM.addDivWithText(countsTableDesc.desc, "flupos2023 - total records in redcap that have a flu positive swab in 2023.")
 
 	addCountsExplanatoryNotes(countsTableDesc.desc, groups)
@@ -538,6 +548,7 @@ const createTitreTable = (data: Data, onFilterChange: (filteredData: any[]) => v
 			prior2020: {},
 			prior2021: {},
 			prior2022: {},
+			prior2023: {},
 			atsi: { width: 50 },
 			dob: {},
 			date_screening: { width: 150 },
@@ -547,6 +558,7 @@ const createTitreTable = (data: Data, onFilterChange: (filteredData: any[]) => v
 			vax2020: { access: "study_year_vac_2020" },
 			vax2021: { access: "study_year_vac_2021" },
 			vax2022: { access: "study_year_vac_2022" },
+			vax2023: { access: "study_year_vac_2023" },
 		},
 		title: "Titres",
 		getTableHeightInit: () => (window.innerHeight - TITRES_HELP_HEIGHT) / 2 - DOM.SCROLLBAR_WIDTHS[0],

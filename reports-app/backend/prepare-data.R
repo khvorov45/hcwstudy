@@ -8,6 +8,7 @@ prior_vac_counts <- vac_hist %>%
         prior2020 = sum(year >= 2015 & year < 2020 & (status == "Australia" | status == "Overseas")),
         prior2021 = sum(year >= 2016 & year < 2021 & (status == "Australia" | status == "Overseas")),
         prior2022 = sum(year >= 2017 & year < 2022 & (status == "Australia" | status == "Overseas")),
+        prior2023 = sum(year >= 2018 & year < 2023 & (status == "Australia" | status == "Overseas")),
     )
 
 study_year_vax_tbl <- vac_hist %>%
@@ -52,7 +53,7 @@ participants <- read_csv("./data/participants.csv", col_types = cols()) %>%
     left_join(
         read_csv("./data/consent.csv", col_types = cols()) %>%
             filter(
-                (year == 2022 & disease == "flu") | (year == 2021 & disease == "covid"),
+                (year == 2023 & disease == "flu") | (year == 2021 & disease == "covid"),
                 !is.na(consent)
             ) %>%
             select(pid, disease, consent, date) %>%
@@ -62,7 +63,7 @@ participants <- read_csv("./data/participants.csv", col_types = cols()) %>%
                 consent = paste(unique(consent), collapse = ","),
                 date = max(date)
             ) %>%
-            mutate(disease = recode(disease, "flu" = "fluArm2022", "covid" = "covidArm2021")) %>%
+            mutate(disease = recode(disease, "flu" = "fluArm2023", "covid" = "covidArm2021")) %>%
             pivot_wider(names_from = "disease", values_from = c(consent, date)),
         "pid"
     ) %>%
