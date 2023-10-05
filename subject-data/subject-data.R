@@ -147,8 +147,10 @@ weekly_surveys_tables <- create_tables(weekly_surveys, function(pid_data) {
             label = "weeklysurveys",
             escape = TRUE,
             longtable = TRUE,
-            col.names = c("Year", "Date", "ARI", "# Resp. symptoms", "# Systemic symptoms", "Fever", "Chills", "Headache", "Myalgia", "Malaise", "Cough", "Sorethroat", "Runnynose", "Chestpain", "Breathing", "Symptom duration", "Diagnosis", "Comments")
-        )
+            col.names = c("Year", "Date", "ARI", "# Resp. symptoms", "# Systemic symptoms", "Fever", "Chills", "Headache", "Myalgia", "Malaise", "Cough", "Sorethroat", "Runnynose", "Chestpain", "Breathing", "Symptom duration", "Diagnosis", "Comments"),
+        ) %>%
+        kable_styling(latex_options = "striped") %>%
+        column_spec(18, width = "2cm")
 })
 
 aris_tables <- create_tables(aris, function(pid_data) {
@@ -273,6 +275,7 @@ serology_landscapes_tables <- create_tables(serology_landscapes, function(pid_da
 serology_covid_tables <- create_tables(serology_covid, function(pid_data) {
     pid_data %>%
         select(strain, bleed_day_id, ic50, vax_inf) %>%
+        mutate(ic50 = round(ic50)) %>%
         kbl(
             format = "latex",
             caption = "Covid serology results. Empty if not done for this participant.",
@@ -502,6 +505,8 @@ ggsave("subject-data/reports/LANDSCAPE.pdf", ggplot(), width = 1, height = 0.5)
 
 template <- read_file("subject-data/reports/template.tex")
 
+# TODO(sen) Mark vaccine strain on landscape
+
 all_tables %>%
     filter(pid %in% pids_to_run) %>%
     group_by(pid) %>%
@@ -541,3 +546,11 @@ all_tables %>%
 
 all_files <- list.files("subject-data/reports", full.names = TRUE)
 file.remove(all_files[str_ends(all_files, "(aux)|(fls)|(fdb_latexmk)|(log)")])
+
+system(paste0("evince ", paste0(tools::list_files_with_exts("subject-data/reports", "pdf") %>%
+    basename() %>%
+    `[`(str_detect(., "-") & !str_detect(., "_")) %>%
+    paste0("subject-data/reports/", .) %>%
+    sample(5),
+    collapse = " "
+)))
