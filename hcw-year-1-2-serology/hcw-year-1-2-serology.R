@@ -8,8 +8,14 @@ vaccinations <- read_csv("data/vaccinations.csv", col_types = cols())
 yearly_changes <- read_csv("data/yearly-changes.csv", col_types = cols())
 bleed_dates <- read_csv("data/bleed-dates.csv", col_types = cols()) %>% select(pid, year, day, date) %>% distinct()
 
+custom_round <- function(x) {    
+    if (x >= 10) round(x)
+    else if (x >= 1) round(x, 1)
+    else round(x, 2)
+}
+
 summarise_median_range <- function(arr) {
-    f <- function(x, q) round(quantile(x, q, na.rm = TRUE))
+    f <- function(x, q) custom_round(quantile(x, q, na.rm = TRUE))
     paste0(f(arr, 0.5), " (", f(arr, 0.25), ", ", f(arr, 0.75), ")")
 }
 
@@ -206,24 +212,6 @@ serology_for_tables <- serology %>%
 # NOTE(sen) Should be empty
 serology_for_tables %>% filter(.by = c(pid, year, day, subtype, virus_egg_cell), n() > 1)
 
-serology_for_tables %>%
-    left_join(
-        bleed_dates %>% rename(bleed_date = date),
-        c("pid", "year", "day")
-    ) %>%
-    select(pid, year, day, bleed_date) %>%
-    distinct() %>%
-    pivot_wider(names_from = "day", values_from = "bleed_date") %>%
-    mutate(
-        d0_14 = as.integer(`14` - `0`),
-        d14_220 = as.integer(`220` - `14`),
-    ) %>%
-    summarise(
-        d0_14_miqr = summarise_median_range(d0_14),
-        d14_220_miqr = summarise_median_range(d14_220),
-        d220months = paste(quantile(month(`220`), 0.05, na.rm = TRUE), quantile(month(`220`), 0.95, na.rm = TRUE)),
-    )
-
 summarise_logmean <- function(vec, round_to = 0) {
 	vec <- na.omit(vec)
 	total <- length(vec)
@@ -236,8 +224,7 @@ summarise_logmean <- function(vec, round_to = 0) {
 	mean <- exp(logmean)
 	low <- exp(loglow)
 	high <- exp(loghigh)
-	f <- \(x) round(x, round_to)
-	string <- glue::glue("{f(mean)} ({f(low)}, {f(high)})")
+	string <- glue::glue("{custom_round(mean)} ({custom_round(low)}, {custom_round(high)})")
 	tibble(mean, low, high, string)
 }
 
@@ -910,6 +897,15 @@ bleed_intervals <- all_dates %>%
         ivax_220 = `End-of-year` - `Vaccination`,
     )
 
+bleed_intervals_plotted <- bleed_intervals %>%
+    select(pid, year, starts_with("i")) %>%
+    pivot_longer(starts_with("i"), names_to = "timepoint", values_to = "interval") %>%
+    filter(!is.na(interval)) %>%
+    mutate(
+        interval = as.integer(interval),
+        timepoint = factor(timepoint, c("i0_vax", "ivax_7", "ivax_14", "ivax_220", "i0_flupos", "ivax_flupos"))
+    )
+
 all_dates %>%
     left_join(bleed_intervals, c("pid", "year")) %>%
     group_by(year) %>%
@@ -932,6 +928,7 @@ all_dates %>%
                 panel.grid.minor.y = element_blank(),
                 strip.background = element_blank(),
                 panel.spacing = unit(0, "null"),
+                plot.margin = margin(),
             ) +
             coord_cartesian(xlim = c(date_min, date_max)) +
             facet_wrap(~year, strip.position = "right") +
@@ -952,38 +949,32 @@ all_dates %>%
             pl <- pl + theme(
                 axis.text.x = element_blank(),
                 axis.ticks.x = element_blank(),
+                axis.ticks.length.x = unit(0, "null"),
             )
         }
         pl
     }) %>%
-    ggpubr::ggarrange(plotlist = ., common.legend = TRUE, ncol = 1) %>%
-    save_plot("bleed_dates",  width = 15, height = 20, units = "cm")
-
-bleed_intervals_plotted <- bleed_intervals %>%
-    select(pid, year, starts_with("i")) %>%
-    pivot_longer(starts_with("i"), names_to = "timepoint", values_to = "interval") %>%
-    filter(!is.na(interval)) %>%
-    mutate(
-        interval = as.integer(interval),
-        timepoint = factor(timepoint, c("i0_vax", "ivax_7", "ivax_14", "ivax_220", "i0_flupos", "ivax_flupos"))
-    )
-
-(ggplot(bleed_intervals_plotted, aes(timepoint, interval)) +
-    theme_bw() +
-    theme(
-        panel.grid.minor = element_blank(),
-        strip.background = element_blank(),
-        panel.spacing = unit(0, "null"),
-        axis.text.x = element_text(angle = 30, hjust = 1),
-        axis.title.x = element_blank(),
-        plot.margin = margin(1, 1, 1, 50),
-    ) +
-    facet_wrap(~year) +
-    scale_y_continuous("Days", breaks = c(0, 14, 30, 60, 90, 120, 150, 180, 220)) +
-    scale_x_discrete("Interval", labels = c("Prevaccination to vaccination", "Vaccination to post-vaccination", "Vaccination to end-of-year")) +
-    geom_jitter(shape = 18, width = 0.2, alpha = 0.3, color = "gray50") +
-    geom_boxplot(color = "blue", fill = NA, outlier.alpha = 0)) %>%
-    save_plot("bleed_intervals",  width = 15, height = 20, units = "cm")
+    ggpubr::ggarrange(plotlist = ., common.legend = TRUE, ncol = 1, heights = c(0.95, 1)) %>%
+    (function(bleed_dates_plot) {
+        (ggplot(bleed_intervals_plotted, aes(timepoint, interval)) +
+            theme_bw() +
+            theme(
+                panel.grid.minor = element_blank(),
+                strip.background = element_blank(),
+                panel.spacing = unit(0, "null"),
+                axis.text.x = element_text(angle = 30, hjust = 1),
+                axis.title.x = element_blank(),
+                plot.margin = margin(),
+            ) +
+            facet_wrap(~year, ncol = 1, strip.position = "right") +
+            scale_y_continuous("Days", breaks = c(0, 14, 30, 60, 90, 120, 150, 180, 220)) +
+            scale_x_discrete("Interval", labels = c("Prevaccination to vaccination", "Vaccination to post-vaccination", "Vaccination to end-of-year")) +
+            geom_jitter(shape = 18, width = 0.2, alpha = 0.3, color = "gray50") +
+            geom_boxplot(color = "blue", fill = NA, outlier.alpha = 0)) %>%
+            ggpubr::ggarrange(ggplot() + theme_minimal(), ., ncol = 1, heights = c(0.06, 1)) %>%
+            ggpubr::ggarrange(bleed_dates_plot %>% ggpubr::ggarrange(ggplot() + theme_minimal(), ncol = 1, heights = c(1, 0.137)), ., widths = c(1, 0.5)) %>%
+            save_plot("bleed_intervals_and_dates", width = 25, height = 18, units = "cm")
+    })
 
 library(officer)
 library(flextable)
@@ -1061,6 +1052,15 @@ read_docx() %>%
     }) %>%
     body_add_par("") %>%
     body_add_par("Bleed intervals") %>%
+    reduce(tools::list_files_with_exts("hcw-year-1-2-serology", "png") %>% .[str_detect(., "combined-")], .init = ., function(doc, img) {
+        doc %>%
+            body_add_par("") %>%
+            body_add_par(paste0("Combined plots - ", str_replace(basename(img), "^combined-(.*)\\.[[:alpha:]]{3}$", "\\1"))) %>%
+            body_add_img(img, width = 6, height = 6)
+    }) %>%
+    print(target = "hcw-year-1-2-serology/everything.docx")
+
+read_docx() %>%
     body_add_table(
         bleed_intervals_plotted %>%
             left_join(prior_vaccinations, by = c("pid", "year")) %>%
@@ -1076,7 +1076,9 @@ read_docx() %>%
             pivot_wider(names_from = "timepoint", values_from = "medrange") %>%
             arrange(year, prior_vax)
     ) %>%
-    # NOTE(sen) Table of everything (GMT, seropos, GMR, seroconv)
+    print(target = "hcw-year-1-2-serology/bleed-intervals.docx")
+
+read_docx() %>%
     (function(doc) {
         serology_for_tables %>%
             group_by(subtype) %>%
@@ -1084,7 +1086,7 @@ read_docx() %>%
                 summarise_prop_custom <- function(arr) {
                     success <- sum(arr, na.rm = TRUE)
                     total <- sum(!is.na(arr))
-                    f <- function(x) paste0(signif(x * 100, 2), "%")
+                    f <- function(x) paste0(custom_round(x * 100), "%")
                     tibble(mean = success / total, string = paste0(success, "/", total, " (", f(success / total), ")"))
                 }
                 data_ratios <- data %>%
@@ -1104,20 +1106,22 @@ read_docx() %>%
                     summarise(.by = c(year, virus, virus_egg_cell, prior_vax), summarise_prop_custom(ratio >= 4)) %>%
                     mutate(type = "Seroconversion", day = 14)
                 tbl <- gmt %>%
-                    bind_rows(seropos) %>%
                     bind_rows(gmr) %>%
                     bind_rows(seroconv) %>%
+                    bind_rows(seropos) %>%
                     select(type, year, virus, virus_egg_cell, day, prior_vax, mean, string) %>%
-                    mutate(type = factor(type, c("GMT", "Seropositivity", "Seroconversion", "GMR"))) %>%
+                    mutate(type = factor(type, c("GMT", "GMR", "Seroconversion", "Seropositivity"))) %>%
                     arrange(prior_vax, type, year, virus, virus_egg_cell, day)
                 tibble(
                     tb = list(tb = tbl %>%
                         select(-mean) %>%
                         pivot_wider(names_from = prior_vax, values_from = "string") %>%
+                        rename(` ` = type, Year = year, Virus = virus, Substrate = virus_egg_cell, Bleed = day) %>%
                         flextable() %>%
                         theme_booktabs() %>%
                         bg(bg = "white", part = "all") %>%
-                        fontsize(size = 8) %>%
+                        fontsize(size = 9, part = "all") %>%
+                        padding(padding = 0, part = "all") %>%
                         # NOTE(sen) Color the table (each row gets its cells colored max->min)
                         (function(doc) {
                             tbl %>%
@@ -1144,12 +1148,7 @@ read_docx() %>%
                     body_add_par(subtype) %>%
                     body_add_flextable(tb)
             })
-        doc
-    }) %>%
-    reduce(tools::list_files_with_exts("hcw-year-1-2-serology", "png") %>% .[str_detect(., "combined-")], .init = ., function(doc, img) {
         doc %>%
-            body_add_par("") %>%
-            body_add_par(paste0("Combined plots - ", str_replace(basename(img), "^combined-(.*)\\.[[:alpha:]]{3}$", "\\1"))) %>%
-            body_add_img(img, width = 6, height = 6)
+            body_end_section_landscape()
     }) %>%
-    print(target = "hcw-year-1-2-serology/everything.docx")
+    print(target = "hcw-year-1-2-serology/gmt-gmr-seropos-seroconv.docx")
