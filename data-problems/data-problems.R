@@ -193,6 +193,8 @@ serology %>%
 	distinct() %>% 
 	left_join(vaccinations %>% select(pid, year, status), c("pid", "year")) %>% 
 	filter(is.na(status)) %>%
+	# NOTE(sen) Not filtering out everyone withdrawn here, maybe sites have vaccination info that's not in redcap
+	filter(!pid %in% c("PCH-236")) %>% 
 	save_split("bled_d14_no_vax_record")
 
 bleed_dates %>%
