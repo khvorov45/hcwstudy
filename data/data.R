@@ -416,7 +416,7 @@ redcap_request <- function(project_year, event, fields, ...) {
     )
   ) %>%
     httr::content(as = "text") %>%
-    read_csv(col_types = cols(), guess_max = 1e5) %>%
+    read_csv(col_types = cols(), guess_max = 1e5, na = c("", "NA", "No information")) %>%
     mutate(redcap_project_year = project_year)
 }
 
