@@ -8,7 +8,7 @@ vaccinations <- read_csv("data/vaccinations.csv", col_types = cols())
 yearly_changes <- read_csv("data/yearly-changes.csv", col_types = cols())
 bleed_dates <- read_csv("data/bleed-dates.csv", col_types = cols()) %>% select(pid, year, day, date) %>% distinct()
 
-custom_round <- function(x) {    
+custom_round <- function(x) {
     if (x >= 10) round(x)
     else if (x >= 1) round(x, 1)
     else round(x, 2)
@@ -306,7 +306,7 @@ serology_for_tables_ratios %>%
             axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
         ) +
         scale_x_log10("Baseline titre", breaks = 5 * 2^(0:20)) +
-        scale_y_continuous("Proportion with titre rise of at least 4") +
+        scale_y_continuous("Proportion (95% CI) seroconverted (rise >= 4)") +
         scale_color_viridis_d(option = "D", end = 0.8) +
         facet_grid(subtype + virus_egg_cell ~ year) +
         guides(color = guide_legend(nrow = 1), shape = guide_legend(nrow = 1), lty = guide_legend(nrow = 1)) +
@@ -331,7 +331,7 @@ seroconv_prioronly_plots <- serology_for_tables_ratios %>%
         axis.title.x = element_blank(),
     ) +
     scale_x_continuous(breaks = c(2020, 2021)) +
-    scale_y_continuous("Proportion with titre rise of at least 4") +
+    scale_y_continuous("Proportion (95% CI) seroconverted (rise >= 4)") +
     scale_color_viridis_d(option = "D", end = 0.8) +
     facet_grid(subtype ~ virus_egg_cell) +
     guides(color = guide_legend(nrow = 1), shape = guide_legend(nrow = 1), lty = guide_legend(nrow = 1)) +
@@ -343,23 +343,31 @@ seroconv_baselineonly_plots <- serology_for_tables_ratios %>%
     filter(!is.na(`0`)) %>%
     mutate(baseline_cat = if_else(`0` < 160, as.character(`0`), ">=160") %>% fct_reorder(`0`)) %>%
     summarise(.by = c(subtype, virus_egg_cell, year, baseline_cat), summarise_prop3(ratio >= 4)) %>%
-    filter(!is.na(mean), prop3_total >= 5) %>%
-    mutate(Baseline = baseline_cat, virus_egg_cell = tools::toTitleCase(virus_egg_cell)) %>%
-    ggplot(aes(year, mean, color = Baseline, shape = Baseline, lty = Baseline)) +
-    theme_bw() +
-    theme(
-        legend.position = "top",
-        strip.background = element_blank(),
-        panel.spacing = unit(0, "null"),
-        panel.grid.minor = element_blank(),
-        axis.title.x = element_blank(),
-    ) +
-    scale_x_continuous(breaks = c(2020, 2021)) +
-    scale_y_continuous("Proportion with titre rise of at least 4") +
-    scale_color_viridis_d(option = "D", end = 0.8) +
-    facet_grid(subtype ~ virus_egg_cell) +
-    guides(color = guide_legend(nrow = 1), shape = guide_legend(nrow = 1), lty = guide_legend(nrow = 1)) +
-    geom_pointrange(aes(ymin = low, ymax = high), position = position_dodge(width = 0.5))
+    filter(!is.na(mean)) %>%
+    mutate(
+        Baseline = baseline_cat, 
+        virus_egg_cell = tools::toTitleCase(virus_egg_cell), 
+        good_sample = prop3_total >= 5,
+        xpos = year + (as.integer(Baseline) - 3) * 0.1
+    ) %>%
+    (function(data) {
+        ggplot(data, aes(xpos, mean, color = Baseline, shape = Baseline, lty = Baseline)) +
+        theme_bw() +
+        theme(
+            legend.position = "top",
+            strip.background = element_blank(),
+            panel.spacing = unit(0, "null"),
+            panel.grid.minor = element_blank(),
+            axis.title.x = element_blank(),
+        ) +
+        scale_x_continuous(breaks = c(2020, 2021)) +
+        scale_y_continuous("Proportion (95% CI) seroconverted (rise >= 4)") +
+        scale_color_viridis_d(option = "D", end = 0.8) +
+        facet_grid(subtype ~ virus_egg_cell) +
+        guides(color = guide_legend(nrow = 1), shape = guide_legend(nrow = 1), lty = guide_legend(nrow = 1)) +
+        geom_pointrange(aes(ymin = low, ymax = high)) +
+        geom_point(aes(xpos, mean), inherit.aes = FALSE, shape = 1, data = filter(data, !good_sample), color = "red", size = 4)
+    })
 
 save_plot(seroconv_baselineonly_plots, "seroconv_baselineonly_plots", width = 15, height = 20, units = "cm")
 
@@ -403,7 +411,7 @@ serology_for_tables_ratios %>%
         })
     })
 
-fit_results <- serology_for_tables_ratios %>%
+data_for_model_fit <- serology_for_tables_ratios %>%
     left_join(participants, "pid") %>%
     mutate(year = as.character(year)) %>%
     left_join(participants_for_summary %>%
@@ -431,23 +439,36 @@ fit_results <- serology_for_tables_ratios %>%
         vaccine_brand = factor(vaccine_brand, c("Sanofi", "GSK", "Seqirus")),
         bmi = bmi - 20,
         age_contribute_year = age_contribute_year - 18,
+        baseline_titre = factor(`0`),
+        logbaseline = log2(`0`) - log2(5),
+        seroconverted = ratio >= 4,
     ) %>%
     filter(
         age_screening >= 18, age_screening <= 65,
         weight >= 30, weight <= 250,
         height >= 100, height <= 250,
-    ) %>%
+    )
+
+fit_results <- data_for_model_fit %>%
     group_by(subtype, virus_egg_cell, year) %>%
     group_map(function(data, key) {
-        outcomes <- c("logratio", "log14")
+        outcomes <- c("logratio", "log14", "seroconverted")
         covariates <- c("1", "prior_vax", "has_comorbidity", "age_contribute_year", "notfemale", "vaccine_brand")
         covtogether <- paste(covariates[2:length(covariates)], collapse = " + ")
-        covtogether2 <- str_replace(covtogether, "prior_vax", "prior_vax_num")
-        cov_all <- c(covariates, "prior_vax_num", covtogether, covtogether2)
-        grid <- expand.grid(outcomes, cov_all)
-        formulas <- paste(grid$Var1, "~", grid$Var2)
+        grid <- expand.grid(outcomes, covariates)
+        formulas <- c(
+            paste(grid$Var1, "~", grid$Var2), 
+            paste0("log14 ~ ", covtogether),
+            paste0("logratio ~ ", covtogether, " + baseline_titre"),
+            paste0("seroconverted ~ ", covtogether, " + logbaseline")
+        )
         map(formulas, function(formula) {
-            fit <- lm(as.formula(formula), data)
+            fit <- NULL
+            if (str_starts(formula, "seroconverted")) {
+                fit <- glm(as.formula(formula), data, family = "binomial")
+            } else {
+                fit <- lm(as.formula(formula), data)
+            }
             fit$extrainfo <- list(
                 key = key,
                 outcome = names(fit$model)[[1]],
@@ -484,7 +505,7 @@ fit_results %>%
         }
         result %>%
             mutate(
-                outcome = fit$extrainfo$outcome, 
+                outcome = fit$extrainfo$outcome,
                 type = fit$extrainfo$type,
                 formula = fit$extrainfo$formula,
             ) %>%
@@ -501,6 +522,18 @@ fit_results %>%
             ggsave(paste0("hcw-year-1-2-serology/residuals-plot-", key$type, ".pdf"), ., width = 50, height = 50, units = "cm")
     })
 
+summarise_factor2 <- function(arr) {
+    total = sum(!is.na(arr))
+    ogname = deparse(substitute(arr))
+    res <- bind_cols(map(levels(arr), function(lvl) {
+        count = sum(arr == lvl, na.rm = TRUE)
+        res = tibble(.rows = 1)
+        res[paste(ogname, lvl, sep = "")] = paste0(count)
+        res
+    }))
+    res
+}
+
 fit_results_formatted <- fit_results %>%
     map_dfr(function(fit) {
         broom::tidy(fit) %>% bind_cols(fit$extrainfo$key) %>%
@@ -509,29 +542,78 @@ fit_results_formatted <- fit_results %>%
     mutate(
         estimate_str = paste0(signif(exp(estimate), 2), " (", signif(exp(estimate - 1.96 * std.error), 2), ", ", signif(exp(estimate + 1.96 * std.error), 2), ")"),
         kind = paste0(year, type),
+        term = recode(term,
+            "has_comorbidity" = "has_comorbidity1",
+            "notfemale" = "notfemale1",
+        ),
     ) %>%
-    filter(formula == "log14 ~ 1" | formula == "logratio ~ 1" | (type != "crude") | term != "(Intercept)") %>%
+    filter(type == "adjusted_cat") %>%
     select(term, estimate_str, subtype, virus_egg_cell, outcome, kind) %>%
+    # NOTE(sen) Attach counts
+    bind_rows(
+        data_for_model_fit %>%
+            select(pid, year, subtype, virus_egg_cell, fit_results[[which(map_lgl(fit_results, ~.x$extrainfo$type == "adjusted_cat" && .x$extrainfo$outcome == "log14"))[1]]]$extrainfo$covariates) %>%
+            filter(complete.cases(.)) %>%
+            select(-log14) %>%
+            mutate(outcome = "log14") %>%
+            distinct() %>%
+            bind_rows(
+                data_for_model_fit %>%
+                    select(pid, year, subtype, virus_egg_cell, fit_results[[which(map_lgl(fit_results, ~.x$extrainfo$type == "adjusted_cat" && .x$extrainfo$outcome == "logratio"))[1]]]$extrainfo$covariates) %>%
+                    filter(complete.cases(.)) %>%
+                    select(-logratio) %>%
+                    mutate(outcome = "logratio") %>%
+                    distinct()
+            ) %>%
+            bind_rows(
+                data_for_model_fit %>%
+                    select(pid, year, subtype, virus_egg_cell, fit_results[[which(map_lgl(fit_results, ~.x$extrainfo$type == "adjusted_cat" && .x$extrainfo$outcome == "seroconverted"))[1]]]$extrainfo$covariates) %>%
+                    filter(complete.cases(.)) %>%
+                    select(-seroconverted) %>%
+                    mutate(outcome = "seroconverted") %>%
+                    distinct()
+            ) %>%
+            mutate(
+                has_comorbidity = factor(has_comorbidity),
+                notfemale = factor(notfemale),
+            ) %>%
+            summarise(
+                .by = c(outcome, year, subtype, virus_egg_cell),
+                `(Intercept)` = as.character(n()),
+                summarise_factor2(prior_vax),
+                summarise_factor2(has_comorbidity),
+                summarise_factor2(notfemale),
+                summarise_factor2(vaccine_brand),
+                summarise_factor2(baseline_titre),
+            ) %>%
+            mutate(kind = paste0(year, "n")) %>%
+            select(-year) %>%
+            pivot_longer(c(-outcome, -subtype, -virus_egg_cell, -kind), names_to = "term", values_to = "estimate_str")
+    ) %>%
     pivot_wider(names_from = "kind", values_from = "estimate_str") %>%
+    select(subtype, virus_egg_cell, outcome, term, `2020n`, `2020adjusted_cat`, `2021n`, `2021adjusted_cat`) %>%
     group_by(term, subtype, virus_egg_cell, outcome) %>%
     group_map(.keep = TRUE, function(data, key) {
-        refs <- c("prior_vax1", "has_comorbidity", "notfemale", "vaccine_brandGSK")
-        if (key$term %in% refs) {
-            data <- bind_rows(key, data) %>% mutate(across(everything(), ~replace_na(.x, "ref")))
+        refs_nobind <- c("prior_vax0", "has_comorbidity0", "notfemale0", "vaccine_brandSanofi", "baseline_titre5")
+        if (key$term %in% refs_nobind) {
+            data <- mutate(data, across(everything(), ~replace_na(.x, "ref")))
         }
         skips <- c(
-            paste0("prior_vax", 1:4),
-            "vaccine_brandGSK"
+            paste0("prior_vax", 0:4),
+            "has_comorbidity0",
+            "notfemale0",
+            paste0("vaccine_brand", c("Sanofi", "GSK")),
+            "logbaseline",
+            paste0("baseline_titre", 5 * 2^(0:11))
         )
+        if (key$outcome == "log14") {
+            skips <- c(skips, "vaccine_brandSeqirus")
+        }
         if (!key$term %in% skips) {
             data <- data %>% bind_rows(key)
         }
-        tops <- c("prior_vax1", "vaccine_brandGSK")
+        tops <- c("prior_vax0", "vaccine_brandSanofi", "has_comorbidity0", "notfemale0", "baseline_titre5")
         if (key$term %in% tops) {
-            data <- bind_rows(key, data)
-        }
-        if (key$term == "(Intercept)") {
-            data <- bind_rows(key, data)
             data <- bind_rows(key, data)
         }
         data
@@ -541,13 +623,14 @@ fit_results_formatted <- fit_results %>%
         term = factor(term, c(
             "(Intercept)",
             "prior_vax_num",
-            paste0("prior_vax", 1:5),
+            paste0("prior_vax", 0:5),
             "bmi",
-            "has_comorbidity",
+            paste0("has_comorbidity", 0:1),
             "age_contribute_year",
-            "notfemale",
-            "vaccine_brandGSK",
-            "vaccine_brandSeqirus"
+            paste0("notfemale", 0:1),
+            paste0("vaccine_brand", c("Sanofi", "GSK", "Seqirus")),
+            "logbaseline",
+            paste0("baseline_titre", 5 * 2^(0:11))
         )),
         across(starts_with("202"), ~replace_na(.x, " ")),
     ) %>%
@@ -697,6 +780,7 @@ serology_for_tables %>%
                 axis.title.x = element_blank(),
                 plot.margin = margin(1, 1, 1, 20),
                 panel.grid.minor = element_blank(),
+                text = element_text(size = 9),
             ),
             guides(color = guide_legend(nrow = 1), shape = guide_legend(nrow = 1), lty = guide_legend(nrow = 1)),
             scale_color_viridis_d(option = "D", end = 0.8)
@@ -738,8 +822,8 @@ serology_for_tables %>%
                     geom_text(
                         aes(x = 0, y = 5, label = virus),
                         hjust = 0.1, size = 2.5,
-                        data = all_gmts %>% 
-                            filter(subtype == key$subtype) %>% 
+                        data = all_gmts %>%
+                            filter(subtype == key$subtype) %>%
                             select(year, virus_egg_cell, virus) %>%
                             distinct(),
                         inherit.aes = FALSE,
@@ -747,19 +831,19 @@ serology_for_tables %>%
                 seropositivity_plot <- relevant_serology %>%
                     summarise(.by = c(subtype, virus_egg_cell, year, day, `Prior vaccinations`), summarise_prop3(titre >= 40)) %>%
                     gmtlike_plot() +
-                    scale_y_continuous("Proportion (95% CI) seropositive (titre >= 40)", breaks = seq(0, 1, 0.1), labels = scales::percent_format()) +
+                    scale_y_continuous("Proportion (95% CI) seropositive\n(titre >= 40)", breaks = seq(0, 1, 0.1), labels = scales::percent_format()) +
                     coord_cartesian(ylim = c(0, 1))
                 relevant_serology_wide <- modded_serology_wide %>% filter(subtype == key$subtype)
                 seroconv_plot <- relevant_serology_wide %>%
                     summarise(.by = c(subtype, virus_egg_cell, year, `Prior vaccinations`), summarise_prop3(ratio >= 4)) %>%
                     gmrlike_plot() +
-                    scale_y_continuous("Proportion (95% CI) seroconverted (rise >= 4)", breaks = seq(0, 1, 0.1), labels = scales::percent_format()) +
+                    scale_y_continuous("Proportion (95% CI) seroconverted\n(rise >= 4)", breaks = seq(0, 1, 0.1), labels = scales::percent_format()) +
                     coord_cartesian(ylim = c(0, 1))
                 relevant_fit_results <- fit_results_table %>%
                     filter(subtype == key$subtype) %>%
                     mutate(
-                        `Prior vaccinations` = prior_vax, 
-                        year = as.numeric(year), 
+                        `Prior vaccinations` = prior_vax,
+                        year = as.numeric(year),
                         virus_egg_cell = tools::toTitleCase(virus_egg_cell),
                         mean = exp(emmean),
                         low = exp(lower.CL),
@@ -770,7 +854,7 @@ serology_for_tables %>%
                 fit_results_log14_plot <- fit_results_log14 %>%
                     ggplot(aes(year, mean, col = `Prior vaccinations`, shape = `Prior vaccinations`)) +
                     common_els +
-                    scale_y_log10("Adjusted post-vaccination GMT (95% CI)", breaks = 5 * 2^(0:20), expand = expansion(0.1)) +
+                    scale_y_log10("Adjusted post-vaccination GMT\n(95% CI)", breaks = 5 * 2^(0:20), expand = expansion(0.1)) +
                     facet_wrap(~ virus_egg_cell, ncol = 1, strip.position = "right") +
                     scale_x_continuous(breaks = c(2020, 2021)) +
                     coord_cartesian(ylim = c(5, max(max_gmt))) +
@@ -787,15 +871,59 @@ serology_for_tables %>%
                     scale_y_log10("GMR (95% CI)", breaks = 2^(0:10)) +
                     scale_x_continuous(breaks = c(2020, 2021)) +
                     coord_cartesian(ylim = c(1, max_rise)) +
-                    geom_pointrange(aes(ymin = low, ymax = high), position = position_dodge(width = 0.75))
-                ggpubr::ggarrange(
-                    ggpubr::ggarrange(gmt_plot, rises_plot, nrow = 1, common.legend = TRUE),
-                    ggpubr::ggarrange(fit_results_log14_plot, seroconv_plot, seropositivity_plot, nrow = 1, legend = "none", widths = c(1, 1, 1.75)),
-                    heights = c(1, 0.75),
+                    geom_pointrange(aes(ymin = low, ymax = high), position = position_dodge(width = 0.75))                
+                baselineprior_plot <- relevant_serology_wide %>%
+                    summarise(.by = c(subtype, virus_egg_cell, year, prior_vax, `0`), summarise_prop3(ratio >= 4)) %>%
+                    filter(!is.na(mean)) %>%
+                    mutate(`Prior vaccinations` = factor(prior_vax), virus_egg_cell = tools::toTitleCase(virus_egg_cell)) %>%
+                    ggplot(aes(`0`, mean, color = `Prior vaccinations`, shape = `Prior vaccinations`, lty = `Prior vaccinations`)) +
+                    common_els +
+                    theme(
+                        axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
+                        axis.title.x = element_text(),
+                    ) +
+                    scale_x_log10("Baseline titre", breaks = 5 * 2^(0:20)) +
+                    scale_y_continuous("Proportion seroconverted\n(rise >= 4)", breaks = seq(0, 1, 0.1), labels = scales::percent_format()) +
+                    facet_grid(virus_egg_cell ~ year) +
+                    geom_line() +
+                    geom_point()                    
+                legend <- relevant_serology %>%
+                    ggplot(aes(color = `Prior vaccinations`, shape = `Prior vaccinations`, lty = `Prior vaccinations`)) +
+                    common_els +
+                    theme(
+                        axis.text.y = element_text(size = 10),
+                        axis.text.x = element_blank(),
+                        axis.ticks = element_blank(),
+                        axis.title = element_blank(),
+                        panel.border = element_blank(),
+                        panel.grid = element_blank(),
+                        legend.direction = "vertical"
+                    ) +
+                    geom_pointrange(aes(1, `Prior vaccinations`, xmin = 0.9, xmax = 1.1)) +
+                    scale_y_discrete(position = "right") +
+                    ggtitle("Prior vaccinations")
+                addtitle <- function(title, pos) list(labs(tag = title), theme(plot.tag.position = pos, plot.tag = element_text(vjust = 1, hjust = 0)))
+                arranged <- ggpubr::ggarrange(
+                    ggpubr::ggarrange(
+                        gmt_plot + addtitle("A", c(-0.075, 1)), 
+                        ggpubr::ggarrange(NULL, fit_results_log14_plot + addtitle("B", c(-0.075, 1.1)), NULL, ncol = 1, heights = c(0.1, 1, 0.15), legend = "none"),
+                        nrow = 1, common.legend = TRUE, legend = "none", widths = c(1, 0.65)
+                    ),
+                    ggpubr::ggarrange(
+                        ggpubr::ggarrange(NULL, seroconv_plot + addtitle("C", c(-0.12, 1.1)), NULL, ncol = 1, heights = c(0.1, 1, 0.05), legend = "none"), 
+                        baselineprior_plot + addtitle("D", c(-0.075, 1)), 
+                        nrow = 1, common.legend = TRUE, legend = "none", widths = c(0.65, 1)
+                    ),
+                    ggpubr::ggarrange(
+                        seropositivity_plot + addtitle("E", c(-0.075, 1)),
+                        NULL, ggpubr::ggarrange(NULL, legend, NULL, ncol = 1, legend = "none", heights = c(1, 2, 1)), NULL, 
+                        nrow = 1, common.legend = TRUE, legend = "none", widths = c(4, 1, 1, 1)
+                    ),
+                    heights = c(1, 1, 1),
                     ncol = 1,
                     common.legend = TRUE
-                ) %>%
-                    save_plot(paste0("combined-", key$subtype), width = 21, height = 21, units = "cm")
+                )
+                save_plot(arranged, paste0("combined-", key$subtype), width = 14, height = 21, units = "cm")
             })
     })
 
@@ -986,7 +1114,7 @@ read_docx() %>%
     body_add_table(
         baseline_table %>%
             mutate(
-                var = recode(var, 
+                var = recode(var,
                         "empstatus_" = "Employment status",
                         "age" = "Age, median (range), yr",
                         "bmi" = "BMI, median (range)",
@@ -1013,43 +1141,6 @@ read_docx() %>%
             rename(` ` = var, `Total*` = Total)
     ) %>%
     body_add_par("") %>%
-    (function(doc) {
-        word_fmt <- fit_results_formatted %>%
-            group_by(outcome, subtype, virus_egg_cell) %>%
-            group_map(.keep = TRUE, function(group, key) {
-                group %>%
-                    mutate(
-                        across(ends_with("_num"), ~ if_else(str_detect(term, "prior_vax[^_]"), " ", .x)),
-                        term = case_when(
-                            row_number() == 1 ~ paste(key$subtype, key$virus_egg_cell),
-                            `2020crude` == " " ~ " ",
-                            `2020crude` == "ref" & term == "prior_vax1" ~ "prior_vax0",
-                            `2020crude` == "ref" & term == "has_comorbidity" ~ "Absence of any health condition",
-                            `2020crude` == "ref" & term == "notfemale" ~ "Female",
-                            `2020crude` == "ref" & term == "vaccine_brandGSK" ~ "Sanofi",
-                            TRUE ~ term,
-                        ) %>%
-                            if_else(row_number() == first(which(. == "prior_vax0")) - 1, "Prior vaccinations (categorical)", .) %>%
-                            if_else(row_number() == first(which(. == "Sanofi")) - 1, "Brand", .) %>%
-                            recode(
-                                "has_comorbidity" = "Presence of any health condition",
-                                "age_contribute_year" = "Age (ref 18)",
-                                "notfemale" = "Not female",
-                                "prior_vax_num" = "Prior vaccinations (linear)",
-                            ) %>%
-                            str_replace("^(prior_vax)|(vaccine_brand)", ""),
-                    )
-            }) %>%
-            bind_rows() %>%
-            select(-subtype, -virus_egg_cell) %>%
-            mutate(across(everything(), ~replace_na(.x, " ")))
-        doc %>%
-            body_add_par("Fit results - postvax titres") %>%
-            body_add_table(word_fmt %>% filter(outcome == "log14") %>% select(-outcome)) %>%
-            body_add_par("") %>%
-            body_add_par("Fit results - rises") %>%
-            body_add_table(word_fmt %>% filter(outcome == "logratio") %>% select(-outcome))
-    }) %>%
     body_add_par("") %>%
     body_add_par("Bleed intervals") %>%
     reduce(tools::list_files_with_exts("hcw-year-1-2-serology", "png") %>% .[str_detect(., "combined-")], .init = ., function(doc, img) {
@@ -1152,3 +1243,99 @@ read_docx() %>%
             body_end_section_landscape()
     }) %>%
     print(target = "hcw-year-1-2-serology/gmt-gmr-seropos-seroconv.docx")
+
+read_docx() %>%
+    (function(doc) {
+        fit_results_formatted %>%
+            group_by(outcome, subtype, virus_egg_cell) %>%
+            group_walk(function(group, key) {
+                group_fmt <- group %>%
+                    (function(group) {
+                        if (key$outcome != "logratio") {
+                            filter(group, !str_starts(term, "baseline_titre"))
+                        } else {
+                            group
+                        }
+                    }) %>%
+                    mutate(
+                        term = case_when(
+                            `2020adjusted_cat` == " " & `2020n` != "0" ~ " ",
+                            TRUE ~ term,
+                        ) %>%
+                            if_else(row_number() == first(which(. == "prior_vax0")) - 1, "Prior vaccinations", .) %>%
+                            if_else(row_number() == first(which(. == "vaccine_brandSanofi")) - 1, "Brand", .) %>%
+                            if_else(row_number() == first(which(. == "has_comorbidity0")) - 1, "Health conditions", .) %>%
+                            if_else(row_number() == first(which(. == "notfemale0")) - 1, "Sex", .) %>%
+                            if_else(key$outcome == "logratio" & row_number() == first(which(. == "baseline_titre5")) - 1, "Baseline titre", .) %>%
+                            recode(
+                                "has_comorbidity0" = "Absence of any health condition",
+                                "has_comorbidity1" = "Presence of any health condition",
+                                "age_contribute_year" = "Age (ref 18)",
+                                "notfemale0" = "Female",
+                                "notfemale1" = "Not female",
+                                "logbaseline" = "Log2 baseline (ref 5)",
+                            ) %>%
+                            str_replace("^(prior_vax)|(vaccine_brand)|(baseline_titre)", ""),
+                    ) %>%
+                    bind_rows(tibble(term = " ", `2020n` = "n", `2020adjusted_cat` = "Estimate", `2021n` = "n", `2021adjusted_cat` = "Estimate"), .) %>%
+                    rename(` ` = term, `2020` = `2020n`, `  ` = `2020adjusted_cat`, `2021` = `2021n`, `   ` = `2021adjusted_cat`) %>%
+                    flextable() %>%
+                    theme_booktabs() %>%
+                    bg(bg = "white", part = "all") %>%
+                    fontsize(size = 9, part = "all") %>%
+                    padding(padding = 0, part = "all") %>%
+                    merge_at(i = 1, j = 2:3, part = "header") %>%
+                    merge_at(i = 1, j = 4:5, part = "header") %>%
+                    align(j = 2:5, align = "center", part = "all") %>%
+                    (function(doc) {
+                        bolds <- c(2, 2, 8, 4, 2, 4)
+                        if (key$outcome != "log14") {
+                            bolds <- c(bolds, 5)
+                        }
+                        bold(doc, i = cumsum(bolds), j = 1)
+                    }) %>%
+                    autofit()
+                doc <<- doc %>%
+                    body_add_par(paste("Fit results", key$outcome, key$subtype, key$virus_egg_cell)) %>%
+                    body_add_flextable(group_fmt)
+            })
+        print(doc %>% body_end_section_landscape(), target = "hcw-year-1-2-serology/fit_results.docx")
+    })
+
+data_for_model_fit %>%
+    group_by(virus, subtype, year, virus_egg_cell) %>%
+    group_map(function(data, key) {
+        jtest <- PMCMRplus::jonckheereTest(data$log14, data$prior_vax)
+        fit <- lm(log14 ~ prior_vax_num, data)
+        fit %>%
+            broom::tidy() %>%
+            mutate(r2 = summary(fit)$r.squared, pval_jtest = jtest$p.value) %>%
+            bind_cols(key)
+    }) %>%
+    bind_rows() %>%
+    mutate(estimate_str = glue::glue("{signif(exp(estimate), 2)} ({signif(exp(estimate - 1.96 * std.error), 2)}, {signif(exp(estimate + 1.96 * std.error), 2)})")) %>%
+    select(-estimate, -std.error, -statistic) %>%
+    pivot_wider(names_from = "term", values_from = c("estimate_str", "p.value")) %>%
+    mutate(
+        across(c(p.value_prior_vax_num, pval_jtest), function(pv) if_else(pv < 0.001, "<0.001", as.character(signif(pv, 2)))),
+    ) %>%
+    select(
+        Year = year, Subtype = subtype, Substrate = virus_egg_cell,
+        Intercept = `estimate_str_(Intercept)`,
+        `Estimate for linear prior vaccination` = estimate_str_prior_vax_num,
+        `p-value` = p.value_prior_vax_num,
+        pval_jtest,
+    ) %>%
+    arrange(Year, Subtype, Substrate) %>%
+    flextable() %>%
+    theme_booktabs() %>%
+    hline(i = 8) %>%
+    fontsize(size = 9, part = "all") %>%
+    merge_v(1:3) %>%
+    autofit() %>%
+    align(align = "center", part = "all") %>%
+    (function(table) {
+        read_docx() %>%
+            body_add_flextable(table) %>%
+            print(target = "hcw-year-1-2-serology/prior_vax_linear_fit.docx")
+    })
