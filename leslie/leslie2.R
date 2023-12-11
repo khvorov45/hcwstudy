@@ -205,3 +205,67 @@ vac_hist %>%
     mutate(site = factor(site, c("melbourne", "sydney", "newcastle", "adelaide", "brisbane", "perth", "total"))) %>%
     arrange(site) %>%
     write_csv("leslie/naive-nested.csv")
+
+read_csv("data/participants.csv", col_types = cols()) %>%
+    select(pid) %>%
+    left_join(
+        read_csv("data/bleed-dates.csv", col_types = cols()) %>%
+            filter(year == 2023) %>%
+            summarise(.by = pid, hasany = TRUE, has220 = 220 %in% day),
+        c("pid")
+    ) %>%
+    mutate(hasany = replace_na(hasany, FALSE), has220 = replace_na(has220, FALSE), site = str_sub(pid, 1, 3)) %>%
+    filter(hasany) %>%
+    count(has220, site)
+
+format_iqr <- function(x) {
+    glue::glue("{round(median(x))} [{round(quantile(x, 0.25))}, {round(quantile(x, 0.75))}] [{round(min(x))}, {round(max(x))}]")
+}
+
+read_csv("data/participants.csv", col_types = cols()) %>%
+    left_join(
+        read_csv("data/covid-vax.csv", col_types = cols()) %>%
+            filter(dose == 2) %>%
+            select(pid, brand),
+        "pid",
+        relationship = "one-to-one"
+    ) %>%
+    left_join(
+        read_csv("data/covid-vax.csv", col_types = cols()) %>%
+            filter(dose %in% 1:2) %>%
+            select(pid, dose, date) %>%
+            pivot_wider(names_from = "dose", values_from = "date") %>%
+            mutate(dose_1_2_interval = `2` - `1`) %>%
+            select(pid, dose_1_2_interval),
+        "pid",
+        relationship = "one-to-one",
+    ) %>%
+    left_join(
+        read_csv("data/covid-vax.csv", col_types = cols()) %>%
+            filter(dose == 2) %>%
+            select(pid, dose2_date = date) %>%
+            left_join(
+                read_csv("data/covid-bleed-dates.csv", col_types = cols()) %>%
+                    select(pid, day, date) %>%
+                    filter(day %in% c(7, 14)) %>%
+                    filter(.by = c(pid, day), row_number() == 1) %>%
+                    pivot_wider(names_from = "day", values_from = "date"),
+                "pid",
+                relationship = "one-to-one",
+            ) %>%
+            mutate(dose2_to_7 = `7` - dose2_date, dose2_to_14 = `14` - dose2_date) %>%
+            select(pid, dose2_to_7, dose2_to_14),
+        "pid",
+        relationship = "one-to-one",
+    ) %>%
+    filter(pid %in% c("PCH-089", "PCH-097", "PCH-102", "PCH-129", "WCH-806", "ALF-806", "PCH-079", "PCH-180", "PCH-808", "PCH-822")) %>%
+    summarise(
+        .by = brand,
+        age = format_iqr(age_screening),
+        prop_female = glue::glue("{sum(gender == \"female\")} ({sum(gender == \"female\") / n() * 100}%)"),
+        interval_dose1_2 = format_iqr(dose_1_2_interval),
+        interval_dose2_day7 = format_iqr(dose2_to_7),
+        interval_dose2_day14 = format_iqr(dose2_to_14),
+    ) %>%
+    print() %>%
+    write_csv("temp.csv")

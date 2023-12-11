@@ -1207,7 +1207,10 @@ postinf_vars <- c(
   "record_id",
   "swab_collection",
   "samp_date",
+  "site_rec_date",
+  "site_test_date",
   "swab_result",
+  "swab_other",
   "d7_postinfection_blood",
   "d14_postinfection_blood",
   "d30_postinfection_blood",
@@ -1259,7 +1262,7 @@ swabs_long <- swabs_no_missing %>%
     "15" = "Negative",
     "ni" = "NI",
   )) %>%
-  select(pid, year, postinf_instance, samp_date, swab_virus, swab_result, redcap_event_name)
+  select(pid, year, postinf_instance, samp_date, site_rec_date, site_test_date, swab_virus, swab_result, redcap_event_name)
 
 check_no_rows(
   swabs_long %>%
@@ -1269,6 +1272,15 @@ check_no_rows(
 )
 
 write_csv(swabs_long, "data/swabs.csv")
+
+swabs_no_missing %>%
+  filter(!is.na(swab_other)) %>%
+  select(pid, year, postinf_instance, swab_other) %>%
+  mutate(
+    rsv = str_detect(tolower(swab_other), "respiratory syncytial virus") | 
+      swab_other %in% c("RSV", "RSV positive", "RSV POS", "RSV pov", "RSV POSITIVE", "RSV (NAA)", "COVID + RSV positive"),
+  ) %>%
+  write_csv("data/swabs_other.csv")
 
 postinf_bleed_dates <- redcap_postinf %>%
   select(-contains("swab_result___")) %>%
