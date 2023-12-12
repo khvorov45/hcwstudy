@@ -832,7 +832,8 @@ covax_request <- covax_request_raw %>%
       select(record_id, pid, redcap_project_year),
     c("record_id", "redcap_project_year")
   ) %>%
-  select(pid, redcap_project_year, dose, received, date, batch, brand)
+  select(pid, redcap_project_year, dose, received, date, batch, brand) %>%
+  mutate(batch = if_else(tolower(str_trim(batch)) == "unknown", NA_character_, batch))
 
 check_no_rows(
   covax_request %>%
