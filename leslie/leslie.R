@@ -66,3 +66,18 @@ swabs_complete %>%
     mutate(samp_date_year = year(samp_date)) %>%
     summarise(n = n(), pids = length(unique(pid)), min_date = min(samp_date), max_date = max(samp_date))
 
+read_csv("data/bleed-dates.csv", col_types = cols()) %>%
+    filter(samp_type == "serum" | samp_type == "both", str_starts(pid, "PCH"), year == 2023) %>%
+    arrange(day, pid) %>%
+    write_csv("temp.csv")
+
+read_csv("data/postinf-bleed-dates.csv", col_types = cols()) %>%
+    filter(str_starts(pid, "PCH"), year == 2023) %>%
+    select(-postinf_instance, -swab_collection, -redcap_event_name) %>%
+    arrange(day, pid) %>%
+    rename(postinf_day = day) %>%
+    mutate(` ` = "", `  ` = "") %>%
+    write_csv("temp.csv")
+
+
+
