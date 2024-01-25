@@ -95,7 +95,7 @@ serology_all_tables <- list.files("data-raw/serology", pattern = "HI_.*_202[012]
     if (str_ends(path, "HI_H3N2egg_2022_V75.csv")) {
       tbl <- mutate(tbl, Designation = "A/Darwin/9/2021e")
     } else if (str_ends(path, "HI_H3N2cell_2022_V78.csv")) {
-      tbl <- mutate(tbl, Designation = "A/Darwin/9/2021")
+      tbl <- mutate(tbl, Designation = "A/Darwin/6/2021")
     } else if (str_ends(path, "HI_H1N1egg_ivr_2022_V72.csv")) {
       tbl <- mutate(tbl, Designation = "A/Victoria/2570/2019e")
     } else if (str_ends(path, "HI_H1N1cell_2022_V67.csv")) {
@@ -177,7 +177,7 @@ serology_all_tables_fix_viruses <- serology_all_tables_fix_day %>%
       # NOTE(sen) From VCM trees (data-raw/trees)
       "A/Brisbane/02/2018" = "6B.1A.1",
       "A/Brisbane/02/2018e" = "6B.1A.1",
-      "A/Darwin/09/2021" = "3C.2a1b.2a.2",
+      "A/Darwin/06/2021" = "3C.2a1b.2a.2",
       "A/Darwin/09/2021e" = "3C.2a1b.2a.2",
       "A/Darwin/726/2019" = "3C.2a1b.1b",
       "A/Hong Kong/2671/2019e" = "3C.2a1b",
@@ -197,7 +197,7 @@ serology_all_tables_fix_viruses <- serology_all_tables_fix_day %>%
     virus_vaccine =
       year == 2020 & (str_starts(virus, "A/Brisbane/02/2018") | str_starts(virus, "A/South Australia/34/2019") | str_starts(virus, "B/Washington/02/2019") | str_starts(virus, "B/Phuket/3073/2013")) |
       year == 2021 & (str_starts(virus, "A/Victoria/2570/2019") | str_starts(virus, "A/Hong Kong/2671/2019") | str_starts(virus, "A/Darwin/726/2019") | str_starts(virus, "B/Washington/02/2019") | str_starts(virus, "B/Phuket/3073/2013")) |
-      year == 2022 & (str_starts(virus, "A/Victoria/2570/2019") | str_starts(virus, "A/Darwin/09/2021") | str_starts(virus, "B/Austria/1359417/2021") | str_starts(virus, "B/Phuket/3073/2013"))
+      year == 2022 & (str_starts(virus, "A/Victoria/2570/2019") | str_starts(virus, "A/Darwin/0[69]/2021") | str_starts(virus, "B/Austria/1359417/2021") | str_starts(virus, "B/Phuket/3073/2013"))
   )
 
 check_no_rows(
