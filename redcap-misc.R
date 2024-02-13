@@ -79,3 +79,9 @@ consent_vacc2022_cleared <- consent_vacc2022 %>%
   mutate(econsent_form_vaccinated_complete = 0)
 
 #redcap_upload(2022, "baseline_arm_1", consent_vacc2022_cleared)
+
+#
+# SECTION Upload serology data
+#
+
+read_csv("data/serology.csv", col_types = cols())
