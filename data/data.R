@@ -517,7 +517,8 @@ check_no_rows(
   "participants non-baseline missing"
 )
 
-write_csv(participants_with_extras, "data/participants.csv")
+# NOTE(sen) Remove 'identifiers'
+write_csv(participants_with_extras %>% select(-dob, -email, -mobile), "data/participants.csv")
 
 #
 # SECTION Participant information that changes yearly
