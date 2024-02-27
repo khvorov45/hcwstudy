@@ -47,9 +47,8 @@ add_total <- function(data) {
 
 participants_for_summary <- participants %>%
     mutate(
-        # NOTE(sen) Remove ages/dates of birth that don't make sense
+        # NOTE(sen) Remove ages that don't make sense
         age_screening = if_else(age_screening < 18 | age_screening > 65, NA_real_, age_screening),
-        dob = if_else(is.na(age_screening), NA_Date_, dob),
     ) %>%
     left_join(
         serology %>%
@@ -99,6 +98,8 @@ participants_for_summary <- participants %>%
         vaccine_brand = factor(vaccine_brand, c("GSK", "Sanofi", "Seqirus")),
         gender = factor(gender, c("female", "male", "other")),
         emp_status = factor(emp_status, c("Full time", "Part time", "Casual")),
+        dob = if_else(!is.na(age_screening), paste0(round(recruitment_year - age_screening), "-07-01"), NA_character_),
+        dob = ymd(dob),
         age_contribute_year = if_else(
             contribute_year == "Total",
             (ymd(paste0(recruitment_year, "-04-01")) - dob) / lubridate::dyears(1),
@@ -339,8 +340,8 @@ seroconv_prioronly_plots <- serology_for_tables_ratios %>%
 
 save_plot(seroconv_prioronly_plots, "seroconv_prioronly_plots", width = 15, height = 20, units = "cm")
 
-seroconv_baselineonly_plots <- serology_for_tables_ratios %>%
-    filter(!is.na(`0`)) %>%
+serology_for_tables_ratios %>%
+    filter(!is.na(`0`), !subtype %in% c("B(Victoria)", "B(Yamagata)")) %>%
     mutate(baseline_cat = if_else(`0` < 160, as.character(`0`), ">=160") %>% fct_reorder(`0`)) %>%
     summarise(.by = c(subtype, virus_egg_cell, year, baseline_cat), summarise_prop3(ratio >= 4)) %>%
     filter(!is.na(mean)) %>%
@@ -350,8 +351,9 @@ seroconv_baselineonly_plots <- serology_for_tables_ratios %>%
         good_sample = prop3_total >= 5,
         xpos = year + (as.integer(Baseline) - 3) * 0.1
     ) %>%
-    (function(data) {
-        ggplot(data, aes(xpos, mean, color = Baseline, shape = Baseline, lty = Baseline)) +
+    group_by(subtype) %>%
+    group_map(function(data, key) {
+        (ggplot(data, aes(xpos, mean, color = Baseline, shape = Baseline, lty = Baseline)) +
         theme_bw() +
         theme(
             legend.position = "top",
@@ -363,13 +365,12 @@ seroconv_baselineonly_plots <- serology_for_tables_ratios %>%
         scale_x_continuous(breaks = c(2020, 2021)) +
         scale_y_continuous("Proportion (95% CI) seroconverted (rise >= 4)") +
         scale_color_viridis_d(option = "D", end = 0.8) +
-        facet_grid(subtype ~ virus_egg_cell) +
+        facet_wrap(~virus_egg_cell) +
         guides(color = guide_legend(nrow = 1), shape = guide_legend(nrow = 1), lty = guide_legend(nrow = 1)) +
         geom_pointrange(aes(ymin = low, ymax = high)) +
-        geom_point(aes(xpos, mean), inherit.aes = FALSE, shape = 1, data = filter(data, !good_sample), color = "red", size = 4)
+        geom_point(aes(xpos, mean), inherit.aes = FALSE, shape = 1, data = filter(data, !good_sample), color = "red", size = 4)) %>%
+        save_plot(paste0("seroconv_baselineonly_plots_", key$subtype), width = 20, height = 12, units = "cm")
     })
-
-save_plot(seroconv_baselineonly_plots, "seroconv_baselineonly_plots", width = 15, height = 20, units = "cm")
 
 serology_for_tables_ratios %>%
     mutate(year = as.character(year), virus_egg_cell = tools::toTitleCase(virus_egg_cell)) %>%
